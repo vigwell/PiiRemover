@@ -12,10 +12,10 @@
     <File Path="Deploy/Deploy-PiiRemover.ps1" />
   </Folder>
   <Folder Name="/Installs/">
-    <File Path="../../../Downloads/DB.Browser.for.SQLite-v3.13.1-win64.msi" />
-    <File Path="../../../Downloads/dotnet-hosting-10.0.8-win.exe" />
-    <File Path="Install-HebrewOcr.ps1" />
-    <File Path="Register-EventLogSource.ps1" />
+    <File Path="Installs/DB.Browser.for.SQLite-v3.13.1-win64.msi" />
+    <File Path="Installs/dotnet-hosting-10.0.8-win.exe" />
+    <File Path="Installs/Install-HebrewOcr.ps1" />
+    <File Path="Installs/Register-EventLogSource.ps1" />
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="PiiRemover.Tests/PiiRemover.Tests.csproj" />

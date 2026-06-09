@@ -19,6 +19,6 @@ TODO: CREATE POWESHELL script that installs all prerequisites + firewall rules
 https://localhost:7049/admin
 admin 2026
 
-
+48.199.16.164
 piiremoteadmin
 PiiAdmin2026!!!
