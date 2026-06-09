@@ -13,12 +13,14 @@ public class OcrController : ControllerBase
 {
     private readonly ExtractorFactory _extractors;
     private readonly IQuotaRepository _quota;
+    private readonly ILogRepository _logs;
     private readonly IPiiLogger _logger;
 
-    public OcrController(ExtractorFactory extractors, IQuotaRepository quota, IPiiLogger logger)
+    public OcrController(ExtractorFactory extractors, IQuotaRepository quota, ILogRepository logs, IPiiLogger logger)
     {
         _extractors = extractors;
         _quota      = quota;
+        _logs       = logs;
         _logger     = logger;
     }
 
@@ -48,7 +50,7 @@ public class OcrController : ControllerBase
             sw.Stop();
             await _quota.IncrementAsync();
 
-            _logger.LogRequest(new PiiRequestLog
+            var logEntry = new PiiRequestLog
             {
                 Operation     = "Ocr",
                 ClientId      = clientId,
@@ -59,6 +61,16 @@ public class OcrController : ControllerBase
                 ExtractorUsed = extractor.GetType().Name,
                 DurationMs    = sw.ElapsedMilliseconds,
                 ExtractedText = text
+            };
+            _logger.LogRequest(logEntry);
+            await _logs.InsertAsync(new RequestLogEntry
+            {
+                ClientId   = clientId,
+                FileName   = file.FileName,
+                FileSizeKb = (int)(file.Length / 1024),
+                DurationMs = sw.ElapsedMilliseconds,
+                FieldsHit  = null,
+                ErrorMsg   = null
             });
 
             return Ok(new { text, charCount = text.Length, durationMs = sw.ElapsedMilliseconds });

@@ -36,7 +36,21 @@ public class FieldRepository : IFieldRepository
     public async Task<IEnumerable<PiiField>> GetAllFieldsAsync()
     {
         using var conn = Open();
-        return await conn.QueryAsync<PiiField>("SELECT * FROM PiiFields ORDER BY Id DESC");
+        var fields = (await conn.QueryAsync<PiiField>(
+            "SELECT * FROM PiiFields ORDER BY FieldName")).ToList();
+
+        if (fields.Count == 0) return fields;
+
+        var patterns = await conn.QueryAsync<PiiPattern>(
+            $"SELECT * FROM PiiPatterns WHERE FieldId IN ({string.Join(",", fields.Select(f => f.Id))}) ORDER BY Priority DESC");
+
+        var lookup = patterns.GroupBy(p => p.FieldId)
+                             .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var f in fields)
+            f.Patterns = lookup.TryGetValue(f.Id, out var ps) ? ps : [];
+
+        return fields;
     }
 
     public async Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith)

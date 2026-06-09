@@ -1,0 +1,20 @@
+{
+  "ApiUrl": "https://localhost:7049",
+  "ApiKey": "demo-api-key-changeme-12345",
+
+  "Ocr": {
+    "InputFolder":  "C:\\Users\\vigens\\source\\repos\\PiiRemover\\PiiRemover.BatchLoader\\ocr-input",
+    "OutputFolder": "C:\\Users\\vigens\\source\\repos\\PiiRemover\\PiiRemover.BatchLoader\\ocr-output",
+    "Enabled": true,
+    "FilePatterns": [ "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff", "*.bmp" ]
+  },
+
+  "Redact": {
+    "InputFolder":  "C:\\Users\\vigens\\source\\repos\\PiiRemover\\PiiRemover.BatchLoader\\redact-input",
+    "OutputFolder": "C:\\Users\\vigens\\source\\repos\\PiiRemover\\PiiRemover.BatchLoader\\redact-output",
+    "Enabled": true,
+    "FilePatterns": [ "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff", "*.bmp", "*.txt" ]
+  },
+
+  "MoveProcessedToDone": false
+}

@@ -4,7 +4,7 @@ public class OcrOptions
 {
     // Ordered list of engines to try. First non-empty result wins.
     // Supported: "WindowsOcr", "Tesseract"
-    public List<string> EngineOrder { get; set; } = ["WindowsOcr", "Tesseract"];
+    public List<string> EngineOrder { get; set; } = [];
 
     // Path to Tesseract tessdata folder
     public string TessdataPath { get; set; } = "tessdata";

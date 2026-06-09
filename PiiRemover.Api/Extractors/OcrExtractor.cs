@@ -1,4 +1,3 @@
-using System.Text;
 using PiiRemover.Core.Extractors;
 using SkiaSharp;
 using Tesseract;
@@ -53,13 +52,14 @@ public class OcrExtractor : ITextExtractor
     // Called by PdfTextExtractor for embedded page images without hitting the gate a second time
     internal async Task<string> ExtractFromBytesAsync(byte[] imageBytes, CancellationToken ct = default)
     {
-        foreach (var engine in _opts.EngineOrder)
+        var order = _opts.EngineOrder.Count > 0 ? _opts.EngineOrder : ["WindowsOcr"];
+        foreach (var engine in order)
         {
             ct.ThrowIfCancellationRequested();
             var text = engine switch
             {
+                "Tesseract" => TryTesseract(imageBytes),
                 "WindowsOcr" => await TryWindowsOcrAsync(imageBytes),
-                "Tesseract"  => TryTesseract(imageBytes),
                 _            => string.Empty
             };
             if (!string.IsNullOrWhiteSpace(text))
@@ -69,19 +69,26 @@ public class OcrExtractor : ITextExtractor
     }
 
     // ── Windows.Media.Ocr ────────────────────────────────────────────────────
+    // Try he-IL then en-US; for each language take the better of normal vs inverted pass.
+    // Never concatenate multiple language results — that produces doubled/garbled text.
     private static async Task<string> TryWindowsOcrAsync(byte[] imageBytes)
     {
-        var sb = new StringBuilder();
-        foreach (var langCode in new[] { "en-US", "he-IL" })
+        foreach (var langCode in new[] { "he-IL", "en-US" })
         {
             var lang = new Language(langCode);
             if (!OcrEngine.IsLanguageSupported(lang)) continue;
             var engine = OcrEngine.TryCreateFromLanguage(lang);
             if (engine is null) continue;
-            sb.Append(await RunWindowsPassAsync(engine, imageBytes, invert: false)).Append(' ');
-            sb.Append(await RunWindowsPassAsync(engine, imageBytes, invert: true)).Append(' ');
+
+            var normal   = await RunWindowsPassAsync(engine, imageBytes, invert: false);
+            var inverted = await RunWindowsPassAsync(engine, imageBytes, invert: true);
+
+            // Pick whichever pass returned more content
+            var best = normal.Length >= inverted.Length ? normal : inverted;
+            if (!string.IsNullOrWhiteSpace(best))
+                return best.Trim();
         }
-        return sb.ToString().Trim();
+        return string.Empty;
     }
 
     private static async Task<string> RunWindowsPassAsync(OcrEngine engine, byte[] imageBytes, bool invert)
@@ -107,7 +114,11 @@ public class OcrExtractor : ITextExtractor
                 text = RecognizeWithTesseract(engine, InvertImage(imageBytes));
             return text;
         }
-        catch { return string.Empty; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Tesseract] failed: {ex.Message}");
+            return string.Empty;
+        }
     }
 
     private static string RecognizeWithTesseract(TesseractEngine engine, byte[] imageBytes)

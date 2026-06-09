@@ -1,3 +1,17 @@
 1) Add engine that can get tasks folder in and out and do operations on it - ocr and reduction - storing in output text file
 2) create web portal for product (commercial + download center) + licensing prices
 3) Onlain tester - upload doc - get output text file - to show how it works
+
+
+WARNING: No license file. All API calls will return HTTP 402.
+=======================================================
+  Demo client created.
+  API Key : demo-api-key-changeme-12345
+  Header  : X-Api-Key: demo-api-key-changeme-12345
+  Change this key via the backoffice after first login.
+=======================================================
+
+4) install vm to show demo
+
+https://localhost:7049/admin
+admin 2026

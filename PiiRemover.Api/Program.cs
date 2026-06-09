@@ -51,9 +51,11 @@ builder.Services.AddSingleton<IQuotaRepository>(_ => new QuotaRepository(cs));
 builder.Services.AddSingleton<ISettingsRepository>(_ => new SettingsRepository(cs));
 
 // ── Windows Event Log ─────────────────────────────────────────────────────────
-var logModeStr = cfg["Logging:EventLog:Mode"] ?? "Production";
+var logModeStr   = cfg["Logging:EventLog:Mode"]       ?? "Production";
+var logSourceName = cfg["Logging:EventLog:SourceName"] ?? "PiiRemover";
+var logName       = cfg["Logging:EventLog:LogName"]    ?? "PiiRemover";
 var logMode = Enum.TryParse<LogMode>(logModeStr, true, out var lm) ? lm : LogMode.Production;
-builder.Services.AddSingleton<IPiiLogger>(_ => new WindowsEventLogger(logMode));
+builder.Services.AddSingleton<IPiiLogger>(_ => new WindowsEventLogger(logSourceName, logName, logMode));
 
 // ── Background services ───────────────────────────────────────────────────────
 builder.Services.AddHostedService<LogCleanupService>();
@@ -68,6 +70,12 @@ builder.Services.AddSingleton<RedactionOrchestrator>(sp =>
 // ── OCR options + extractors ──────────────────────────────────────────────────
 var ocrOpts = new OcrOptions();
 cfg.GetSection("Ocr").Bind(ocrOpts);
+// Resolve tessdata path relative to the exe so it works in VS (F5) and published deployments
+if (!Path.IsPathRooted(ocrOpts.TessdataPath))
+    ocrOpts.TessdataPath = Path.Combine(AppContext.BaseDirectory, ocrOpts.TessdataPath);
+Console.WriteLine($"OCR engine order : {string.Join(" -> ", ocrOpts.EngineOrder)}");
+Console.WriteLine($"OCR tessdata path: {ocrOpts.TessdataPath}");
+Console.WriteLine($"OCR tessdata exists: {Directory.Exists(ocrOpts.TessdataPath)}");
 builder.Services.AddSingleton(ocrOpts);
 
 // OcrExtractor is a singleton — its SemaphoreSlim lives for the app lifetime

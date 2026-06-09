@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PiiRemover.BatchLoader</AssemblyName>
+    <RootNamespace>PiiRemover.BatchLoader</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Copy config to output dir so it sits next to the exe -->
+  <ItemGroup>
+    <Content Include="batchloader.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="ocr-output\" />
+    <Folder Include="redact-output\" />
+  </ItemGroup>
+
+</Project>

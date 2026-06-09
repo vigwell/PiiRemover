@@ -1,87 +1,170 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>@ViewData["Title"] — PiiRemover Admin</title>
 <style>
+/* ── CSS variables — light theme ─────────────────────────────────────── */
+:root {
+  --bg:        #f0f2f5;
+  --surface:   #ffffff;
+  --surface2:  #fafafa;
+  --border:    #f0f0f0;
+  --border2:   #d9d9d9;
+  --text:      #222222;
+  --text2:     #555555;
+  --text3:     #888888;
+  --nav-bg:    #001529;
+  --nav-link:  #ffffffa0;
+  --nav-active:#ffffff;
+  --title:     #001529;
+  --mono-bg:   #f5f5f5;
+  --shadow:    0 1px 4px rgba(0,0,0,.06);
+  --input-focus-shadow: 0 0 0 2px rgba(22,119,255,.13);
+  --hover-row: #fafafa;
+}
+/* ── dark theme ─────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --surface2:  #1c2128;
+  --border:    #30363d;
+  --border2:   #444c56;
+  --text:      #e6edf3;
+  --text2:     #adbac7;
+  --text3:     #636e7b;
+  --nav-bg:    #090d13;
+  --nav-link:  #adbac7;
+  --nav-active:#e6edf3;
+  --title:     #e6edf3;
+  --mono-bg:   #1c2128;
+  --shadow:    0 1px 4px rgba(0,0,0,.4);
+  --input-focus-shadow: 0 0 0 2px rgba(22,119,255,.25);
+  --hover-row: #1c2128;
+}
+
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#f0f2f5;color:#222;font-size:14px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+     background:var(--bg);color:var(--text);font-size:14px;transition:background .2s,color .2s}
 a{color:#1677ff;text-decoration:none}a:hover{text-decoration:underline}
+
 /* nav */
-.nav{background:#001529;padding:0 24px;display:flex;align-items:center;height:48px;gap:24px}
+.nav{background:var(--nav-bg);padding:0 24px;display:flex;align-items:center;height:48px;gap:24px}
 .nav .brand{color:#fff;font-size:16px;font-weight:600;letter-spacing:.5px}
-.nav a{color:#ffffffa0;font-size:13px;padding:4px 0}
-.nav a:hover,.nav a.active{color:#fff;text-decoration:none}
+.nav a{color:var(--nav-link);font-size:13px;padding:4px 0;transition:color .15s}
+.nav a:hover,.nav a.active{color:var(--nav-active);text-decoration:none}
 .nav .spacer{flex:1}
 .nav .logout{background:#ff4d4f;color:#fff;border:none;cursor:pointer;padding:4px 14px;border-radius:4px;font-size:13px}
 .nav .logout:hover{background:#d9363e}
+
+/* dark-mode toggle */
+.theme-btn{background:none;border:1px solid var(--border2);color:var(--nav-link);
+           cursor:pointer;padding:3px 10px;border-radius:4px;font-size:13px;
+           transition:all .2s;line-height:1.4}
+.theme-btn:hover{border-color:#1677ff;color:#1677ff}
+
 /* layout */
 .page{max-width:1200px;margin:24px auto;padding:0 16px}
-.page-title{font-size:20px;font-weight:600;margin-bottom:20px;color:#001529}
+.page-title{font-size:20px;font-weight:600;margin-bottom:20px;color:var(--title)}
+
 /* card */
-.card{background:#fff;border-radius:8px;box-shadow:0 1px 4px #0001;padding:20px;margin-bottom:20px}
-.card h3{font-size:15px;font-weight:600;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f0f0f0}
+.card{background:var(--surface);border-radius:8px;box-shadow:var(--shadow);
+      padding:20px;margin-bottom:20px;border:1px solid var(--border)}
+.card h3{font-size:15px;font-weight:600;margin-bottom:14px;padding-bottom:10px;
+         border-bottom:1px solid var(--border);color:var(--text)}
+
 /* table */
 table{width:100%;border-collapse:collapse}
-th{background:#fafafa;text-align:left;padding:8px 12px;font-weight:600;font-size:13px;border-bottom:2px solid #f0f0f0}
-td{padding:8px 12px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
+th{background:var(--surface2);text-align:left;padding:8px 12px;font-weight:600;
+   font-size:13px;border-bottom:2px solid var(--border);color:var(--text2)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:#fafafa}
+tr:hover td{background:var(--hover-row)}
+
 /* form controls */
 input[type=text],input[type=password],input[type=number],select,textarea{
-  border:1px solid #d9d9d9;border-radius:4px;padding:6px 10px;font-size:13px;
-  outline:none;transition:border-color .2s;width:100%}
+  background:var(--surface);color:var(--text);
+  border:1px solid var(--border2);border-radius:4px;padding:6px 10px;font-size:13px;
+  outline:none;transition:border-color .2s,background .2s;width:100%}
 input[type=text]:focus,input[type=password]:focus,input[type=number]:focus,
-select:focus,textarea:focus{border-color:#1677ff;box-shadow:0 0 0 2px #1677ff20}
+select:focus,textarea:focus{border-color:#1677ff;box-shadow:var(--input-focus-shadow)}
+select option{background:var(--surface);color:var(--text)}
 .form-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-.form-row label{white-space:nowrap;min-width:140px;font-weight:500;color:#555}
+.form-row label{white-space:nowrap;min-width:140px;font-weight:500;color:var(--text2)}
 .form-row .ctrl{flex:1}
+
 /* buttons */
 .btn{display:inline-flex;align-items:center;padding:5px 14px;border-radius:4px;font-size:13px;
      cursor:pointer;border:1px solid transparent;transition:all .2s;white-space:nowrap}
 .btn-primary{background:#1677ff;color:#fff;border-color:#1677ff}
 .btn-primary:hover{background:#0958d9}
-.btn-default{background:#fff;color:#555;border-color:#d9d9d9}
+.btn-default{background:var(--surface);color:var(--text2);border-color:var(--border2)}
 .btn-default:hover{border-color:#1677ff;color:#1677ff}
-.btn-danger{background:#fff;color:#ff4d4f;border-color:#ff4d4f}
+.btn-danger{background:var(--surface);color:#ff4d4f;border-color:#ff4d4f}
 .btn-danger:hover{background:#ff4d4f;color:#fff}
 .btn-sm{padding:3px 10px;font-size:12px}
 .btn-link{background:none;border:none;color:#1677ff;cursor:pointer;padding:0;font-size:13px}
 .btn-link:hover{text-decoration:underline}
+
 /* alerts */
 .alert{padding:10px 14px;border-radius:4px;margin-bottom:16px;font-size:13px}
-.alert-success{background:#f6ffed;border:1px solid #b7eb8f;color:#389e0d}
-.alert-warning{background:#fffbe6;border:1px solid #ffd666;color:#d46b08}
-.alert-danger{background:#fff2f0;border:1px solid #ffccc7;color:#cf1322}
-.alert-info{background:#e6f4ff;border:1px solid #91caff;color:#0958d9}
+.alert-success{background:#162312;border:1px solid #274916;color:#6abe39}
+.alert-warning{background:#2b2111;border:1px solid #594214;color:#d89614}
+.alert-danger {background:#2a1215;border:1px solid #58181c;color:#e84749}
+.alert-info   {background:#111d2c;border:1px solid #15325b;color:#177ddc}
+[data-theme="light"] .alert-success{background:#f6ffed;border-color:#b7eb8f;color:#389e0d}
+[data-theme="light"] .alert-warning{background:#fffbe6;border-color:#ffd666;color:#d46b08}
+[data-theme="light"] .alert-danger {background:#fff2f0;border-color:#ffccc7;color:#cf1322}
+[data-theme="light"] .alert-info   {background:#e6f4ff;border-color:#91caff;color:#0958d9}
+
 /* badges */
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
-.badge-green{background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f}
-.badge-red{background:#fff2f0;color:#cf1322;border:1px solid #ffccc7}
-.badge-blue{background:#e6f4ff;color:#0958d9;border:1px solid #91caff}
+.badge-green{background:#162312;color:#6abe39;border:1px solid #274916}
+.badge-red  {background:#2a1215;color:#e84749;border:1px solid #58181c}
+.badge-blue {background:#111d2c;color:#177ddc;border:1px solid #15325b}
+[data-theme="light"] .badge-green{background:#f6ffed;color:#389e0d;border-color:#b7eb8f}
+[data-theme="light"] .badge-red  {background:#fff2f0;color:#cf1322;border-color:#ffccc7}
+[data-theme="light"] .badge-blue {background:#e6f4ff;color:#0958d9;border-color:#91caff}
+
 /* grid */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
 @@media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
 /* stat card */
 .stat{text-align:center;padding:16px}
 .stat .val{font-size:28px;font-weight:700;color:#1677ff}
-.stat .lbl{font-size:12px;color:#888;margin-top:4px}
+.stat .lbl{font-size:12px;color:var(--text3);margin-top:4px}
+
 /* mono */
-.mono{font-family:'Courier New',monospace;font-size:12px;background:#f5f5f5;padding:2px 6px;border-radius:3px}
+.mono{font-family:'Courier New',monospace;font-size:12px;
+      background:var(--mono-bg);color:var(--text2);padding:2px 6px;border-radius:3px}
+
+/* details/summary */
+details summary{color:#1677ff}
+details summary:hover{text-decoration:underline}
 </style>
+<script>
+/* Apply saved theme before paint to avoid flash */
+(function(){
+  var t = localStorage.getItem('pii-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 </head>
 <body>
 
 <nav class="nav">
   <span class="brand">🔒 PiiRemover</span>
-  <a href="/admin" class="@(ViewData["Nav"]?.ToString()=="home"?"active":"")">Dashboard</a>
-  <a href="/admin/clients" class="@(ViewData["Nav"]?.ToString()=="clients"?"active":"")">Clients</a>
-  <a href="/admin/fields" class="@(ViewData["Nav"]?.ToString()=="fields"?"active":"")">PII Fields</a>
-  <a href="/admin/logs" class="@(ViewData["Nav"]?.ToString()=="logs"?"active":"")">Logs</a>
+  <a href="/admin"          class="@(ViewData["Nav"]?.ToString()=="home"    ?"active":"")">Dashboard</a>
+  <a href="/admin/clients"  class="@(ViewData["Nav"]?.ToString()=="clients" ?"active":"")">Clients</a>
+  <a href="/admin/fields"   class="@(ViewData["Nav"]?.ToString()=="fields"  ?"active":"")">PII Fields</a>
+  <a href="/admin/logs"     class="@(ViewData["Nav"]?.ToString()=="logs"    ?"active":"")">Logs</a>
   <a href="/admin/settings" class="@(ViewData["Nav"]?.ToString()=="settings"?"active":"")">Settings</a>
+  <a href="/admin/health"   class="@(ViewData["Nav"]?.ToString()=="health"  ?"active":"")">Health</a>
   <span class="spacer"></span>
+  <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle dark / light mode">🌙</button>
   <form method="post" asp-page-handler="Logout" style="margin:0">
     <button type="submit" class="logout">Logout</button>
   </form>
@@ -91,5 +174,19 @@ select:focus,textarea:focus{border-color:#1677ff;box-shadow:0 0 0 2px #1677ff20}
   @RenderBody()
 </div>
 
+<script>
+function toggleTheme() {
+  var html = document.documentElement;
+  var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('pii-theme', next);
+  document.getElementById('themeBtn').textContent = next === 'dark' ? '🌙' : '☀️';
+}
+/* Sync button icon on load */
+document.addEventListener('DOMContentLoaded', function() {
+  var t = document.documentElement.getAttribute('data-theme');
+  document.getElementById('themeBtn').textContent = t === 'dark' ? '🌙' : '☀️';
+});
+</script>
 </body>
 </html>

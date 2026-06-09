@@ -16,6 +16,13 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1" />
   </ItemGroup>
 
+  <!-- Copy tessdata to output so Tesseract can find traineddata files at runtime -->
+  <ItemGroup>
+    <Content Include="tessdata\*.traineddata">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- Copy license.lic to output dir on every build so F5 in VS finds it -->
   <ItemGroup>
     <Content Include="license.lic" Condition="Exists('license.lic')">

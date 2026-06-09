@@ -1,0 +1,754 @@
+﻿@page
+@model IndexModel
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PiiRemover — On-Premises PII Redaction Platform</title>
+<meta name="description" content="Enterprise-grade PII redaction for healthcare. 100% on-premises, air-gapped, HIPAA-ready. OCR, PDF, Hebrew/English, REST API."/>
+<style>
+/* ── Reset & base ─────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:    #0a0f1e;
+  --navy2:   #0e1628;
+  --navy3:   #111e35;
+  --blue:    #1a6ff0;
+  --blue2:   #0d4fc4;
+  --cyan:    #00c8ff;
+  --green:   #00e5a0;
+  --red:     #ff4560;
+  --text:    #e8edf5;
+  --text2:   #8b9bbf;
+  --text3:   #5a6a8a;
+  --border:  rgba(255,255,255,.08);
+  --card:    rgba(255,255,255,.04);
+  --glow:    0 0 40px rgba(26,111,240,.25);
+  --font:    -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--navy);color:var(--text);font-size:16px;line-height:1.6;overflow-x:hidden}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── Utility ──────────────────────────────────────────────────────────── */
+.container{max-width:1160px;margin:0 auto;padding:0 24px}
+.section{padding:96px 0}
+.section-alt{background:var(--navy2)}
+.tag{display:inline-block;background:rgba(26,111,240,.15);color:var(--cyan);border:1px solid rgba(0,200,255,.2);padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px}
+.section-title{font-size:clamp(28px,4vw,42px);font-weight:800;line-height:1.2;margin-bottom:16px}
+.section-sub{color:var(--text2);font-size:18px;max-width:640px;margin-bottom:48px}
+.text-center{text-align:center}
+.text-center .section-sub{margin-left:auto;margin-right:auto}
+.gradient-text{background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;border:none;text-decoration:none}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;box-shadow:0 4px 20px rgba(26,111,240,.4)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(26,111,240,.5);text-decoration:none;color:#fff}
+.btn-outline{background:transparent;color:var(--cyan);border:1.5px solid var(--cyan)}
+.btn-outline:hover{background:rgba(0,200,255,.08);transform:translateY(-2px);text-decoration:none}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+@@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}.grid-4{grid-template-columns:1fr 1fr}}
+@@media(max-width:560px){.grid-4{grid-template-columns:1fr}}
+
+/* ── Nav ──────────────────────────────────────────────────────────────── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;background:rgba(10,15,30,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.nav-brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;color:#fff}
+.nav-brand .shield{width:32px;height:32px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{color:var(--text2);font-size:14px;font-weight:500;transition:color .15s}
+.nav-links a:hover{color:#fff;text-decoration:none}
+.nav-cta{background:var(--blue);color:#fff !important;padding:8px 20px;border-radius:6px;font-size:13px;font-weight:700}
+.nav-cta:hover{background:var(--blue2);color:#fff;text-decoration:none}
+@@media(max-width:768px){.nav-links{display:none}}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.hero{min-height:100vh;display:flex;align-items:center;padding-top:64px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 60% 40%,rgba(26,111,240,.12) 0%,transparent 70%)}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+@@media(max-width:900px){.hero-grid{grid-template-columns:1fr}}
+.hero-badge{display:flex;align-items:center;gap:8px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);color:var(--green);padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;width:fit-content;margin-bottom:24px}
+.hero-badge .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+@@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-size:clamp(36px,5vw,58px);font-weight:900;line-height:1.1;margin-bottom:24px}
+.hero-sub{font-size:18px;color:var(--text2);margin-bottom:40px;max-width:520px}
+.hero-actions{display:flex;gap:16px;flex-wrap:wrap}
+.hero-stats{display:flex;gap:32px;margin-top:48px;padding-top:32px;border-top:1px solid var(--border)}
+.hero-stat .val{font-size:28px;font-weight:800;color:#fff}
+.hero-stat .lbl{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px}
+
+/* Terminal */
+.terminal{background:#070c19;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--glow)}
+.terminal-bar{background:rgba(255,255,255,.05);padding:10px 16px;display:flex;align-items:center;gap:6px}
+.dot-r{width:10px;height:10px;border-radius:50%;background:#ff5f56;display:inline-block}
+.dot-y{width:10px;height:10px;border-radius:50%;background:#febc2e;display:inline-block}
+.dot-g{width:10px;height:10px;border-radius:50%;background:#27c93f;display:inline-block}
+.terminal-body{padding:20px 24px;font-family:'Courier New',monospace;font-size:13px;line-height:1.8}
+.t-comment{color:var(--text3)}
+.t-key{color:var(--cyan)}
+.t-val{color:var(--green)}
+.t-str{color:#ffb347}
+.t-red{color:var(--red)}
+.t-dim{color:var(--text3)}
+
+/* ── Problem / Solution ───────────────────────────────────────────────── */
+.problem-card{background:rgba(255,69,96,.06);border:1px solid rgba(255,69,96,.2);border-radius:12px;padding:24px}
+.problem-card .icon{font-size:28px;margin-bottom:12px}
+.problem-card h4{font-size:15px;font-weight:700;margin-bottom:8px;color:var(--red)}
+.problem-card p{font-size:14px;color:var(--text2)}
+.solution-card{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.15);border-radius:12px;padding:24px}
+.solution-card .icon{font-size:28px;margin-bottom:12px}
+.solution-card h4{font-size:15px;font-weight:700;margin-bottom:8px;color:var(--green)}
+.solution-card p{font-size:14px;color:var(--text2)}
+
+/* ── Feature cards ────────────────────────────────────────────────────── */
+.feature-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;transition:all .25s}
+.feature-card:hover{border-color:rgba(0,200,255,.3);box-shadow:0 8px 32px rgba(26,111,240,.15);transform:translateY(-4px)}
+.feature-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px}
+.feature-card h3{font-size:17px;font-weight:700;margin-bottom:8px}
+.feature-card p{font-size:14px;color:var(--text2);line-height:1.6}
+.fi-blue{background:rgba(26,111,240,.15)}
+.fi-cyan{background:rgba(0,200,255,.12)}
+.fi-green{background:rgba(0,229,160,.12)}
+.fi-purple{background:rgba(139,92,246,.12)}
+.fi-orange{background:rgba(255,149,0,.12)}
+.fi-red{background:rgba(255,69,96,.12)}
+
+/* ── Flow ─────────────────────────────────────────────────────────────── */
+.flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;justify-content:center;margin-top:48px}
+.flow-step{text-align:center;flex:1;min-width:140px;max-width:180px;padding:0 8px}
+.flow-circle{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:2px solid var(--blue);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 0 20px rgba(26,111,240,.2)}
+.flow-step h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.flow-step p{font-size:12px;color:var(--text3)}
+.flow-arrow{font-size:20px;color:var(--text3);padding:0 4px;margin-bottom:28px}
+@@media(max-width:768px){.flow-arrow{display:none}}
+
+/* ── Code block ───────────────────────────────────────────────────────── */
+.code-block{background:#070c19;border:1px solid var(--border);border-radius:10px;padding:20px 24px;font-family:'Courier New',monospace;font-size:13px;line-height:1.8;overflow-x:auto}
+.code-block .cb{color:var(--text3)}
+.code-block .ck{color:var(--cyan)}
+.code-block .cv{color:var(--green)}
+.code-block .cs{color:#ffb347}
+
+/* ── Pricing ──────────────────────────────────────────────────────────── */
+.pricing-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px;text-align:center;transition:all .25s}
+.pricing-card.featured{border-color:var(--blue);box-shadow:0 0 40px rgba(26,111,240,.2)}
+.pricing-card .plan{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:8px}
+.pricing-card .price{font-size:42px;font-weight:900;margin:12px 0;color:#fff}
+.pricing-card .price span{font-size:16px;color:var(--text2);font-weight:400}
+.pricing-card .desc{font-size:14px;color:var(--text2);margin-bottom:28px}
+.pricing-card ul{list-style:none;text-align:left;margin-bottom:32px}
+.pricing-card ul li{font-size:14px;color:var(--text2);padding:6px 0;display:flex;gap:10px}
+.pricing-card ul li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
+.badge-featured{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;display:inline-block;margin-bottom:16px}
+
+/* ── Stats bar ────────────────────────────────────────────────────────── */
+.stats-bar{background:linear-gradient(135deg,var(--navy3),#0d1a35);border:1px solid var(--border);border-radius:16px;padding:40px;display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
+@@media(max-width:768px){.stats-bar{grid-template-columns:1fr 1fr}}
+.stat-item .num{font-size:36px;font-weight:900;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-item .label{font-size:13px;color:var(--text3);margin-top:4px}
+
+/* ── Compliance badges ────────────────────────────────────────────────── */
+.compliance-grid{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-top:40px}
+.compliance-badge{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 28px;font-size:13px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:10px}
+.compliance-badge .icon{font-size:20px}
+
+/* ── Quote ────────────────────────────────────────────────────────────── */
+.quote-card{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:0 12px 12px 0;padding:28px 32px;margin-bottom:24px}
+.quote-card p{font-size:16px;color:var(--text);font-style:italic;margin-bottom:16px}
+.quote-card .author{font-size:13px;color:var(--text3);font-weight:600}
+
+/* ── Contact ──────────────────────────────────────────────────────────── */
+.contact-card{background:linear-gradient(135deg,var(--navy3),#0d1a35);border:1px solid var(--border);border-radius:20px;padding:56px;text-align:center}
+.contact-card h2{font-size:36px;font-weight:800;margin-bottom:16px}
+.contact-card p{font-size:18px;color:var(--text2);margin-bottom:36px}
+.contact-email{display:inline-flex;align-items:center;gap:12px;background:rgba(26,111,240,.12);border:1px solid rgba(26,111,240,.3);color:var(--cyan);padding:16px 32px;border-radius:10px;font-size:18px;font-weight:600;margin-bottom:32px;transition:all .2s}
+.contact-email:hover{background:rgba(26,111,240,.2);text-decoration:none;transform:translateY(-2px)}
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+footer{background:var(--navy);border-top:1px solid var(--border);padding:48px 0 32px}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
+@@media(max-width:768px){.footer-grid{grid-template-columns:1fr 1fr}}
+.footer-brand p{font-size:14px;color:var(--text3);margin-top:12px;max-width:280px;line-height:1.6}
+.footer-col h5{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:16px}
+.footer-col ul{list-style:none}
+.footer-col ul li{margin-bottom:10px}
+.footer-col ul li a{color:var(--text2);font-size:14px;transition:color .15s}
+.footer-col ul li a:hover{color:#fff;text-decoration:none}
+.footer-bottom{border-top:1px solid var(--border);padding-top:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ───────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="shield">&#x1F512;</div>
+    PiiRemover
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#api">API</a>
+    <a href="#security">Security</a>
+    <a href="#pricing">Licensing</a>
+    <a href="#contact" class="nav-cta">Contact Sales</a>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-badge">
+          <span class="dot"></span>
+          100% On-Premises &mdash; Your Data Never Leaves
+        </div>
+        <h1>
+          Enterprise PII Redaction<br/>
+          <span class="gradient-text">Built for Healthcare</span>
+        </h1>
+        <p class="hero-sub">
+          Automatically detect and redact patient identifiers from scanned documents,
+          PDFs, and images &mdash; in Hebrew and English &mdash; without sending a single byte to the cloud.
+        </p>
+        <div class="hero-actions">
+          <a href="#contact" class="btn btn-primary">Request a Demo</a>
+          <a href="#how-it-works" class="btn btn-outline">See How It Works</a>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="val">100%</div><div class="lbl">On-Premises</div></div>
+          <div class="hero-stat"><div class="val">0</div><div class="lbl">Cloud Dependencies</div></div>
+          <div class="hero-stat"><div class="val">&#x05D4;&#x05E2;</div><div class="lbl">Hebrew + English</div></div>
+          <div class="hero-stat"><div class="val">REST</div><div class="lbl">API Ready</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+            <span style="font-size:12px;color:var(--text3);margin-left:8px">POST /api/v1/redact/redact</span>
+          </div>
+          <div class="terminal-body">
+<span class="t-comment">// Input document text</span><br/>
+<span class="t-key">Patient:</span> <span class="t-str">&#x05DB;&#x05D4;&#x05DF; &#x05E9;&#x05D0;&#x05D5;&#x05DC;</span><br/>
+<span class="t-key">ID:</span>      <span class="t-val">205447709</span><br/>
+<span class="t-key">DOB:</span>     <span class="t-val">30/11/1994</span><br/>
+<span class="t-key">Phone:</span>   <span class="t-val">058-3245670</span><br/>
+<span class="t-key">Email:</span>   <span class="t-val">patient@mail.co.il</span><br/>
+&nbsp;<br/>
+<span class="t-comment">// Redacted response</span><br/>
+<span class="t-key">"redactedText":</span><br/>
+<span class="t-str">&nbsp;Patient: &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;</span><br/>
+<span class="t-str">&nbsp;ID:      <span class="t-red">&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;</span></span><br/>
+<span class="t-str">&nbsp;DOB:     <span class="t-red">&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;</span></span><br/>
+<span class="t-str">&nbsp;Phone:   <span class="t-red">&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;</span></span><br/>
+<span class="t-key">"matchCount":</span> <span class="t-val">5</span><span class="t-dim">,</span><br/>
+<span class="t-key">"durationMs":</span> <span class="t-val">142</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Problem / Solution ─────────────────────────────────────────── -->
+<section class="section section-alt">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">The Challenge</div>
+      <h2 class="section-title">Healthcare Data Is the #1 Target</h2>
+      <p class="section-sub">Medical records contain the most sensitive personal data. Existing cloud solutions create unacceptable compliance risk.</p>
+    </div>
+    <div class="grid-3" style="margin-bottom:48px">
+      <div class="problem-card">
+        <div class="icon">&#x2601;&#xFE0F;</div>
+        <h4>Cloud Exposure</h4>
+        <p>Cloud-based redaction services require uploading patient records to third-party servers &mdash; a HIPAA and GDPR violation risk.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">&#x1F513;</div>
+        <h4>Data Breach Risk</h4>
+        <p>Every external API call is a potential breach vector. Healthcare organisations cannot afford to trust third-party data processors with PHI.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">&#x1F310;</div>
+        <h4>Internet Dependency</h4>
+        <p>Air-gapped hospital networks, secure clinical environments, and offline deployments are incompatible with cloud-only solutions.</p>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="solution-card">
+        <div class="icon">&#x1F3E5;</div>
+        <h4>Fully On-Premises</h4>
+        <p>PiiRemover runs entirely on your infrastructure. Zero internet calls. Zero cloud dependencies. Patient data stays inside your perimeter.</p>
+      </div>
+      <div class="solution-card">
+        <div class="icon">&#x26A1;</div>
+        <h4>Real-Time Processing</h4>
+        <p>Integrated OCR engine (Windows.Media.Ocr + Tesseract) processes scanned documents in milliseconds &mdash; no external service round-trips.</p>
+      </div>
+      <div class="solution-card">
+        <div class="icon">&#x1F6E1;&#xFE0F;</div>
+        <h4>Compliance-First Design</h4>
+        <p>Built from the ground up for HIPAA, GDPR, and Israeli privacy law (PPPA). Every architectural decision prioritises data isolation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ──────────────────────────────────────────────────────── -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">Capabilities</div>
+      <h2 class="section-title">Everything You Need. Nothing More.</h2>
+      <p class="section-sub">Purpose-built for healthcare document workflows. No bloat, no cloud hooks, no telemetry.</p>
+    </div>
+    <div class="grid-3">
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">&#x1F50D;</div>
+        <h3>Multi-Language OCR</h3>
+        <p>Dual-engine OCR pipeline &mdash; Windows.Media.Ocr (built-in, zero install) with Tesseract fallback. Recognises Hebrew and English in the same document.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-cyan">&#x1F4C4;</div>
+        <h3>PDF &amp; Image Support</h3>
+        <p>Extracts text from native PDFs (PdfPig), scanned PDFs (rasterisation), JPEG, PNG, TIFF, and BMP files out of the box.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-green">&#x1F3AF;</div>
+        <h3>Configurable PII Fields</h3>
+        <p>14 pre-seeded PII types (Israeli ID, DOB, phone, email, IBAN, passport, name&hellip;). Add custom Regex, keyword-list, or LLM patterns per client.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-purple">&#x1F517;</div>
+        <h3>REST API</h3>
+        <p>Clean versioned REST endpoints. API-key auth. OpenAPI/Swagger docs included. Integrates with any HIS, PACS, or document management system.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-orange">&#x2699;&#xFE0F;</div>
+        <h3>Admin Console</h3>
+        <p>Web-based backoffice to manage clients, API keys, PII patterns, view request logs, and monitor system health &mdash; all behind secure login.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">&#x1F4E6;</div>
+        <h3>Batch Loader</h3>
+        <p>Command-line batch processor. Drop documents into a folder, run it, receive redacted UTF-8 text files. Supports folder-watch patterns and move-to-done.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-red">&#x1F9F5;</div>
+        <h3>Thread-Safe &amp; Concurrent</h3>
+        <p>SemaphoreSlim-gated OCR engine. Per-call Tesseract instances. Handles high-throughput parallel API calls without race conditions or memory spikes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-green">&#x1F4CA;</div>
+        <h3>Audit Logging</h3>
+        <p>Every request logged to SQLite (with auto-retention) and Windows Event Log under a dedicated PiiRemover source &mdash; full audit trail for compliance.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-cyan">&#x1F511;</div>
+        <h3>RSA-Signed Licensing</h3>
+        <p>Tamper-proof RSA-2048 license files. Offline validation &mdash; no license server calls. Enforces organisation name, expiry, and quota limits.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Stats ─────────────────────────────────────────────────────────── -->
+<section class="section-alt" style="padding:64px 0">
+  <div class="container">
+    <div class="stats-bar">
+      <div class="stat-item"><div class="num">14+</div><div class="label">Pre-built PII detectors</div></div>
+      <div class="stat-item"><div class="num">&lt;200ms</div><div class="label">Avg. redaction time</div></div>
+      <div class="stat-item"><div class="num">2</div><div class="label">OCR engines (fallback chain)</div></div>
+      <div class="stat-item"><div class="num">&infin;</div><div class="label">Documents/day &mdash; no cloud limits</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How It Works ──────────────────────────────────────────────────── -->
+<section class="section" id="how-it-works">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">Workflow</div>
+      <h2 class="section-title">How PiiRemover Works</h2>
+      <p class="section-sub">Two processing paths &mdash; REST API for real-time integration, Batch Loader for high-volume offline processing.</p>
+    </div>
+
+    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--cyan)">API Flow</h3>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:0">Real-time document processing via HTTP POST</p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F4E4;</div>
+        <h4>Upload</h4><p>POST file via REST API with API key</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F50D;</div>
+        <h4>Extract</h4><p>OCR or text extraction by MIME type</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F3AF;</div>
+        <h4>Detect</h4><p>Regex + keyword pattern matching</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x2702;&#xFE0F;</div>
+        <h4>Redact</h4><p>Right-to-left safe replacement</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F4CB;</div>
+        <h4>Return</h4><p>JSON with redacted text + match stats</p>
+      </div>
+    </div>
+
+    <div style="height:56px"></div>
+    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--green)">Batch Flow</h3>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:0">Unattended bulk processing via BatchLoader CLI</p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">&#x1F4C1;</div>
+        <h4>Input Folder</h4><p>Drop files into configured folder</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">&#x2699;&#xFE0F;</div>
+        <h4>BatchLoader</h4><p>Runs on schedule or on demand</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">&#x1F517;</div>
+        <h4>API Call</h4><p>Sends each file to redact/OCR endpoint</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">&#x1F4DD;</div>
+        <h4>Output</h4><p>UTF-8 .txt saved to output folder</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">&#x2705;</div>
+        <h4>Done Folder</h4><p>Originals moved to done/ (optional)</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── API Section ───────────────────────────────────────────────────── -->
+<section class="section section-alt" id="api">
+  <div class="container">
+    <div class="grid-2" style="align-items:center;gap:64px">
+      <div>
+        <div class="tag">Integration</div>
+        <h2 class="section-title">Drop-In REST API</h2>
+        <p style="color:var(--text2);margin-bottom:24px">Three endpoints. Any language. Any platform. Integrates with your HIS, PACS, or document management system in hours, not weeks.</p>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:14px">
+          <li style="display:flex;gap:12px;align-items:flex-start">
+            <span style="color:var(--green);font-weight:700;flex-shrink:0">POST</span>
+            <span><code style="color:var(--cyan)">/api/v1/redact/redact</code><br/><span style="color:var(--text2);font-size:13px">Upload any document &rarr; receive redacted text + match statistics</span></span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start">
+            <span style="color:var(--green);font-weight:700;flex-shrink:0">POST</span>
+            <span><code style="color:var(--cyan)">/api/v1/ocr/extract</code><br/><span style="color:var(--text2);font-size:13px">OCR extraction only &mdash; returns raw text from scanned documents</span></span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start">
+            <span style="color:var(--blue);font-weight:700;flex-shrink:0">GET&nbsp;</span>
+            <span><code style="color:var(--cyan)">/api/v1/health</code><br/><span style="color:var(--text2);font-size:13px">Health probe &mdash; status, uptime, DB, license validity</span></span>
+          </li>
+        </ul>
+        <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap">
+          <span style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.2);color:var(--green);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700">OpenAPI / Swagger</span>
+          <span style="background:rgba(26,111,240,.1);border:1px solid rgba(26,111,240,.2);color:var(--cyan);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700">API Key Auth</span>
+          <span style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700">Multipart Upload</span>
+        </div>
+      </div>
+      <div>
+        <div class="code-block">
+<span class="cb"># Redact a medical document</span><br/>
+curl -X POST https://your-server/api/v1/redact/redact \<br/>
+&nbsp; -H <span class="cs">"X-Api-Key: your-api-key"</span> \<br/>
+&nbsp; -F <span class="cs">"file=@@patient_record.pdf"</span><br/>
+&nbsp;<br/>
+<span class="cb"># Response</span><br/>
+{<br/>
+&nbsp; <span class="ck">"redactedText"</span>: <span class="cs">"Patient: &#x2588;&#x2588;&#x2588;&#x2588; ID: &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;..."</span>,<br/>
+&nbsp; <span class="ck">"matchCount"</span>:   <span class="cv">7</span>,<br/>
+&nbsp; <span class="ck">"fieldsHit"</span>:    [<span class="cs">"Israeli ID"</span>, <span class="cs">"DOB"</span>, <span class="cs">"Phone"</span>],<br/>
+&nbsp; <span class="ck">"durationMs"</span>:   <span class="cv">142</span><br/>
+}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Admin Console ─────────────────────────────────────────────────── -->
+<section class="section" id="admin">
+  <div class="container">
+    <div class="grid-2" style="align-items:center;gap:64px">
+      <div>
+        <div class="terminal" style="box-shadow:none">
+          <div class="terminal-bar">
+            <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+            <span style="font-size:12px;color:var(--text3);margin-left:8px">PiiRemover Admin &mdash; Dashboard</span>
+          </div>
+          <div class="terminal-body" style="font-size:12px">
+<span style="color:var(--cyan)">Active Clients:  </span><span style="color:var(--green)">12</span><br/>
+<span style="color:var(--cyan)">PII Fields:      </span><span style="color:var(--green)">14</span><br/>
+<span style="color:var(--cyan)">Total Requests:  </span><span style="color:var(--green)">48,291</span><br/>
+<span style="color:var(--cyan)">License:         </span><span style="color:var(--green)">Valid &mdash; expires 2027-12-31</span><br/>
+&nbsp;<br/>
+<span style="color:var(--text3)">&#x2500;&#x2500;&#x2500; Recent Requests &#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</span><br/>
+<span style="color:#fff">patient_scan.pdf</span>  <span style="color:var(--green)">OK  142ms  7 matches</span><br/>
+<span style="color:#fff">mri_referral.pdf</span> <span style="color:var(--green)">OK   98ms  4 matches</span><br/>
+<span style="color:#fff">lab_results.jpg</span>  <span style="color:var(--green)">OK  310ms  3 matches</span><br/>
+&nbsp;<br/>
+<span style="color:var(--text3)">&#x2500;&#x2500;&#x2500; Health &#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</span><br/>
+<span style="color:var(--cyan)">Database:  </span><span style="color:var(--green)">OK</span><br/>
+<span style="color:var(--cyan)">OCR Chain: </span><span style="color:var(--green)">Tesseract -&gt; WindowsOcr</span><br/>
+<span style="color:var(--cyan)">Uptime:    </span><span style="color:var(--green)">14d 06h 22m</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="tag">Admin Console</div>
+        <h2 class="section-title">Full Visibility &amp; Control</h2>
+        <p style="color:var(--text2);margin-bottom:32px">A built-in web-based administration console gives your IT team complete control without needing database access.</p>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">&#x1F465;</span>
+            <span><strong>Client Management</strong> &mdash; create API clients, issue keys, set quotas, enable/disable access</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">&#x1F3AF;</span>
+            <span><strong>PII Pattern Editor</strong> &mdash; customise per-client detection rules with regex, keyword lists, or LLM prompts</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">&#x1F4CA;</span>
+            <span><strong>Request Logs</strong> &mdash; paginated audit log of every processed document with timing and match statistics</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">&#x2764;&#xFE0F;</span>
+            <span><strong>Health Monitor</strong> &mdash; live API health check showing DB status, OCR engine chain, and license validity</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Security & Compliance ─────────────────────────────────────────── -->
+<section class="section section-alt" id="security">
+  <div class="container text-center">
+    <div class="tag">Security</div>
+    <h2 class="section-title">Built for Regulated Environments</h2>
+    <p class="section-sub">Every design decision was made with security and compliance in mind. Not bolted on &mdash; baked in.</p>
+    <div class="grid-2" style="text-align:left;margin-bottom:40px">
+      <div class="quote-card">
+        <p>"Patient data must never leave the hospital's network perimeter. PiiRemover is the only redaction solution we evaluated that is architecturally capable of running fully air-gapped."</p>
+        <div class="author">&mdash; Hospital IT Director, Design Review</div>
+      </div>
+      <div class="quote-card">
+        <p>"The RSA-signed offline licensing model means we can deploy to isolated clinical environments without any outbound network dependency &mdash; exactly what our compliance team required."</p>
+        <div class="author">&mdash; Healthcare Integration Architect</div>
+      </div>
+    </div>
+    <div class="compliance-grid">
+      <div class="compliance-badge"><span class="icon">&#x1F3E5;</span> HIPAA Ready</div>
+      <div class="compliance-badge"><span class="icon">&#x1F1EA;&#x1F1FA;</span> GDPR Compliant Architecture</div>
+      <div class="compliance-badge"><span class="icon">&#x1F1EE;&#x1F1F1;</span> Israeli Privacy Law (PPPA)</div>
+      <div class="compliance-badge"><span class="icon">&#x1F512;</span> RSA-2048 License Signing</div>
+      <div class="compliance-badge"><span class="icon">&#x1F6E1;&#xFE0F;</span> Zero Cloud Dependencies</div>
+      <div class="compliance-badge"><span class="icon">&#x1F4DD;</span> Full Audit Trail</div>
+      <div class="compliance-badge"><span class="icon">&#x1F511;</span> API Key Authentication</div>
+      <div class="compliance-badge"><span class="icon">&#x1F4BE;</span> Air-Gap Deployable</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Licensing / Pricing ───────────────────────────────────────────── -->
+<section class="section" id="pricing">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">Licensing</div>
+      <h2 class="section-title">Simple, Transparent Licensing</h2>
+      <p class="section-sub">Perpetual on-premises licenses. No subscription, no per-document fees, no cloud lock-in.</p>
+    </div>
+    <div class="grid-3">
+      <div class="pricing-card">
+        <div class="plan">Pilot</div>
+        <div class="price">Contact <span>us</span></div>
+        <div class="desc">Evaluate in your environment with real documents</div>
+        <ul>
+          <li>90-day trial license</li>
+          <li>Full feature access</li>
+          <li>Up to 2 API clients</li>
+          <li>Email support</li>
+          <li>1,000 requests included</li>
+        </ul>
+        <a href="#contact" class="btn btn-outline" style="width:100%;justify-content:center">Start Pilot</a>
+      </div>
+      <div class="pricing-card featured">
+        <div class="badge-featured">Most Popular</div>
+        <div class="plan">Department</div>
+        <div class="price">Contact <span>us</span></div>
+        <div class="desc">Single department or clinical unit deployment</div>
+        <ul>
+          <li>1-year perpetual license</li>
+          <li>Unlimited documents</li>
+          <li>Up to 10 API clients</li>
+          <li>Admin console included</li>
+          <li>Batch Loader CLI included</li>
+          <li>Priority support</li>
+          <li>Installation assistance</li>
+        </ul>
+        <a href="#contact" class="btn btn-primary" style="width:100%;justify-content:center">Request Quote</a>
+      </div>
+      <div class="pricing-card">
+        <div class="plan">Enterprise</div>
+        <div class="price">Contact <span>us</span></div>
+        <div class="desc">Hospital-wide or multi-site deployment</div>
+        <ul>
+          <li>Multi-year perpetual license</li>
+          <li>Unlimited documents &amp; clients</li>
+          <li>Custom PII pattern development</li>
+          <li>HL7 / FHIR integration guidance</li>
+          <li>SLA-backed support</li>
+          <li>On-site installation</li>
+          <li>Source code escrow available</li>
+        </ul>
+        <a href="#contact" class="btn btn-outline" style="width:100%;justify-content:center">Talk to Us</a>
+      </div>
+    </div>
+    <p style="text-align:center;color:var(--text3);font-size:13px;margin-top:24px">
+      All licenses are RSA-2048 signed, offline-validated, and deployable to air-gapped networks.
+      Renewal is optional &mdash; the software continues working after expiry; only new licenses are blocked.
+    </p>
+  </div>
+</section>
+
+<!-- ── Tech Stack ─────────────────────────────────────────────────────── -->
+<section class="section section-alt">
+  <div class="container text-center">
+    <div class="tag">Technology</div>
+    <h2 class="section-title">Enterprise-Grade Stack</h2>
+    <p class="section-sub">Built on proven, supported Microsoft and open-source technologies. No exotic dependencies.</p>
+    <div class="grid-4" style="margin-top:40px;text-align:left">
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">&#x26A1;</div>
+        <h3>.NET 10 / ASP.NET Core</h3>
+        <p style="font-size:13px">Latest LTS runtime. High performance, IIS in-process hosting, minimal footprint.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-cyan">&#x1F5C4;&#xFE0F;</div>
+        <h3>SQLite + Dapper</h3>
+        <p style="font-size:13px">Zero-config embedded database. WAL mode. No SQL Server license required.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-green">&#x1F50D;</div>
+        <h3>Windows.Media.Ocr + Tesseract</h3>
+        <p style="font-size:13px">Dual-engine OCR fallback chain. OS-native Hebrew support + open-source backup.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-orange">&#x1F510;</div>
+        <h3>RSA-2048 Licensing</h3>
+        <p style="font-size:13px">Tamper-proof offline license validation. No license server. No internet calls.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Contact ────────────────────────────────────────────────────────── -->
+<section class="section" id="contact">
+  <div class="container">
+    <div class="contact-card">
+      <div class="tag" style="margin-bottom:20px">Get in Touch</div>
+      <h2>Ready to Protect Your Patients' Data?</h2>
+      <p>Contact us for a live demo, pilot license, or enterprise pricing.<br/>We respond within one business day.</p>
+      <div>
+        <a href="mailto:vigwell@gmail.com" class="contact-email">
+          &#x2709;&#xFE0F;&nbsp; vigwell@gmail.com
+        </a>
+      </div>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+        <a href="mailto:vigwell@gmail.com?subject=PiiRemover Demo Request" class="btn btn-primary">Request a Demo</a>
+        <a href="mailto:vigwell@gmail.com?subject=PiiRemover Pilot License" class="btn btn-outline">Request Pilot License</a>
+      </div>
+      <p style="margin-top:28px;font-size:13px;color:var(--text3)">
+        <strong style="color:var(--text2)">VGS</strong> &mdash; Healthcare Technology Solutions
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div style="display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;color:#fff">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center">&#x1F512;</div>
+          PiiRemover
+        </div>
+        <p>On-premises PII redaction for healthcare. Built for hospitals, clinics, and medical research institutions that cannot compromise on data privacy.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Product</h5>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#api">REST API</a></li>
+          <li><a href="#admin">Admin Console</a></li>
+          <li><a href="#pricing">Licensing</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Security</h5>
+        <ul>
+          <li><a href="#security">Compliance</a></li>
+          <li><a href="#security">HIPAA</a></li>
+          <li><a href="#security">GDPR</a></li>
+          <li><a href="#security">Air-Gap Deploy</a></li>
+          <li><a href="#security">Audit Logging</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="mailto:vigwell@gmail.com">Contact Sales</a></li>
+          <li><a href="mailto:vigwell@gmail.com?subject=Support">Support</a></li>
+          <li><a href="mailto:vigwell@gmail.com?subject=Partnership">Partnerships</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p style="font-size:13px;color:var(--text3)">&copy; 2025 VGS &mdash; All rights reserved. PiiRemover is proprietary software licensed under commercial terms. Unauthorised reproduction or distribution is prohibited.</p>
+      <p style="font-size:13px;color:var(--text3)">vigwell@gmail.com</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-links a[href^="#"]');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  navLinks.forEach(a => {
+    a.style.color = a.getAttribute('href') === '#' + cur ? '#fff' : '';
+  });
+});
+</script>
+
+</body>
+</html>

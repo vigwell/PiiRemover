@@ -18,8 +18,9 @@ public class ApiKeyMiddleware
             return;
         }
 
-        // Util endpoints are public — no API key required
-        if (context.Request.Path.StartsWithSegments("/api/v1/util"))
+        // Public endpoints — no API key required
+        if (context.Request.Path.StartsWithSegments("/api/v1/util") ||
+            context.Request.Path.StartsWithSegments("/api/v1/health"))
         {
             await _next(context);
             return;

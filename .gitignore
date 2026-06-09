@@ -49,8 +49,6 @@ private.pem
 ## License files — uncomment when leaving POC mode
 # *.lic
 
-## Tesseract data — large binary, distribute separately
-tessdata/
 
 ## OS
 .DS_Store
@@ -63,6 +61,16 @@ Desktop.ini
 
 ## VS Code
 .vscode/
+
+## BatchLoader — ignore folder contents but keep the folders via .gitkeep
+PiiRemover.BatchLoader/ocr-input/*
+PiiRemover.BatchLoader/ocr-output/*
+PiiRemover.BatchLoader/redact-input/*
+PiiRemover.BatchLoader/redact-output/*
+!PiiRemover.BatchLoader/ocr-input/.gitkeep
+!PiiRemover.BatchLoader/ocr-output/.gitkeep
+!PiiRemover.BatchLoader/redact-input/.gitkeep
+!PiiRemover.BatchLoader/redact-output/.gitkeep
 
 ## Env / secrets
 .env

@@ -16,6 +16,7 @@ public class RedactController : ControllerBase
     private readonly RedactionOrchestrator _orchestrator;
     private readonly IFieldRepository _fields;
     private readonly IQuotaRepository _quota;
+    private readonly ILogRepository _logs;
     private readonly IPiiLogger _logger;
 
     public RedactController(
@@ -23,12 +24,14 @@ public class RedactController : ControllerBase
         RedactionOrchestrator orchestrator,
         IFieldRepository fields,
         IQuotaRepository quota,
+        ILogRepository logs,
         IPiiLogger logger)
     {
         _extractors   = extractors;
         _orchestrator = orchestrator;
         _fields       = fields;
         _quota        = quota;
+        _logs         = logs;
         _logger       = logger;
     }
 
@@ -62,6 +65,7 @@ public class RedactController : ControllerBase
             sw.Stop();
             await _quota.IncrementAsync();
 
+            var fieldsHit = result.Matches.Select(m => m.FieldName).Distinct().ToArray();
             _logger.LogRequest(new PiiRequestLog
             {
                 Operation     = "Redact",
@@ -73,9 +77,18 @@ public class RedactController : ControllerBase
                 ExtractorUsed = extractor!.GetType().Name,
                 DurationMs    = result.DurationMs,
                 MatchCount    = result.Matches.Count,
-                FieldsHit     = result.Matches.Select(m => m.FieldName).Distinct(),
+                FieldsHit     = fieldsHit,
                 ExtractedText = text,
                 RedactedText  = result.RedactedText
+            });
+            await _logs.InsertAsync(new RequestLogEntry
+            {
+                ClientId   = clientId,
+                FileName   = file.FileName,
+                FileSizeKb = (int)(file.Length / 1024),
+                DurationMs = result.DurationMs,
+                FieldsHit  = fieldsHit.Length > 0 ? System.Text.Json.JsonSerializer.Serialize(fieldsHit) : null,
+                ErrorMsg   = null
             });
 
             return Ok(new
