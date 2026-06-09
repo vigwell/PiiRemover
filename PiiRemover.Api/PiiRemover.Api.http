@@ -1,6 +1,40 @@
-@PiiRemover.Api_HostAddress = http://localhost:5256
+@PiiRemover.Api_HostAddress = http://localhost:5000
+@ApiKey = demo-api-key-changeme-12345
 
-GET {{PiiRemover.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### OCR — extract text from a document
+POST {{PiiRemover.Api_HostAddress}}/api/v1/ocr/extract
+X-Api-Key: {{ApiKey}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="sample.txt"
+Content-Type: text/plain
+
+Patient: כהן שאול  ID: 205447709  DOB: 30/11/1994  Phone: 058-3245670
+--boundary--
+
+###
+
+### Redact — remove PII from a document
+POST {{PiiRemover.Api_HostAddress}}/api/v1/redact/redact
+X-Api-Key: {{ApiKey}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="sample.txt"
+Content-Type: text/plain
+
+Patient: כהן שאול  ID: 205447709  DOB: 30/11/1994  Phone: 058-3245670  Email: shaul@mail.co.il
+--boundary--
+
+###
+
+### Hash a value (no auth required)
+POST {{PiiRemover.Api_HostAddress}}/api/v1/util/hash
+Content-Type: application/json
+
+{
+  "value": "2026"
+}
 
 ###

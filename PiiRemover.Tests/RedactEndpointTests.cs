@@ -149,7 +149,7 @@ public class RedactEndpointTests(PiiWebAppFactory factory) : IClassFixture<PiiWe
     public async Task Redact_NoPiiInText_Returns0Matches()
     {
         var resp = await _client.PostAsync(Endpoint, MakeText(
-            "The weather today is sunny and warm."));
+            "The hospital is located in Jerusalem, second floor."));
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();

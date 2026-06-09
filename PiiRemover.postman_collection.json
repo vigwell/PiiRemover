@@ -253,7 +253,7 @@
                 {
                   "key": "file",
                   "type": "text",
-                  "value": "The weather in Jerusalem is sunny today.",
+                  "value": "The hospital is located in Jerusalem, second floor.",
                   "contentType": "text/plain"
                 }
               ]
