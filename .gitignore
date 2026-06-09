@@ -46,8 +46,8 @@ PublishProfiles/
 ## License private key — NEVER commit
 private.pem
 
-## License files — generated per client, not source
-*.lic
+## License files — uncomment when leaving POC mode
+# *.lic
 
 ## Tesseract data — large binary, distribute separately
 tessdata/
