@@ -4,8 +4,16 @@
     <Project Path="PiiRemover.Core/PiiRemover.Core.csproj" />
     <Project Path="PiiRemover.Data/PiiRemover.Data.csproj" />
   </Folder>
+  <Folder Name="/Deploy/">
+    <File Path="Deploy/Install-Prerequisites.ps1" />
+    <File Path="Deploy/Install-DotNet10.ps1" />
+    <File Path="Deploy/Install-WebDeploy.ps1" />
+    <File Path="Deploy/Fix-WebDeploy.ps1" />
+    <File Path="Deploy/Deploy-PiiRemover.ps1" />
+  </Folder>
   <Folder Name="/Installs/">
     <File Path="../../../Downloads/DB.Browser.for.SQLite-v3.13.1-win64.msi" />
+    <File Path="../../../Downloads/dotnet-hosting-10.0.8-win.exe" />
     <File Path="Install-HebrewOcr.ps1" />
     <File Path="Register-EventLogSource.ps1" />
   </Folder>

@@ -72,6 +72,12 @@ PiiRemover.BatchLoader/redact-output/*
 !PiiRemover.BatchLoader/redact-input/.gitkeep
 !PiiRemover.BatchLoader/redact-output/.gitkeep
 
+## Publish profiles — commit .pubxml but never .pubxml.user (contains saved passwords)
+*.pubxml.user
+
+## Publish output folder
+publish/
+
 ## Env / secrets
 .env
 .env.*

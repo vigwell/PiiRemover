@@ -118,8 +118,18 @@ builder.Services.Configure<IISServerOptions>(o => o.MaxRequestBodySize = null);
 
 var app = builder.Build();
 
+// Support running under IIS sub-application path (e.g. /PiiRemover)
+// Has no effect when running as root site or via Kestrel directly
+app.UsePathBase(new Microsoft.AspNetCore.Http.PathString(
+    app.Configuration["PathBase"] ?? ""));
+
 app.UseSwagger();
-app.UseSwaggerUI(o => o.SwaggerEndpoint("/swagger/v1/swagger.json", "PiiRemover v1"));
+app.UseSwaggerUI(o =>
+{
+    // Works both locally (/swagger/v1/swagger.json)
+    // and under IIS sub-path (/PiiRemover/swagger/v1/swagger.json)
+    o.SwaggerEndpoint("v1/swagger.json", "PiiRemover v1");
+});
 
 app.UseMiddleware<LicenseMiddleware>();
 app.UseMiddleware<ApiKeyMiddleware>();

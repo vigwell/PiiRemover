@@ -13,5 +13,12 @@ WARNING: No license file. All API calls will return HTTP 402.
 
 4) install vm to show demo
 
+TODO: CREATE POWESHELL script that installs all prerequisites + firewall rules 
+
+
 https://localhost:7049/admin
 admin 2026
+
+
+piiremoteadmin
+PiiAdmin2026!!!
