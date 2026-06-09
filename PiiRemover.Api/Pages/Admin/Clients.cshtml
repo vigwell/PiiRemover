@@ -1,0 +1,60 @@
+@page "/admin/clients"
+@model PiiRemover.Api.Pages.Admin.ClientsModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Clients";
+    ViewData["Nav"] = "clients";
+}
+
+<h1 class="page-title">Clients &amp; API Keys</h1>
+
+@if (!string.IsNullOrEmpty(Model.NewApiKey))
+{
+    <div class="alert alert-success">
+        ✅ New API key generated — <strong>copy it now, it won't be shown again:</strong><br/>
+        <span class="mono" style="font-size:13px;user-select:all">@Model.NewApiKey</span>
+    </div>
+}
+
+<div class="card">
+    <h3>Add Client</h3>
+    <form method="post" asp-page-handler="Create" style="display:flex;gap:8px">
+        <input type="text" asp-for="NewName" placeholder="Client name" required style="max-width:280px" />
+        <button class="btn btn-primary" type="submit">Create Client</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>All Clients</h3>
+    <table>
+        <tr>
+            <th>ID</th><th>Name</th><th>Status</th><th>Created</th><th>Actions</th>
+        </tr>
+        @foreach (var c in Model.Clients)
+        {
+            <tr>
+                <td>@c.Id</td>
+                <td><strong>@c.Name</strong></td>
+                <td>
+                    @if (c.IsActive)
+                    { <span class="badge badge-green">Active</span> }
+                    else
+                    { <span class="badge badge-red">Disabled</span> }
+                </td>
+                <td>@c.CreatedAt</td>
+                <td style="display:flex;gap:6px">
+                    <form method="post" asp-page-handler="Toggle">
+                        <input type="hidden" name="id" value="@c.Id" />
+                        <button type="submit" class="btn btn-default btn-sm">
+                            @(c.IsActive ? "Disable" : "Enable")
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="Regenerate">
+                        <input type="hidden" name="id" value="@c.Id" />
+                        <button type="submit" class="btn btn-default btn-sm">Regenerate Key</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </table>
+</div>

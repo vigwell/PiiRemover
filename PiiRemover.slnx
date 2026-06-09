@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="PiiRemover.Api/PiiRemover.Api.csproj" />
+  <Project Path="PiiRemover.Core/PiiRemover.Core.csproj" />
+  <Project Path="PiiRemover.Data/PiiRemover.Data.csproj" />
+  <Project Path="PiiRemover.LicenseTool/PiiRemover.LicenseTool.csproj" />
+  <Project Path="PiiRemover.Tests/PiiRemover.Tests.csproj" />
+</Solution>

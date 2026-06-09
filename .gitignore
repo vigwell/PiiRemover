@@ -1,0 +1,71 @@
+## .NET / C#
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userprefs
+
+## Build output
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!**/packages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Test results
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+## Publish
+publish/
+PublishProfiles/
+
+## SQLite databases
+*.db
+*.db-wal
+*.db-shm
+
+## License private key — NEVER commit
+private.pem
+
+## License files — generated per client, not source
+*.lic
+
+## Tesseract data — large binary, distribute separately
+tessdata/
+
+## OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/
+
+## Env / secrets
+.env
+.env.*
+appsettings.*.json
+!appsettings.json

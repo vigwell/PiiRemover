@@ -1,0 +1,322 @@
+{
+  "info": {
+    "name": "PiiRemover API",
+    "description": "Tests for OCR extract and PII redaction endpoints.\nBase URL variable: {{baseUrl}}  (default http://localhost:5000)\nAPI key variable:  {{apiKey}}   (default demo-api-key-changeme-12345)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000", "type": "string" },
+    { "key": "apiKey",  "value": "demo-api-key-changeme-12345", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Utilities",
+      "item": [
+        {
+          "name": "Hash a value (no auth)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/util/hash", "host": ["{{baseUrl}}"], "path": ["api","v1","util","hash"] },
+            "body": { "mode": "raw", "raw": "{\n  \"value\": \"2026\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns hash', () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.hash).to.match(/^[0-9a-f]{64}$/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Hash a value (wrong — no body)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/util/hash", "host": ["{{baseUrl}}"], "path": ["api","v1","util","hash"] },
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OCR – Extract text",
+      "item": [
+        {
+          "name": "Extract – plain text file",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/ocr/extract", "host": ["{{baseUrl}}"], "path": ["api","v1","ocr","extract"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/C:/temp/sample.txt",
+                  "description": "Change path to any .txt file"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has text field', () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.text).to.be.a('string');",
+                  "  pm.expect(b.charCount).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Extract – medical PDF (C:\\temp\\1.pdf)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/ocr/extract", "host": ["{{baseUrl}}"], "path": ["api","v1","ocr","extract"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/C:/temp/1.pdf",
+                  "description": "3-page Hebrew/English medical record"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Extracted text contains patient IDs', () => {",
+                  "  const text = pm.response.json().text;",
+                  "  pm.expect(text).to.include('205447709');",
+                  "  pm.expect(text).to.include('337789168');",
+                  "});",
+                  "pm.test('More than 500 chars extracted', () => {",
+                  "  pm.expect(pm.response.json().charCount).to.be.above(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Extract – no API key (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/ocr/extract", "host": ["{{baseUrl}}"], "path": ["api","v1","ocr","extract"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/C:/temp/1.pdf" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 401', () => pm.response.to.have.status(401));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Redact – Remove PII",
+      "item": [
+        {
+          "name": "Redact – inline Hebrew/English text with PII",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/redact/redact", "host": ["{{baseUrl}}"], "path": ["api","v1","redact","redact"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "text",
+                  "value": "Patient: כהן שאול  ID: 205447709  DOB: 30/11/1994  Phone: 058-3245670  Email: shaul@mail.co.il",
+                  "contentType": "text/plain",
+                  "description": "Inline text — Postman sends as text/plain part"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('PII removed', () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.redactedText).to.not.include('205447709');",
+                  "  pm.expect(b.redactedText).to.not.include('30/11/1994');",
+                  "  pm.expect(b.redactedText).to.not.include('058-3245670');",
+                  "  pm.expect(b.redactedText).to.not.include('shaul@mail.co.il');",
+                  "  pm.expect(b.matchCount).to.be.above(3);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Redact – medical PDF (C:\\temp\\1.pdf)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/redact/redact", "host": ["{{baseUrl}}"], "path": ["api","v1","redact","redact"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/C:/temp/1.pdf",
+                  "description": "3-page Hebrew/English medical record"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Patient IDs redacted', () => {",
+                  "  const t = pm.response.json().redactedText;",
+                  "  pm.expect(t).to.not.include('205447709');",
+                  "  pm.expect(t).to.not.include('337789168');",
+                  "  pm.expect(t).to.not.include('053561924');",
+                  "});",
+                  "pm.test('Phone numbers redacted', () => {",
+                  "  const t = pm.response.json().redactedText;",
+                  "  pm.expect(t).to.not.include('058-3245670');",
+                  "});",
+                  "pm.test('DOBs redacted', () => {",
+                  "  const t = pm.response.json().redactedText;",
+                  "  pm.expect(t).to.not.include('30/11/1994');",
+                  "  pm.expect(t).to.not.include('17/09/2007');",
+                  "  pm.expect(t).to.not.include('20/08/1955');",
+                  "});",
+                  "pm.test('Multiple fields hit', () => {",
+                  "  pm.expect(pm.response.json().matchCount).to.be.above(5);",
+                  "});",
+                  "// Print redacted text to Postman console for visual inspection",
+                  "console.log('=== REDACTED TEXT ===');",
+                  "console.log(pm.response.json().redactedText);",
+                  "console.log('Fields hit:', pm.response.json().fieldsHit);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Redact – clean text (no PII)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/redact/redact", "host": ["{{baseUrl}}"], "path": ["api","v1","redact","redact"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "text",
+                  "value": "The weather in Jerusalem is sunny today.",
+                  "contentType": "text/plain"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('0 matches for clean text', () => {",
+                  "  pm.expect(pm.response.json().matchCount).to.equal(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Redact – unsupported file type (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/redact/redact", "host": ["{{baseUrl}}"], "path": ["api","v1","redact","redact"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "text",
+                  "value": "PK",
+                  "contentType": "application/zip"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Swagger",
+      "item": [
+        {
+          "name": "Swagger UI (browser)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/swagger", "host": ["{{baseUrl}}"], "path": ["swagger"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Swagger loads', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

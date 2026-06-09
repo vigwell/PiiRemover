@@ -1,0 +1,95 @@
+@page "/admin/fields"
+@model PiiRemover.Api.Pages.Admin.FieldsModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "PII Fields";
+    ViewData["Nav"] = "fields";
+}
+
+<h1 class="page-title">PII Fields &amp; Patterns</h1>
+
+<div class="card">
+    <h3>Add PII Field</h3>
+    <form method="post" asp-page-handler="CreateField" style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" asp-for="NewFieldName" placeholder="Field name (e.g. Israeli ID)" required
+               style="max-width:240px" />
+        <input type="text" asp-for="NewReplaceWith" placeholder="Replacement text (default: ████)"
+               style="max-width:220px" />
+        <button class="btn btn-primary" type="submit">Add Field</button>
+    </form>
+</div>
+
+@foreach (var f in Model.Fields)
+{
+    <div class="card" style="@(f.IsActive ? "" : "opacity:.65")">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f0f0f0">
+            <span style="font-size:15px;font-weight:600">@f.FieldName</span>
+            @if (f.IsActive)
+            { <span class="badge badge-green">Active</span> }
+            else
+            { <span class="badge badge-red">Inactive</span> }
+            <span style="color:#888;font-size:12px">replaces with <span class="mono">@f.ReplaceWith</span></span>
+            <span style="flex:1"></span>
+            <form method="post" style="display:inline">
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <button asp-page-handler="ToggleField" class="btn btn-default btn-sm">
+                    @(f.IsActive ? "Disable" : "Enable")
+                </button>
+            </form>
+            <form method="post" style="display:inline">
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <button asp-page-handler="DeleteField" class="btn btn-danger btn-sm"
+                        onclick="return confirm('Delete field &quot;@f.FieldName&quot; and all its patterns?')">
+                    Delete
+                </button>
+            </form>
+        </div>
+
+        @if (f.Patterns.Count > 0)
+        {
+            <table style="margin-bottom:14px">
+                <tr>
+                    <th style="width:120px">Type</th>
+                    <th>Pattern</th>
+                    <th style="width:80px">Priority</th>
+                    <th style="width:80px"></th>
+                </tr>
+                @foreach (var p in f.Patterns.OrderByDescending(x => x.Priority))
+                {
+                    <tr>
+                        <td><span class="badge badge-blue">@p.PatternType</span></td>
+                        <td><span class="mono">@p.Pattern</span></td>
+                        <td>@p.Priority</td>
+                        <td>
+                            <form method="post">
+                                <input type="hidden" name="patternId" value="@p.Id" />
+                                <button asp-page-handler="DeletePattern" class="btn btn-link btn-sm"
+                                        onclick="return confirm('Delete this pattern?')">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </table>
+        }
+        else
+        {
+            <p style="color:#aaa;font-size:12px;margin-bottom:12px">No patterns yet — add one below.</p>
+        }
+
+        <details>
+            <summary style="cursor:pointer;color:#1677ff;font-size:13px">+ Add Pattern</summary>
+            <form method="post" asp-page-handler="CreatePattern"
+                  style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <select name="patternType" class="ctrl" style="width:160px">
+                    <option value="Regex">Regex</option>
+                    <option value="ConstList">Keyword List (| separated)</option>
+                    <option value="LlmPrompt">LLM Prompt (future)</option>
+                </select>
+                <input name="pattern" placeholder="Pattern or keywords" required style="width:320px" />
+                <input name="priority" type="number" value="0" style="width:80px" title="Priority (higher = first)" />
+                <button type="submit" class="btn btn-primary btn-sm">Add</button>
+            </form>
+        </details>
+    </div>
+}

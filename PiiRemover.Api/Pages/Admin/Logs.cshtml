@@ -1,0 +1,69 @@
+@page "/admin/logs"
+@model PiiRemover.Api.Pages.Admin.LogsModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Request Logs";
+    ViewData["Nav"] = "logs";
+}
+
+<h1 class="page-title">Request Logs</h1>
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="color:#666">Showing page <strong>@Model.CurrentPage</strong> of <strong>@Model.PageCount</strong>
+            — <strong>@Model.Total.ToString("N0")</strong> total entries</span>
+        <div style="display:flex;gap:8px">
+            @if (Model.CurrentPage > 1)
+            {
+                <a href="/admin/logs?page=@(Model.CurrentPage - 1)" class="btn btn-default btn-sm">← Prev</a>
+            }
+            @if (Model.CurrentPage < Model.PageCount)
+            {
+                <a href="/admin/logs?page=@(Model.CurrentPage + 1)" class="btn btn-default btn-sm">Next →</a>
+            }
+        </div>
+    </div>
+
+    <table>
+        <tr>
+            <th style="width:60px">ID</th>
+            <th style="width:80px">Client</th>
+            <th style="width:150px">Time</th>
+            <th>File</th>
+            <th style="width:80px">Size KB</th>
+            <th style="width:90px">Duration ms</th>
+            <th>Fields Hit</th>
+            <th>Error</th>
+        </tr>
+        @foreach (var log in Model.Logs)
+        {
+            <tr>
+                <td>@log.Id</td>
+                <td>@log.ClientId</td>
+                <td style="font-size:12px;white-space:nowrap">@log.RequestedAt</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                    title="@log.FileName">@log.FileName</td>
+                <td>@log.FileSizeKb</td>
+                <td>@log.DurationMs</td>
+                <td style="font-size:12px">@log.FieldsHit</td>
+                <td style="color:#cf1322;font-size:12px">@log.ErrorMsg</td>
+            </tr>
+        }
+    </table>
+
+    @if (Model.Logs.Any() == false)
+    {
+        <p style="text-align:center;color:#aaa;padding:24px 0">No log entries found.</p>
+    }
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+        @if (Model.CurrentPage > 1)
+        {
+            <a href="/admin/logs?page=@(Model.CurrentPage - 1)" class="btn btn-default btn-sm">← Prev</a>
+        }
+        @if (Model.CurrentPage < Model.PageCount)
+        {
+            <a href="/admin/logs?page=@(Model.CurrentPage + 1)" class="btn btn-default btn-sm">Next →</a>
+        }
+    </div>
+</div>

@@ -1,0 +1,124 @@
+@page "/admin/settings"
+@model PiiRemover.Api.Pages.Admin.SettingsModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Settings";
+    ViewData["Nav"] = "settings";
+}
+
+<h1 class="page-title">System Settings</h1>
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<div class="grid-2">
+
+    <!-- License summary -->
+    <div class="card">
+        <h3>License</h3>
+        <table>
+            <tr><td>Organisation</td><td><strong>@Model.License.OrgName</strong></td></tr>
+            <tr><td>License ID</td><td><span class="mono">@Model.License.LicenseId</span></td></tr>
+            <tr><td>Issued</td><td>@Model.License.IssuedDate.ToString("yyyy-MM-dd")</td></tr>
+            <tr><td>Expires</td><td>
+                @if (Model.DaysUntilExpiry <= 7)
+                { <span class="badge badge-red">@Model.License.ExpiryDate.ToString("yyyy-MM-dd")</span> }
+                else if (Model.DaysUntilExpiry <= 30)
+                { <span class="badge badge-blue">@Model.License.ExpiryDate.ToString("yyyy-MM-dd")</span> }
+                else
+                { <span class="badge badge-green">@Model.License.ExpiryDate.ToString("yyyy-MM-dd")</span> }
+            </td></tr>
+            <tr><td>Max Clients</td><td>@Model.License.MaxClients</td></tr>
+            <tr><td>Request Quota</td><td>
+                @if (Model.License.RequestQuota == 0)
+                { <span class="badge badge-green">Unlimited</span> }
+                else
+                { <text>@Model.QuotaUsed.ToString("N0") / @Model.License.RequestQuota.ToString("N0")</text> }
+            </td></tr>
+            <tr><td>Features</td><td>@string.Join(", ", Model.License.Features)</td></tr>
+        </table>
+    </div>
+
+    <!-- Change password -->
+    <div class="card">
+        <h3>Admin Password</h3>
+        <form method="post" asp-page-handler="ChangePassword">
+            <div style="margin-bottom:10px">
+                <label>Current Password</label>
+                <input type="password" asp-for="CurrentPassword" required />
+            </div>
+            <div style="margin-bottom:10px">
+                <label>New Password</label>
+                <input type="password" asp-for="NewPassword" required minlength="4" />
+            </div>
+            <div style="margin-bottom:14px">
+                <label>Confirm New Password</label>
+                <input type="password" asp-for="ConfirmPassword" required minlength="4" />
+            </div>
+            <button type="submit" class="btn btn-primary">Change Password</button>
+        </form>
+    </div>
+
+</div>
+
+<div class="grid-2">
+
+    <!-- Log retention -->
+    <div class="card">
+        <h3>Log Retention</h3>
+        <form method="post" asp-page-handler="SaveLogRetention" style="display:flex;gap:10px;align-items:center">
+            <label>Keep logs for</label>
+            <input type="number" asp-for="RetentionMonths" min="1" max="120" style="width:80px" />
+            <span>month(s)</span>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+        <p style="color:#888;font-size:12px;margin-top:8px">
+            Logs older than this threshold are deleted daily by the background cleanup job.
+            Currently: <strong>@Model.RetentionMonths month(s)</strong>.
+        </p>
+    </div>
+
+    <!-- OCR config -->
+    <div class="card">
+        <h3>OCR Configuration</h3>
+        <form method="post" asp-page-handler="SaveOcr">
+            <div style="margin-bottom:10px">
+                <label>Engine Order <span style="font-size:11px;color:#aaa">(comma-separated)</span></label>
+                <input asp-for="OcrEngineOrder" placeholder="WindowsOcr,Tesseract" />
+            </div>
+            <div style="margin-bottom:10px">
+                <label>Tesseract Languages</label>
+                <input asp-for="TesseractLanguages" placeholder="heb+eng" />
+            </div>
+            <div style="margin-bottom:14px">
+                <label>Max OCR Concurrency <span style="font-size:11px;color:#aaa">(0 = CPU count)</span></label>
+                <input type="number" asp-for="OcrMaxConcurrency" min="0" max="64" style="width:80px" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+    </div>
+
+</div>
+
+<!-- Raw Settings key-value store -->
+<div class="card">
+    <h3>All Settings (raw key-value store)</h3>
+    <table>
+        <tr><th>Key</th><th>Value</th><th>Description</th></tr>
+        @foreach (var s in Model.AllSettings)
+        {
+            var display = s.Key == "admin:passwordHash" ? "••••••••" : s.Value;
+            <tr>
+                <td><span class="mono" style="font-size:12px">@s.Key</span></td>
+                <td><span class="mono" style="font-size:12px">@display</span></td>
+                <td style="font-size:12px;color:#888">@s.Description</td>
+            </tr>
+        }
+    </table>
+</div>

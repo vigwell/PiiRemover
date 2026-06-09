@@ -1,0 +1,50 @@
+@page "/admin/login"
+@model PiiRemover.Api.Pages.Admin.LoginModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PiiRemover — Login</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+     background:#f0f2f5;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.box{background:#fff;border-radius:8px;box-shadow:0 2px 12px #0002;padding:40px;width:360px}
+.logo{text-align:center;font-size:22px;font-weight:700;color:#001529;margin-bottom:8px}
+.sub{text-align:center;color:#888;font-size:13px;margin-bottom:28px}
+label{display:block;font-size:13px;font-weight:500;color:#444;margin-bottom:4px}
+input{width:100%;border:1px solid #d9d9d9;border-radius:4px;padding:8px 12px;font-size:14px;
+      outline:none;transition:border-color .2s;margin-bottom:14px}
+input:focus{border-color:#1677ff;box-shadow:0 0 0 2px #1677ff20}
+button{width:100%;background:#1677ff;color:#fff;border:none;border-radius:4px;padding:10px;
+       font-size:15px;font-weight:600;cursor:pointer;transition:background .2s;margin-top:4px}
+button:hover{background:#0958d9}
+.err{background:#fff2f0;border:1px solid #ffccc7;color:#cf1322;border-radius:4px;
+     padding:8px 12px;font-size:13px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">🔒 PiiRemover</div>
+  <div class="sub">Administration Console</div>
+
+  @if (!string.IsNullOrEmpty(Model.Error))
+  {
+    <div class="err">@Model.Error</div>
+  }
+
+  <form method="post">
+    <label>Username</label>
+    <input type="text" asp-for="Username" autocomplete="username" placeholder="admin" />
+    <label>Password</label>
+    <input type="password" asp-for="Password" autocomplete="current-password" placeholder="••••••" />
+    <input type="hidden" asp-for="ReturnUrl" />
+    <button type="submit">Sign In</button>
+  </form>
+</div>
+</body>
+</html>
