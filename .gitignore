@@ -38,7 +38,7 @@ coverage/
 publish/
 PublishProfiles/
 
-## SQLite databases
+## SQLite databases — never commit, recreated automatically on startup
 *.db
 *.db-wal
 *.db-shm
