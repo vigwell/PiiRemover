@@ -133,34 +133,54 @@
             @if (f.IsPreserve)
             { <span title="Preserve / Do-not-touch field" style="font-size:16px">🛡</span> }
             <span style="font-size:15px;font-weight:600">@f.FieldName</span>
+            @{
+                var maxPatPri = f.Patterns.Count > 0 ? f.Patterns.Max(p => p.Priority) : 0;
+                var effectivePri = Math.Max(f.Priority, maxPatPri);
+            }
+            <button type="button"
+                    onclick="togglePriEditor(@f.Id)"
+                    title="Field priority @f.Priority (effective: @effectivePri) — click to edit"
+                    style="background:@(f.Priority > 0 ? "rgba(250,173,20,.15)" : "var(--surface2)");
+                           border:1px solid @(f.Priority > 0 ? "rgba(250,173,20,.5)" : "var(--border2)");
+                           color:@(f.Priority > 0 ? "#d48806" : "var(--text3)");
+                           border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;cursor:pointer;
+                           white-space:nowrap">
+                ⬆ @effectivePri
+            </button>
             @* clickable badge toggles preserve mode *@
-            <form method="post" style="display:inline">
-                <input type="hidden" name="fieldId" value="@f.Id" />
-                @if (f.IsPreserve)
-                {
+            @if (f.IsPreserve)
+            {
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
                     <button asp-page-handler="TogglePreserve" type="submit"
                             class="badge"
                             style="background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);cursor:pointer;font-family:inherit;font-size:inherit"
                             title="Click to turn OFF preserve mode"
                             onclick="return confirm('Turn OFF Preserve mode for &quot;@f.FieldName&quot;?\nIt will become a regular Redact field.')">🛡 Preserve ●</button>
-                }
-                else if (f.IsActive)
-                {
-                    <button asp-page-handler="TogglePreserve" type="submit"
+                </form>
+            }
+            else if (f.IsActive)
+            {
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <button asp-page-handler="ToggleField" type="submit"
                             class="badge badge-green"
                             style="cursor:pointer;font-family:inherit;font-size:inherit"
-                            title="Click to turn ON preserve mode"
-                            onclick="return confirm('Turn ON Preserve mode for &quot;@f.FieldName&quot;?\nTerms matching this field will be protected from redaction.')">Active</button>
-                }
-                else
-                {
-                    <button asp-page-handler="TogglePreserve" type="submit"
+                            title="Click to disable this field"
+                            onclick="return confirm('Disable field &quot;@f.FieldName&quot;?')">Active ●</button>
+                </form>
+            }
+            else
+            {
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <button asp-page-handler="ToggleField" type="submit"
                             class="badge badge-red"
                             style="cursor:pointer;font-family:inherit;font-size:inherit"
-                            title="Click to turn ON preserve mode"
-                            onclick="return confirm('Turn ON Preserve mode for &quot;@f.FieldName&quot;?')">Inactive</button>
-                }
-            </form>
+                            title="Click to enable this field"
+                            onclick="return confirm('Enable field &quot;@f.FieldName&quot;?')">Inactive ●</button>
+                </form>
+            }
             @if (!f.IsPreserve)
             {
                 <span style="color:var(--text3);font-size:12px">replaces with
@@ -171,16 +191,6 @@
                 </span>
             }
             <span style="flex:1"></span>
-            @if (!f.IsPreserve)
-            {
-            <form method="post" style="display:inline">
-                <input type="hidden" name="fieldId" value="@f.Id" />
-                <button asp-page-handler="ToggleField" class="btn btn-default btn-sm"
-                        onclick="return confirm('@(f.IsActive ? "Disable" : "Enable") field &quot;@f.FieldName&quot;?')">
-                    @(f.IsActive ? "Disable" : "Enable")
-                </button>
-            </form>
-            }
             @if (f.Patterns.Any(p =>
                      p.PatternType == PiiRemover.Core.Models.PatternType.WholeWord ||
                      p.PatternType == PiiRemover.Core.Models.PatternType.ConstList))
@@ -211,6 +221,22 @@
                         onclick="return confirm('Delete field &quot;@f.FieldName&quot; and all its patterns?')">
                     Delete
                 </button>
+            </form>
+        </div>
+
+        @* ── Field priority inline editor ── *@
+        <div id="pri-editor-@f.Id" style="display:none;margin-bottom:8px;padding:10px 12px;background:rgba(250,173,20,.06);border-radius:6px;border:1px solid rgba(250,173,20,.3)">
+            <form method="post" asp-page-handler="UpdateFieldPriority" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <label style="font-size:12px;color:var(--text3)">Field priority:</label>
+                <input type="number" name="priority" value="@f.Priority" min="0" max="9999"
+                       style="width:90px;padding:4px 8px;font-size:13px;border:1px solid rgba(250,173,20,.5);border-radius:4px;background:var(--surface);color:var(--text);text-align:center" />
+                <span style="font-size:11px;color:var(--text3)">
+                    (effective: @(Math.Max(f.Priority, f.Patterns.Count > 0 ? f.Patterns.Max(p => p.Priority) : 0)) — higher = first in list &amp; processed first)
+                </span>
+                <button type="submit" class="btn btn-primary btn-sm">💾 Save</button>
+                <button type="button" class="btn btn-default btn-sm" onclick="togglePriEditor(@f.Id)">Cancel</button>
             </form>
         </div>
 
@@ -313,13 +339,18 @@
                                                oninput="document.getElementById('patval-@p.Id').value=this.value" />
                                     </div>
                                 }
-                                    <!-- save / cancel -->
-                                    <form method="post" action="/admin/fields?handler=UpdatePattern" id="saveform-@p.Id">
+                                    <!-- priority + save / cancel -->
+                                    <form method="post" action="/admin/fields?handler=UpdatePattern" id="saveform-@p.Id"
+                                          style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="patternId" value="@p.Id" />
                                         <input type="hidden" name="patternValue" id="patval-@p.Id" value="@p.Pattern" />
-                                        <button type="submit" class="btn btn-primary btn-sm">💾 Save changes</button>
-                                        <button type="button" class="btn btn-default btn-sm" onclick="toggleEditor(@p.Id)" style="margin-left:4px">Cancel</button>
+                                        <label style="font-size:11px;color:var(--text3);white-space:nowrap">Priority:</label>
+                                        <input type="number" name="priority" value="@p.Priority" min="0" max="9999"
+                                               style="width:72px;padding:3px 6px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);text-align:center"
+                                               title="Higher priority patterns are applied first" />
+                                        <button type="submit" class="btn btn-primary btn-sm">💾 Save</button>
+                                        <button type="button" class="btn btn-default btn-sm" onclick="toggleEditor(@p.Id)">Cancel</button>
                                     </form>
                                 </div>
                             </td>
@@ -350,6 +381,7 @@
                         <option value="AfterLabel">After Label</option>
                         <option value="BetweenMarkers">Between Markers</option>
                         <option value="NumberSequence">Number Sequence</option>
+                        <option value="WholeLine">Whole Line (remove line containing pattern)</option>
                     </optgroup>
                     <optgroup label="Advanced">
                         <option value="Regex">Regex (full .NET)</option>
@@ -357,7 +389,7 @@
                     </optgroup>
                 </select>
                 <input name="pattern" placeholder="Pattern or keywords" required style="width:320px" />
-                <input name="priority" type="number" value="0" style="width:80px" title="Priority (higher = first)" />
+                <input name="priority" type="number" value="100" style="width:80px" title="Priority (higher = first)" />
                 <button type="submit" class="btn btn-primary btn-sm">Add</button>
             </form>
         </details>
@@ -365,6 +397,14 @@
 }
 
 <script>
+// ── Field priority inline editor ───────────────────────────────────────────
+function togglePriEditor(fieldId) {
+  const el = document.getElementById('pri-editor-' + fieldId);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el.style.display !== 'none') el.querySelector('input[name=priority]').focus();
+}
+
 // ── ReplaceWith inline editor ──────────────────────────────────────────────
 function toggleRwEditor(fieldId) {
   const el = document.getElementById('rw-editor-' + fieldId);
@@ -493,4 +533,22 @@ function setFilter(kind) {
 document.querySelectorAll('.filter-tab').forEach(b =>
   b.addEventListener('click', () => sessionStorage.setItem('fields-filter', b.id.replace('filter-', '')))
 );
+
+// ── Scroll-position restore after form submit ─────────────────────────────
+// Save scroll Y before any form submission, restore it on page load.
+(function () {
+  const KEY = 'fields-scroll';
+
+  // Restore on load (runs after filter is applied so layout is stable)
+  const saved = sessionStorage.getItem(KEY);
+  if (saved !== null) {
+    sessionStorage.removeItem(KEY);
+    requestAnimationFrame(() => window.scrollTo({ top: +saved, behavior: 'instant' }));
+  }
+
+  // Save before every form submit on this page
+  document.addEventListener('submit', () => {
+    sessionStorage.setItem(KEY, String(window.scrollY));
+  });
+})();
 </script>

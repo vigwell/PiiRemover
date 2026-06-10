@@ -58,7 +58,7 @@ public sealed class AfterLabelEngine : IPatternEngine
         var (label, wordCount) = Parse(rawPattern);
         var escaped            = Regex.Escape(label);
         var valueGroup         = wordCount <= 0
-            ? @"(.+?)(?=\r?\n|$)"                                   // to end of line
+            ? @"([^\r\n]+)"                                         // to end of line (greedy, any line-ending style)
             : BuildWordGroup(wordCount);                             // N words
 
         // (?im) — case-insensitive + multiline (^ and $ match line start/end)

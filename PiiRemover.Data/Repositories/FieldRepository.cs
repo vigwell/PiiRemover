@@ -37,7 +37,7 @@ public class FieldRepository : IFieldRepository
     {
         using var conn = Open();
         var fields = (await conn.QueryAsync<PiiField>(
-            "SELECT * FROM PiiFields ORDER BY FieldName")).ToList();
+            "SELECT * FROM PiiFields ORDER BY Priority DESC, FieldName")).ToList();
 
         if (fields.Count == 0) return fields;
 
@@ -53,12 +53,12 @@ public class FieldRepository : IFieldRepository
         return fields;
     }
 
-    public async Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith, bool isPreserve = false)
+    public async Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith, bool isPreserve = false, int priority = 500)
     {
         using var conn = Open();
         return await conn.ExecuteScalarAsync<int>(
-            "INSERT INTO PiiFields (ClientId, FieldName, ReplaceWith, IsPreserve) VALUES (@clientId, @fieldName, @replaceWith, @isPreserve); SELECT last_insert_rowid();",
-            new { clientId, fieldName, replaceWith, isPreserve = isPreserve ? 1 : 0 });
+            "INSERT INTO PiiFields (ClientId, FieldName, ReplaceWith, IsPreserve, Priority) VALUES (@clientId, @fieldName, @replaceWith, @isPreserve, @priority); SELECT last_insert_rowid();",
+            new { clientId, fieldName, replaceWith, isPreserve = isPreserve ? 1 : 0, priority });
     }
 
     public async Task SetPreserveAsync(int fieldId, bool isPreserve)
@@ -79,6 +79,13 @@ public class FieldRepository : IFieldRepository
         using var conn = Open();
         await conn.ExecuteAsync("UPDATE PiiFields SET ReplaceWith = @replaceWith WHERE Id = @fieldId",
             new { fieldId, replaceWith });
+    }
+
+    public async Task UpdateFieldPriorityAsync(int fieldId, int priority)
+    {
+        using var conn = Open();
+        await conn.ExecuteAsync("UPDATE PiiFields SET Priority = @priority WHERE Id = @fieldId",
+            new { fieldId, priority });
     }
 
     public async Task DeleteFieldAsync(int fieldId)

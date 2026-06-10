@@ -72,6 +72,7 @@ builder.Services.AddSingleton<IPatternEngine, AfterLabelEngine>();
 builder.Services.AddSingleton<IPatternEngine, BetweenMarkersEngine>();
 builder.Services.AddSingleton<IPatternEngine, NumberSequenceEngine>();
 builder.Services.AddSingleton<IPatternEngine, FileListEngine>();
+builder.Services.AddSingleton<IPatternEngine, WholeLineEngine>();
 builder.Services.AddSingleton<RedactionOrchestrator>(sp =>
     new RedactionOrchestrator(sp.GetServices<IPatternEngine>()));
 

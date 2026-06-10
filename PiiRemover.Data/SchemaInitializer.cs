@@ -35,7 +35,8 @@ public class SchemaInitializer
             FieldName   TEXT NOT NULL,
             ReplaceWith TEXT DEFAULT '████',
             IsActive    INTEGER DEFAULT 1,
-            IsPreserve  INTEGER DEFAULT 0
+            IsPreserve  INTEGER DEFAULT 0,
+            Priority    INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS PiiPatterns (
@@ -85,6 +86,9 @@ public class SchemaInitializer
 
         // ── Migration: add IsPreserve column if missing ───────────────────────
         MigrateAddIsPreserve(conn);
+
+        // ── Migration: add Priority column to PiiFields if missing ───────────
+        MigrateAddFieldPriority(conn);
     }
 
     /// <summary>
@@ -142,6 +146,20 @@ public class SchemaInitializer
             return; // already present
 
         Execute(conn, "ALTER TABLE PiiFields ADD COLUMN IsPreserve INTEGER DEFAULT 0");
+    }
+
+    /// <summary>Adds the Priority column to PiiFields if it does not exist yet.</summary>
+    private static void MigrateAddFieldPriority(SqliteConnection conn)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText =
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='PiiFields'";
+        var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
+
+        if (ddl.Contains("Priority", StringComparison.OrdinalIgnoreCase))
+            return; // already present
+
+        Execute(conn, "ALTER TABLE PiiFields ADD COLUMN Priority INTEGER DEFAULT 0");
     }
 
     private static void Execute(SqliteConnection conn, string sql)

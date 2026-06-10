@@ -15,5 +15,12 @@ public class PiiField
     /// </summary>
     public bool IsPreserve { get; set; } = false;
 
+    /// <summary>
+    /// Explicit field-level priority. Used to order fields on the admin page and
+    /// to determine processing order in the redaction engine.
+    /// Effective sort key = max(FieldPriority, max(PatternPriority)).
+    /// </summary>
+    public int Priority { get; set; } = 0;
+
     public List<PiiPattern> Patterns { get; set; } = new();
 }

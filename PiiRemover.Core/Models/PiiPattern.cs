@@ -35,6 +35,15 @@ public enum PatternType
                     //   "7,10"  7–10 digits
                     //   Automatically skips sequences embedded in longer numbers.
 
+    // ── Line-level ───────────────────────────────────────────────────────
+    WholeLine,      // Redacts / removes the ENTIRE LINE if the pattern is found
+                    //   anywhere on that line.  Pattern is a .NET regex sub-expression.
+                    //   Use plain text (auto-escaped) or a regex fragment.
+                    //   Set field ReplaceWith to "" to DELETE the line entirely.
+                    //   Examples:
+                    //     "Patient:"      removes every line containing "Patient:"
+                    //     "\d{9}"         removes every line with a 9-digit sequence
+
     // ── File-based ────────────────────────────────────────────────────────
     FileList,       // Large list of exact values loaded from a file.
                     //   Pattern value = newline-separated terms (stored in DB).

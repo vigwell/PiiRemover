@@ -78,17 +78,20 @@ public class RedactionOrchestrator
 
     private static List<RedactMatch> DeduplicateOverlaps(List<RedactMatch> matches)
     {
+        // Sort by start position; within the same start prefer the longest match.
+        // When a later (shorter) match overlaps an already-accepted match it is dropped —
+        // the longer match always wins, even if the shorter one started slightly later.
         var sorted = matches.OrderBy(m => m.StartIndex).ThenByDescending(m => m.Length).ToList();
         var result = new List<RedactMatch>();
         int lastEnd = -1;
 
         foreach (var m in sorted)
         {
-            if (m.StartIndex >= lastEnd)
-            {
-                result.Add(m);
-                lastEnd = m.StartIndex + m.Length;
-            }
+            // Skip any match that overlaps (even partially) with an already-accepted match
+            if (m.StartIndex < lastEnd) continue;
+
+            result.Add(m);
+            lastEnd = m.StartIndex + m.Length;
         }
         return result;
     }

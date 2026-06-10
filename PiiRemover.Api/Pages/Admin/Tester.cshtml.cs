@@ -132,7 +132,7 @@ public class TesterModel : AdminPageModel
         if (string.IsNullOrWhiteSpace(req.Pattern))
             return BadRequest(new { error = "Pattern cannot be empty." });
 
-        var id = await _fields.CreatePatternAsync(req.FieldId, pt, req.Pattern.Trim(), 0);
+        var id = await _fields.CreatePatternAsync(req.FieldId, pt, req.Pattern.Trim(), 100);
         _fieldsCache.Invalidate();
         return new JsonResult(new { ok = true, patternId = id });
     }
@@ -230,9 +230,9 @@ public class TesterModel : AdminPageModel
             return BadRequest(new { error = "Pattern cannot be empty." });
 
         var rw       = string.IsNullOrWhiteSpace(req.ReplaceWith) ? (req.IsPreserve ? "—" : "████") : req.ReplaceWith.Trim();
-        var priority = req.IsPreserve ? 999 : 0;
+        var patPri   = req.IsPreserve ? 999 : 100;
         var fieldId  = await _fields.CreateFieldAsync(null, req.FieldName.Trim(), rw, req.IsPreserve);
-        var patId    = await _fields.CreatePatternAsync(fieldId, pt, req.Pattern.Trim(), priority);
+        var patId    = await _fields.CreatePatternAsync(fieldId, pt, req.Pattern.Trim(), patPri);
         _fieldsCache.Invalidate();
         return new JsonResult(new { ok = true, fieldId, patternId = patId });
     }

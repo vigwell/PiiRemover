@@ -26,7 +26,16 @@ public class FieldsModel : AdminPageModel
         _cache  = cache;
     }
 
-    public async Task OnGetAsync() => Fields = await _fields.GetAllFieldsAsync();
+    public async Task OnGetAsync()
+    {
+        var all = (await _fields.GetAllFieldsAsync()).ToList();
+        // Sort: effective priority = max(field.Priority, max pattern priority), desc
+        Fields = all.OrderByDescending(f =>
+        {
+            var maxPat = f.Patterns.Count > 0 ? f.Patterns.Max(p => p.Priority) : 0;
+            return Math.Max(f.Priority, maxPat);
+        }).ThenByDescending(f => f.Priority).ThenBy(f => f.FieldName);
+    }
 
     public async Task<IActionResult> OnPostCreateFieldAsync()
     {
@@ -72,6 +81,14 @@ public class FieldsModel : AdminPageModel
 
         _cache.Invalidate();
         TempData["Success"] = $"Preserve field '{preserveFieldName}' created.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostUpdateFieldPriorityAsync(int fieldId, int priority)
+    {
+        await _fields.UpdateFieldPriorityAsync(fieldId, priority);
+        _cache.Invalidate();
+        TempData["Success"] = "Field priority updated.";
         return RedirectToPage();
     }
 
@@ -234,7 +251,7 @@ public class FieldsModel : AdminPageModel
             if (existing is not null)
                 await _fields.UpdatePatternAsync(existing.Id, PatternType.FileList, serialized, existing.Priority);
             else
-                await _fields.CreatePatternAsync(fieldId, PatternType.FileList, serialized, 0);
+                await _fields.CreatePatternAsync(fieldId, PatternType.FileList, serialized, 100);
 
             FileListEngine.InvalidateAll();
             _cache.Invalidate();
