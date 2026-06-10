@@ -1,3 +1,13 @@
+BUGS: 
+- let load names file list (currently not working)
+- add image reduction endpoint (currently only ocr and ocr reduct text) + add tester for it another new page in wenb admin
+- when upload black imeges with rext ocr doesnt get tall texts - need to add some pre processing to make it work better (may be reverse colors)
+- open api to call outside of internetwork - currently only local network (may be via api proxy of cre? api gateway)
+- can it run in conatiner?
+-------------------------------------------------------------------------------------
+
+
+
 1) Add engine that can get tasks folder in and out and do operations on it - ocr and reduction - storing in output text file
 2) create web portal for product (commercial + download center) + licensing prices
 3) Onlain tester - upload doc - get output text file - to show how it works
