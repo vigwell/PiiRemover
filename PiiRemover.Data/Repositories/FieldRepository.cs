@@ -74,6 +74,13 @@ public class FieldRepository : IFieldRepository
         await conn.ExecuteAsync("UPDATE PiiFields SET IsActive = @v WHERE Id = @fieldId", new { v = active ? 1 : 0, fieldId });
     }
 
+    public async Task UpdateFieldReplaceWithAsync(int fieldId, string replaceWith)
+    {
+        using var conn = Open();
+        await conn.ExecuteAsync("UPDATE PiiFields SET ReplaceWith = @replaceWith WHERE Id = @fieldId",
+            new { fieldId, replaceWith });
+    }
+
     public async Task DeleteFieldAsync(int fieldId)
     {
         using var conn = Open();

@@ -631,10 +631,27 @@ mark.search-hit.active {
       <!-- existing field section -->
       <div id="addExistingSection">
         <label class="form-label">Field</label>
-        <select class="form-ctrl" id="addFieldSelect">
+        <select class="form-ctrl" id="addFieldSelect" onchange="onFieldSelectChange()">
           <option value="">— loading… —</option>
         </select>
-        <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="submitAddToExisting()">✓ Add to Field</button>
+
+        <!-- "combine" checkbox — shown when selected field has a ConstList pattern -->
+        <label id="addCombineRow"
+               style="display:none;align-items:center;gap:8px;margin-top:10px;
+                      padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;
+                      background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2)"
+               id="addCombineRow">
+          <input type="checkbox" id="addCombineChk" checked
+                 style="width:14px;height:14px;accent-color:#1677ff">
+          <span>
+            <strong style="color:#1677ff">Add and combine with existing ConstList</strong>
+            <span style="display:block;font-size:11px;color:var(--text3)">
+              Appends this value to the field's keyword list — no new separate pattern
+            </span>
+          </span>
+        </label>
+
+        <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="submitAddToExisting()">✓ Add to Field</button>
       </div>
 
       <!-- new field section -->
@@ -1530,6 +1547,10 @@ async function openAddPii(text, mode) {
   // Show / hide Replace-with row (not needed for preserve)
   document.getElementById('addReplaceRow').style.display = isPreserve ? 'none' : '';
 
+  // Reset combine checkbox (will be shown if field has ConstList after dropdown populates)
+  document.getElementById('addCombineRow').style.display = 'none';
+  document.getElementById('addCombineChk').checked = true;
+
   // Reset to "existing" mode
   document.querySelector('input[name="addMode"][value="existing"]').checked = true;
   addModeChange();
@@ -1547,9 +1568,24 @@ function addModeChange() {
   document.getElementById('addExistingSection').style.display = mode === 'existing' ? '' : 'none';
   document.getElementById('addNewSection').style.display      = mode === 'new'      ? '' : 'none';
 
+  // Hide combine row when switching to "new" — re-evaluated on field select change
+  if (mode === 'new') document.getElementById('addCombineRow').style.display = 'none';
+  else                onFieldSelectChange();   // re-check current selection
+
   const accent = '#1677ff';
   document.getElementById('addModeExistingLbl').style.borderColor = mode === 'existing' ? accent : 'var(--border2)';
   document.getElementById('addModeNewLbl').style.borderColor      = mode === 'new'      ? accent : 'var(--border2)';
+}
+
+// Show the "combine" checkbox whenever the selected field has at least one ConstList pattern
+function onFieldSelectChange() {
+  const sel      = document.getElementById('addFieldSelect');
+  const fieldId  = sel ? +sel.value : 0;
+  const field    = (cachedFields || []).find(f => f.id === fieldId);
+  const hasCL    = field && field.patterns && field.patterns.some(p => p.type === 'ConstList');
+  const row      = document.getElementById('addCombineRow');
+  row.style.display = (hasCL && fieldId) ? 'flex' : 'none';
+  if (hasCL) document.getElementById('addCombineChk').checked = true;
 }
 
 async function reloadFields() {
@@ -1568,25 +1604,46 @@ function populateFieldSelect() {
   const sel        = document.getElementById('addFieldSelect');
   sel.innerHTML = '<option value="">— select a field —</option>'
     + filtered.map(f => {
-        const label = isPreserve
-          ? h(f.fieldName)
-          : `${h(f.fieldName)} → ${h(f.replaceWith)}`;
+        const hasCL   = f.patterns && f.patterns.some(p => p.type === 'ConstList');
+        const clHint  = hasCL ? ' ⊕' : '';
+        const label   = isPreserve
+          ? h(f.fieldName) + clHint
+          : `${h(f.fieldName)} → ${h(f.replaceWith)}${clHint}`;
         return `<option value="${f.id}">${label}</option>`;
       }).join('');
+  // Re-evaluate combine checkbox for current selection (auto-selects first if any)
+  onFieldSelectChange();
 }
 
 async function submitAddToExisting() {
   const fieldId = document.getElementById('addFieldSelect').value;
   if (!fieldId) { setAddPiiStatus('Please select a field.', 'error'); return; }
 
+  const combineChk = document.getElementById('addCombineChk');
+  const combine    = combineChk && combineChk.checked && combineChk.closest('#addCombineRow').style.display !== 'none';
+
   setAddPiiStatus('Saving…', 'info');
-  const r = await apiPost('/admin/tester?handler=AddPattern',
-    { fieldId: +fieldId, patternType: 'WholeWord', pattern: addPiiCurrentText });
-  if (r.ok) {
-    setAddPiiStatus('✓ Added as Whole Word pattern.', 'ok');
-    cachedFields = null;
+
+  let r;
+  if (combine) {
+    // Append value to the existing ConstList (or create one if none exists)
+    r = await apiPost('/admin/tester?handler=AppendToConstList',
+      { fieldId: +fieldId, value: addPiiCurrentText });
+    if (r.ok) {
+      setAddPiiStatus('✓ Combined into ConstList.', 'ok');
+      cachedFields = null;
+    } else {
+      setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
+    }
   } else {
-    setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
+    r = await apiPost('/admin/tester?handler=AddPattern',
+      { fieldId: +fieldId, patternType: 'WholeWord', pattern: addPiiCurrentText });
+    if (r.ok) {
+      setAddPiiStatus('✓ Added as Whole Word pattern.', 'ok');
+      cachedFields = null;
+    } else {
+      setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
+    }
   }
 }
 

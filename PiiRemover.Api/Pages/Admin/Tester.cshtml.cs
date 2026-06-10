@@ -236,11 +236,56 @@ public class TesterModel : AdminPageModel
         _fieldsCache.Invalidate();
         return new JsonResult(new { ok = true, fieldId, patternId = patId });
     }
+
+    /// <summary>
+    /// Appends a single value to the first ConstList pattern found on the given field.
+    /// If no ConstList exists yet, creates a new one.
+    /// Used by the "Add and combine with existing ConstList" checkbox in the Preserve modal.
+    /// </summary>
+    public async Task<IActionResult> OnPostAppendToConstListAsync([FromBody] AppendToConstListRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Value))
+            return BadRequest(new { error = "Value cannot be empty." });
+
+        var allFields = await _fields.GetAllFieldsAsync();
+        var field     = allFields.FirstOrDefault(f => f.Id == req.FieldId);
+        if (field is null)
+            return BadRequest(new { error = $"Field {req.FieldId} not found." });
+
+        var existing = field.Patterns.FirstOrDefault(p => p.PatternType == PatternType.ConstList);
+
+        if (existing is not null)
+        {
+            // Append the new value to the existing ConstList (deduplicated)
+            var terms = existing.Pattern
+                .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var newTerm = req.Value.Trim();
+            if (terms.Add(newTerm))   // Add returns false if already present
+            {
+                var updated = string.Join("|", terms.OrderBy(t => t, StringComparer.OrdinalIgnoreCase));
+                await _fields.UpdatePatternAsync(existing.Id, PatternType.ConstList, updated, existing.Priority);
+            }
+            _fieldsCache.Invalidate();
+            return new JsonResult(new { ok = true, patternId = existing.Id, combined = true });
+        }
+        else
+        {
+            // No ConstList exists yet — create one
+            var patId = await _fields.CreatePatternAsync(req.FieldId, PatternType.ConstList,
+                                                          req.Value.Trim(), priority: 999);
+            _fieldsCache.Invalidate();
+            return new JsonResult(new { ok = true, patternId = patId, combined = false });
+        }
+    }
 }
 
 public record RedactTextRequest(string Text);
 public record AddPatternRequest(int FieldId, string PatternType, string Pattern);
 public record AppendConstListRequest(int PatternId, string CurrentPattern, string AppendValue);
+public record AppendToConstListRequest(int FieldId, string Value);
 public record CreateFieldRequest(
     string FieldName, string ReplaceWith, string PatternType, string Pattern,
     bool IsPreserve = false);

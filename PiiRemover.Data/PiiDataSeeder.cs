@@ -182,6 +182,13 @@ public static class PiiDataSeeder
 
     private static void SeedFields(SqliteConnection conn)
     {
+        // Run only once — if seeding was already completed (even if fields were later deleted
+        // manually by the admin), do not recreate them. A fresh DB (Settings table empty)
+        // will re-seed automatically.
+        var alreadySeeded = conn.ExecuteScalar<string>(
+            "SELECT Value FROM Settings WHERE Key = 'PiiFieldsSeedCompleted'");
+        if (alreadySeeded == "1") return;
+
         foreach (var f in Fields)
         {
             var fieldId = conn.ExecuteScalar<int?>(
@@ -212,6 +219,13 @@ public static class PiiDataSeeder
                 }
             }
         }
+
+        // Mark as seeded so manual deletes survive app restarts
+        conn.Execute("""
+            INSERT INTO Settings (Key, Value, Description)
+            VALUES ('PiiFieldsSeedCompleted', '1', 'Set by PiiDataSeeder on first run — prevents default fields from being re-created after manual deletion.')
+            ON CONFLICT(Key) DO UPDATE SET Value = '1'
+            """);
     }
 
     // ── FileList seed: NAMES_TO_REDACT.DAT ───────────────────────────────────

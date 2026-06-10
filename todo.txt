@@ -20,8 +20,13 @@ TODO: CREATE POWESHELL script that installs all prerequisites + firewall rules
 https://localhost:7049/admin
 admin 2026
 
+"PiiRemover" Comercial WebSite (you can get screenshotes and texts from there):
+https://polite-rock-0f5f36b0f.7.azurestaticapps.net
 
-https://48.199.16.164/admin/
+"PiiRemover" Product demo:
+https://48.199.16.164/admin
+user: admin 
+password: 2026
 
 48.199.16.164
 piiremoteadmin

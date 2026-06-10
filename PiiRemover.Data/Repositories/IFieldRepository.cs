@@ -9,6 +9,7 @@ public interface IFieldRepository
     Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith, bool isPreserve = false);
     Task SetPreserveAsync(int fieldId, bool isPreserve);
     Task SetFieldActiveAsync(int fieldId, bool active);
+    Task UpdateFieldReplaceWithAsync(int fieldId, string replaceWith);
     Task DeleteFieldAsync(int fieldId);
 
     Task<int> CreatePatternAsync(int fieldId, PatternType type, string pattern, int priority);

@@ -133,31 +133,77 @@
             @if (f.IsPreserve)
             { <span title="Preserve / Do-not-touch field" style="font-size:16px">🛡</span> }
             <span style="font-size:15px;font-weight:600">@f.FieldName</span>
-            @if (f.IsPreserve)
-            { <span class="badge" style="background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3)">Preserve</span> }
-            else if (f.IsActive)
-            { <span class="badge badge-green">Active</span> }
-            else
-            { <span class="badge badge-red">Inactive</span> }
-            @if (!f.IsPreserve)
-            { <span style="color:var(--text3);font-size:12px">replaces with <span class="mono">@f.ReplaceWith</span></span> }
-            <span style="flex:1"></span>
+            @* clickable badge toggles preserve mode *@
             <form method="post" style="display:inline">
                 <input type="hidden" name="fieldId" value="@f.Id" />
-                <button asp-page-handler="TogglePreserve" class="btn btn-sm"
-                        style="@(f.IsPreserve ? "background:rgba(82,196,26,.12);border-color:#52c41a;color:#52c41a" : "background:var(--surface);border-color:var(--border2);color:var(--text3)")"
-                        title="@(f.IsPreserve ? "Click to turn OFF preserve mode" : "Click to turn ON preserve mode (do not touch)")">
-                    @(f.IsPreserve ? "🛡 Preserving" : "🛡 Set Preserve")
-                </button>
+                @if (f.IsPreserve)
+                {
+                    <button asp-page-handler="TogglePreserve" type="submit"
+                            class="badge"
+                            style="background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);cursor:pointer;font-family:inherit;font-size:inherit"
+                            title="Click to turn OFF preserve mode"
+                            onclick="return confirm('Turn OFF Preserve mode for &quot;@f.FieldName&quot;?\nIt will become a regular Redact field.')">🛡 Preserve ●</button>
+                }
+                else if (f.IsActive)
+                {
+                    <button asp-page-handler="TogglePreserve" type="submit"
+                            class="badge badge-green"
+                            style="cursor:pointer;font-family:inherit;font-size:inherit"
+                            title="Click to turn ON preserve mode"
+                            onclick="return confirm('Turn ON Preserve mode for &quot;@f.FieldName&quot;?\nTerms matching this field will be protected from redaction.')">Active</button>
+                }
+                else
+                {
+                    <button asp-page-handler="TogglePreserve" type="submit"
+                            class="badge badge-red"
+                            style="cursor:pointer;font-family:inherit;font-size:inherit"
+                            title="Click to turn ON preserve mode"
+                            onclick="return confirm('Turn ON Preserve mode for &quot;@f.FieldName&quot;?')">Inactive</button>
+                }
             </form>
+            @if (!f.IsPreserve)
+            {
+                <span style="color:var(--text3);font-size:12px">replaces with
+                    <button type="button" class="btn btn-link btn-sm"
+                            onclick="toggleRwEditor(@f.Id)"
+                            style="color:#1677ff;padding:0 2px;font-size:12px;font-family:monospace"
+                            title="Click to edit replacement text">@f.ReplaceWith ✏</button>
+                </span>
+            }
+            <span style="flex:1"></span>
             @if (!f.IsPreserve)
             {
             <form method="post" style="display:inline">
                 <input type="hidden" name="fieldId" value="@f.Id" />
-                <button asp-page-handler="ToggleField" class="btn btn-default btn-sm">
+                <button asp-page-handler="ToggleField" class="btn btn-default btn-sm"
+                        onclick="return confirm('@(f.IsActive ? "Disable" : "Enable") field &quot;@f.FieldName&quot;?')">
                     @(f.IsActive ? "Disable" : "Enable")
                 </button>
             </form>
+            }
+            @if (f.Patterns.Any(p =>
+                     p.PatternType == PiiRemover.Core.Models.PatternType.WholeWord ||
+                     p.PatternType == PiiRemover.Core.Models.PatternType.ConstList))
+            {
+                var wholeWordCount = f.Patterns.Count(p => p.PatternType == PiiRemover.Core.Models.PatternType.WholeWord);
+                var constListCount = f.Patterns.Count(p => p.PatternType == PiiRemover.Core.Models.PatternType.ConstList);
+                var totalTerms     = f.Patterns
+                    .Where(p => p.PatternType == PiiRemover.Core.Models.PatternType.WholeWord)
+                    .Select(p => p.Pattern.Trim())
+                    .Concat(f.Patterns
+                        .Where(p => p.PatternType == PiiRemover.Core.Models.PatternType.ConstList)
+                        .SelectMany(p => p.Pattern.Split('|', System.StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim())))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <button asp-page-handler="GroupAll" class="btn btn-sm"
+                            style="@(f.IsPreserve ? "background:rgba(82,196,26,.1);border:1px solid rgba(82,196,26,.4);color:#52c41a" : "background:rgba(22,119,255,.1);border:1px solid rgba(22,119,255,.35);color:#1677ff");white-space:nowrap"
+                            title="Merge all WholeWord + ConstList patterns into one ConstList with @totalTerms distinct terms"
+                            onclick="return confirm('Consolidate @(wholeWordCount) WholeWord + @(constListCount) ConstList pattern(s) into one unified ConstList?\n\nThis will remove the individual patterns and create a single ConstList with @totalTerms distinct term(s).')">
+                        ⊕ Group All (@totalTerms terms)
+                    </button>
+                </form>
             }
             <form method="post" style="display:inline">
                 <input type="hidden" name="fieldId" value="@f.Id" />
@@ -167,6 +213,22 @@
                 </button>
             </form>
         </div>
+
+        @* ── ReplaceWith inline editor ── *@
+        @if (!f.IsPreserve)
+        {
+            <div id="rw-editor-@f.Id" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border2)">
+                <form method="post" asp-page-handler="UpdateFieldReplaceWith" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <label style="font-size:12px;color:var(--text3)">Replacement text:</label>
+                    <input type="text" name="replaceWith" value="@f.ReplaceWith"
+                           style="width:200px;font-family:monospace;padding:4px 8px;font-size:13px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)" />
+                    <button type="submit" class="btn btn-primary btn-sm">💾 Save</button>
+                    <button type="button" class="btn btn-default btn-sm" onclick="toggleRwEditor(@f.Id)">Cancel</button>
+                </form>
+            </div>
+        }
 
         @if (f.Patterns.Count > 0)
         {
@@ -210,7 +272,7 @@
                         </td>
                         <td>@p.Priority</td>
                         <td style="white-space:nowrap">
-                            @if (isCL)
+                            @if (isCL || (!isFL))
                             {
                                 <button type="button" class="btn btn-link btn-sm"
                                         onclick="toggleEditor(@p.Id)"
@@ -223,12 +285,13 @@
                             </form>
                         </td>
                     </tr>
-                    @if (isCL)
+                    @if (!isFL)
                     {
                         <tr id="editor-@p.Id" style="display:none">
                             <td colspan="4" style="padding:0">
                                 <div style="padding:12px 14px;background:var(--surface2);border-top:1px solid var(--border)">
-
+                                @if (isCL)
+                                {
                                     <!-- chip list (rendered from current terms) -->
                                     <div id="chips-@p.Id" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;min-height:28px"></div>
 
@@ -240,7 +303,16 @@
                                                onkeydown="if(event.key==='Enter'){event.preventDefault();addTerm(@p.Id)}" />
                                         <button type="button" class="btn btn-primary btn-sm" onclick="addTerm(@p.Id)">+ Add</button>
                                     </div>
-
+                                }
+                                else
+                                {
+                                    <!-- plain text editor for Regex / WholeWord / etc. -->
+                                    <div style="margin-bottom:10px">
+                                        <input type="text" id="ptxt-@p.Id" value="@p.Pattern"
+                                               style="width:100%;max-width:600px;padding:5px 8px;font-size:13px;font-family:monospace;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)"
+                                               oninput="document.getElementById('patval-@p.Id').value=this.value" />
+                                    </div>
+                                }
                                     <!-- save / cancel -->
                                     <form method="post" action="/admin/fields?handler=UpdatePattern" id="saveform-@p.Id">
                                         @Html.AntiForgeryToken()
@@ -293,6 +365,14 @@
 }
 
 <script>
+// ── ReplaceWith inline editor ──────────────────────────────────────────────
+function toggleRwEditor(fieldId) {
+  const el = document.getElementById('rw-editor-' + fieldId);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el.style.display !== 'none') el.querySelector('input[name=replaceWith]').focus();
+}
+
 // ── ConstList inline editor ────────────────────────────────────────────────
 
 // terms[patternId] = string[]
@@ -307,14 +387,24 @@ function toggleEditor(id) {
 }
 
 function initEditor(id) {
-  // Read current value from the hidden input (already rendered by Razor)
   const hidden = document.getElementById('patval-' + id);
   const raw    = hidden ? hidden.value : '';
-  editorTerms[id] = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
-  renderChips(id);
-  // focus add input
-  const inp = document.getElementById('newtm-' + id);
-  if (inp) setTimeout(() => inp.focus(), 50);
+
+  // ConstList editor (chip-based)
+  const chipsEl = document.getElementById('chips-' + id);
+  if (chipsEl) {
+    editorTerms[id] = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
+    renderChips(id);
+    const inp = document.getElementById('newtm-' + id);
+    if (inp) setTimeout(() => inp.focus(), 50);
+  } else {
+    // Plain-text editor (Regex / WholeWord / etc.)
+    const ptxt = document.getElementById('ptxt-' + id);
+    if (ptxt) {
+      ptxt.value = raw;
+      setTimeout(() => { ptxt.focus(); ptxt.select(); }, 50);
+    }
+  }
 }
 
 function renderChips(id) {

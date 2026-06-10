@@ -75,6 +75,15 @@ public class FieldsModel : AdminPageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostUpdateFieldReplaceWithAsync(int fieldId, string replaceWith)
+    {
+        await _fields.UpdateFieldReplaceWithAsync(fieldId,
+            string.IsNullOrWhiteSpace(replaceWith) ? "████" : replaceWith.Trim());
+        _cache.Invalidate();
+        TempData["Success"] = "Replacement text updated.";
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostUpdatePatternAsync(int patternId, string patternValue)
     {
         var all     = await _fields.GetAllFieldsAsync();
@@ -102,6 +111,61 @@ public class FieldsModel : AdminPageModel
     {
         await _fields.DeletePatternAsync(patternId);
         _cache.Invalidate();
+        return RedirectToPage();
+    }
+
+    /// <summary>
+    /// Consolidates all WholeWord and ConstList patterns in a Preserve field into a
+    /// single ConstList containing the distinct union of every term.
+    /// Individual WholeWord patterns are removed after merging.
+    /// Existing ConstList patterns are replaced by the unified one.
+    /// </summary>
+    public async Task<IActionResult> OnPostGroupAllAsync(int fieldId)
+    {
+        var all   = await _fields.GetAllFieldsAsync();
+        var field = all.FirstOrDefault(f => f.Id == fieldId);
+        if (field is null)
+        {
+            TempData["Error"] = "Field not found.";
+            return RedirectToPage();
+        }
+
+        // Collect all terms from WholeWord and ConstList patterns
+        var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var patternIdsToDelete = new List<int>();
+
+        foreach (var p in field.Patterns)
+        {
+            if (p.PatternType == PatternType.WholeWord)
+            {
+                terms.Add(p.Pattern.Trim());
+                patternIdsToDelete.Add(p.Id);
+            }
+            else if (p.PatternType == PatternType.ConstList)
+            {
+                foreach (var t in p.Pattern.Split('|', StringSplitOptions.RemoveEmptyEntries))
+                    terms.Add(t.Trim());
+                patternIdsToDelete.Add(p.Id);
+            }
+            // FileList / Regex / other patterns are left untouched
+        }
+
+        if (terms.Count == 0)
+        {
+            TempData["Error"] = "No WholeWord or ConstList patterns found to consolidate.";
+            return RedirectToPage();
+        }
+
+        // Delete all collected patterns
+        foreach (var pid in patternIdsToDelete)
+            await _fields.DeletePatternAsync(pid);
+
+        // Create one unified ConstList with all terms sorted
+        var unified = string.Join("|", terms.OrderBy(t => t, StringComparer.OrdinalIgnoreCase));
+        await _fields.CreatePatternAsync(fieldId, PatternType.ConstList, unified, priority: 999);
+
+        _cache.Invalidate();
+        TempData["Success"] = $"Consolidated {patternIdsToDelete.Count} patterns into 1 ConstList with {terms.Count} distinct terms.";
         return RedirectToPage();
     }
 
