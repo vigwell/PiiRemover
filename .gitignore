@@ -83,3 +83,7 @@ publish/
 .env.*
 appsettings.*.json
 !appsettings.json
+
+## Large installer binaries — too big for GitHub (>100 MB)
+Installs/*.exe
+Installs/*.msi
