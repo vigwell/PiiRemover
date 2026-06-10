@@ -70,7 +70,7 @@ public sealed class FileListEngine : IPatternEngine
             {
                 // Dual-column fixed-width
                 var cols = Regex.Split(line, @"\s{2,}")
-                                .Select(c => c.Trim())
+                                .Select(c => CleanTerm(c))
                                 .Where(c => c.Length > 1);
                 foreach (var col in cols) terms.Add(col);
             }
@@ -78,17 +78,42 @@ public sealed class FileListEngine : IPatternEngine
             {
                 foreach (var part in line.Split('|'))
                 {
-                    var t = part.Trim();
+                    var t = CleanTerm(part);
                     if (t.Length > 1) terms.Add(t);
                 }
             }
             else
             {
-                if (line.Length > 1) terms.Add(line);
+                var t = CleanTerm(line);
+                if (t.Length > 1) terms.Add(t);
             }
         }
 
-        return terms.OrderBy(t => t).ToList();
+        return terms.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Normalize a raw term from the file:
+    ///   • Trim whitespace
+    ///   • Strip surrounding parentheses/brackets, e.g. (BRUNNER) → BRUNNER
+    ///   • Remove apostrophes and backticks that appear inside names, e.g. A'AKEF → AAKEF
+    ///   • Collapse any internal whitespace runs to a single space
+    /// </summary>
+    private static string CleanTerm(string raw)
+    {
+        var s = raw.Trim();
+
+        // Strip wrapping parentheses / brackets (one level)
+        if (s.Length >= 2 && s[0] == '(' && s[^1] == ')') s = s[1..^1].Trim();
+        if (s.Length >= 2 && s[0] == '[' && s[^1] == ']') s = s[1..^1].Trim();
+
+        // Remove apostrophes and backticks embedded in names
+        s = s.Replace("'", "").Replace("`", "").Replace("’", ""); // ' ' `
+
+        // Collapse internal whitespace
+        s = Regex.Replace(s, @"\s+", " ").Trim();
+
+        return s;
     }
 
     /// <summary>Serialize a term list back to the newline-separated DB format.</summary>

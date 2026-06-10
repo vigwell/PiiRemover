@@ -200,13 +200,27 @@ public class FieldsModel : AdminPageModel
                 return RedirectToPage();
             }
 
+            // Read all bytes once, then decode.
+            // Try strict UTF-8 first (handles UTF-8 with or without BOM).
+            // Fall back to Windows-1255 (standard Israeli Windows encoding) if UTF-8 fails.
+            byte[] fileBytes;
+            using (var ms = new System.IO.MemoryStream())
+            {
+                await file.OpenReadStream().CopyToAsync(ms);
+                fileBytes = ms.ToArray();
+            }
+
             string content;
-            using (var reader = new StreamReader(
-                       file.OpenReadStream(),
-                       System.Text.Encoding.UTF8,
-                       detectEncodingFromByteOrderMarks: true,
-                       leaveOpen: false))
-                content = await reader.ReadToEndAsync();
+            try
+            {
+                content = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+                              .GetString(fileBytes);
+            }
+            catch (System.Text.DecoderFallbackException)
+            {
+                // Not valid UTF-8 — assume Windows-1255 (Hebrew Windows code page)
+                content = System.Text.Encoding.GetEncoding(1255).GetString(fileBytes);
+            }
 
             var newTerms = FileListEngine.ParseFile(content);
             if (newTerms.Count == 0)
@@ -265,5 +279,82 @@ public class FieldsModel : AdminPageModel
         }
 
         return RedirectToPage();
+    }
+
+    // ── FileList browser ────────────────────────────────────────────────────
+
+    /// <summary>GET /admin/fields?handler=FileListTerms&amp;patternId=X — returns JSON string[].</summary>
+    public async Task<IActionResult> OnGetFileListTermsAsync(int patternId)
+    {
+        var all     = await _fields.GetAllFieldsAsync();
+        var pattern = all.SelectMany(f => f.Patterns)
+                         .FirstOrDefault(p => p.Id == patternId && p.PatternType == PatternType.FileList);
+        if (pattern is null)
+            return new JsonResult(new { error = "not found" }) { StatusCode = 404 };
+
+        var terms = pattern.Pattern
+            .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new JsonResult(terms);
+    }
+
+    /// <summary>POST — add a single term to an existing FileList pattern.</summary>
+    public async Task<IActionResult> OnPostAddFileListTermAsync(int patternId, string term)
+    {
+        term = (term ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(term))
+            return new JsonResult(new { ok = false, error = "empty" });
+
+        var all     = await _fields.GetAllFieldsAsync();
+        var pattern = all.SelectMany(f => f.Patterns)
+                         .FirstOrDefault(p => p.Id == patternId && p.PatternType == PatternType.FileList);
+        if (pattern is null)
+            return new JsonResult(new { ok = false, error = "not found" }) { StatusCode = 404 };
+
+        var terms = new HashSet<string>(
+            pattern.Pattern.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                           .Select(t => t.Trim()).Where(t => t.Length > 0),
+            StringComparer.OrdinalIgnoreCase);
+
+        bool added = terms.Add(term);
+        var sorted = terms.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+
+        if (added)
+        {
+            await _fields.UpdatePatternAsync(patternId, PatternType.FileList, FileListEngine.Serialize(sorted), pattern.Priority);
+            FileListEngine.InvalidateCache(patternId);
+            _cache.Invalidate();
+        }
+
+        return new JsonResult(new { ok = true, added, count = sorted.Count });
+    }
+
+    /// <summary>POST — remove a single term from an existing FileList pattern.</summary>
+    public async Task<IActionResult> OnPostDeleteFileListTermAsync(int patternId, string term)
+    {
+        term = (term ?? string.Empty).Trim();
+
+        var all     = await _fields.GetAllFieldsAsync();
+        var pattern = all.SelectMany(f => f.Patterns)
+                         .FirstOrDefault(p => p.Id == patternId && p.PatternType == PatternType.FileList);
+        if (pattern is null)
+            return new JsonResult(new { ok = false, error = "not found" }) { StatusCode = 404 };
+
+        var terms = pattern.Pattern
+            .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0 && !string.Equals(t, term, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        await _fields.UpdatePatternAsync(patternId, PatternType.FileList, FileListEngine.Serialize(terms), pattern.Priority);
+        FileListEngine.InvalidateCache(patternId);
+        _cache.Invalidate();
+
+        return new JsonResult(new { ok = true, count = terms.Count });
     }
 }

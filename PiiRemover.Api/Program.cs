@@ -11,6 +11,9 @@ using PiiRemover.Core.Logging;
 using PiiRemover.Data;
 using PiiRemover.Data.Repositories;
 
+// Register legacy code pages (Windows-1255 Hebrew, etc.) — not included in .NET Core by default
+System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
 var builder = WebApplication.CreateBuilder(args);
 var cfg = builder.Configuration;
 

@@ -275,7 +275,11 @@
                             @if (isFL)
                             {
                                 var count = p.Pattern.Split('\n', System.StringSplitOptions.RemoveEmptyEntries).Length;
-                                <span class="mono" title="@count terms stored in DB">@count terms (file list)</span>
+                                <span class="mono" id="fl-count-@p.Id" title="@count terms stored in DB">@count terms</span>
+                                <button type="button" onclick="openFlPanel(@p.Id)"
+                                        style="margin-left:8px;padding:1px 8px;font-size:11px;background:rgba(22,119,255,.1);color:#1677ff;border:1px solid rgba(22,119,255,.3);border-radius:4px;cursor:pointer">
+                                    🔍 Browse
+                                </button>
                             }
                             else if (isCL)
                             {
@@ -311,6 +315,36 @@
                             </form>
                         </td>
                     </tr>
+                    @if (isFL)
+                    {
+                        <!-- FileList browse panel — opened via JS -->
+                        <tr id="fl-panel-@p.Id" style="display:none">
+                            <td colspan="4" style="padding:0">
+                                <div style="padding:14px 16px;background:var(--surface2);border-top:1px solid var(--border)">
+                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+                                        <span style="font-size:13px;font-weight:600;color:var(--text)">📂 FileList</span>
+                                        <input type="text" id="fl-search-@p.Id" placeholder="Search terms…"
+                                               oninput="filterFl(@p.Id)"
+                                               style="flex:1;min-width:160px;max-width:320px;padding:4px 10px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)" />
+                                        <span id="fl-showing-@p.Id" style="font-size:11px;color:var(--text3)"></span>
+                                        <button type="button" onclick="closeFlPanel(@p.Id)"
+                                                style="margin-left:auto;font-size:18px;background:none;border:none;cursor:pointer;color:var(--text3);line-height:1">×</button>
+                                    </div>
+                                    <div id="fl-chips-@p.Id"
+                                         style="display:flex;flex-wrap:wrap;gap:4px;max-height:220px;overflow-y:auto;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--surface);min-height:40px">
+                                        <span style="color:var(--text3);font-size:12px;padding:8px">Loading…</span>
+                                    </div>
+                                    <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
+                                        <input type="text" id="fl-new-@p.Id" placeholder="Add a term…"
+                                               style="flex:1;max-width:280px;padding:5px 8px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();addFlTerm(@p.Id)}" />
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="addFlTerm(@p.Id)">+ Add</button>
+                                        <span id="fl-msg-@p.Id" style="font-size:11px;color:var(--text3)"></span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
                     @if (!isFL)
                     {
                         <tr id="editor-@p.Id" style="display:none">
@@ -495,6 +529,142 @@ function syncHidden(id) {
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escAttr(s) {
+  // Safe for embedding in a double-quoted HTML attribute
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+// ── FileList browser ──────────────────────────────────────────────────────
+const flData     = {};   // patternId → full sorted string[]
+const FL_PAGE    = 1000; // max chips shown at once
+
+function afToken() {
+  return document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+}
+
+async function openFlPanel(pid) {
+  const row = document.getElementById('fl-panel-' + pid);
+  if (!row) return;
+  row.style.display = '';
+
+  if (!flData[pid]) {
+    // Lazy-load terms
+    try {
+      const r = await fetch('/admin/fields?handler=FileListTerms&patternId=' + pid);
+      flData[pid] = await r.json();
+    } catch (e) {
+      document.getElementById('fl-chips-' + pid).innerHTML =
+        '<span style="color:#ff4d4f;font-size:12px;padding:8px">Failed to load terms.</span>';
+      return;
+    }
+  }
+  renderFlChips(pid, document.getElementById('fl-search-' + pid)?.value ?? '');
+}
+
+function closeFlPanel(pid) {
+  const row = document.getElementById('fl-panel-' + pid);
+  if (row) row.style.display = 'none';
+}
+
+function filterFl(pid) {
+  const q = (document.getElementById('fl-search-' + pid)?.value ?? '').trim().toLowerCase();
+  renderFlChips(pid, q);
+}
+
+function renderFlChips(pid, query) {
+  const all = flData[pid] || [];
+  const filtered = query
+    ? all.filter(t => t.toLowerCase().includes(query))
+    : all;
+
+  const shown  = filtered.slice(0, FL_PAGE);
+  const container = document.getElementById('fl-chips-' + pid);
+  const showing   = document.getElementById('fl-showing-' + pid);
+
+  if (showing) {
+    showing.textContent = filtered.length === 0
+      ? 'No matches'
+      : filtered.length > FL_PAGE
+        ? `Showing ${FL_PAGE} of ${filtered.length} matches`
+        : `${filtered.length} term${filtered.length !== 1 ? 's' : ''}`;
+  }
+
+  if (shown.length === 0) {
+    container.innerHTML = '<span style="color:var(--text3);font-size:12px;padding:8px">No terms found.</span>';
+    return;
+  }
+
+  container.innerHTML = shown.map(t =>
+    `<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(22,119,255,.09);color:#1677ff;
+      border:1px solid rgba(22,119,255,.25);border-radius:4px;padding:2px 6px;font-size:11px;white-space:nowrap">
+      ${esc(t)}
+      <button type="button" title="Delete this term"
+              data-pid="${pid}" data-term="${escAttr(t)}"
+              onclick="deleteFlTerm(+this.dataset.pid, this.dataset.term)"
+              style="background:none;border:none;cursor:pointer;color:#ff4d4f;font-size:12px;line-height:1;padding:0 0 0 3px">×</button>
+    </span>`
+  ).join('');
+}
+
+async function addFlTerm(pid) {
+  const inp = document.getElementById('fl-new-' + pid);
+  const msg = document.getElementById('fl-msg-' + pid);
+  const term = (inp?.value ?? '').trim();
+  if (!term) return;
+
+  const fd = new FormData();
+  fd.append('patternId', pid);
+  fd.append('term', term);
+  fd.append('__RequestVerificationToken', afToken());
+
+  try {
+    const r  = await fetch('/admin/fields?handler=AddFileListTerm', { method:'POST', body: fd });
+    const js = await r.json();
+    if (js.ok) {
+      if (js.added) {
+        // Insert into local data array (keep sorted)
+        if (!flData[pid]) flData[pid] = [];
+        flData[pid].push(term);
+        flData[pid].sort((a, b) => a.localeCompare(b, undefined, { sensitivity:'base' }));
+        updateFlCount(pid, js.count);
+        if (msg) { msg.textContent = '✓ Added'; setTimeout(() => msg.textContent='', 2000); }
+      } else {
+        if (msg) { msg.textContent = 'Already exists'; setTimeout(() => msg.textContent='', 2000); }
+      }
+      if (inp) inp.value = '';
+      renderFlChips(pid, document.getElementById('fl-search-' + pid)?.value ?? '');
+    }
+  } catch (e) {
+    if (msg) msg.textContent = 'Error — try again';
+  }
+}
+
+async function deleteFlTerm(pid, term) {
+  const fd = new FormData();
+  fd.append('patternId', pid);
+  fd.append('term', term);
+  fd.append('__RequestVerificationToken', afToken());
+
+  try {
+    const r  = await fetch('/admin/fields?handler=DeleteFileListTerm', { method:'POST', body: fd });
+    const js = await r.json();
+    if (js.ok) {
+      // Remove from local array
+      if (flData[pid]) {
+        const i = flData[pid].findIndex(t => t.toLowerCase() === term.toLowerCase());
+        if (i !== -1) flData[pid].splice(i, 1);
+      }
+      updateFlCount(pid, js.count);
+      renderFlChips(pid, document.getElementById('fl-search-' + pid)?.value ?? '');
+    }
+  } catch (e) { /* silent */ }
+}
+
+function updateFlCount(pid, count) {
+  const el = document.getElementById('fl-count-' + pid);
+  if (el) el.textContent = count + ' terms';
 }
 
 // ── Field filter tabs ──────────────────────────────────────────────────────
