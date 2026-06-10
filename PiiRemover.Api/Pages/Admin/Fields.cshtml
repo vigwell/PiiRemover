@@ -61,7 +61,7 @@
         Upload a <code>.txt</code>, <code>.dat</code>, or <code>.csv</code> file with terms to redact — one per line, pipe-separated, or dual-column fixed-width (Hebrew/English).
         Both columns are extracted automatically. The content is stored in the database; no file is kept on disk.
     </p>
-    <form method="post" asp-page-handler="UploadFileList" enctype="multipart/form-data"
+    <form method="post" action="/admin/fields?handler=UploadFileList" enctype="multipart/form-data"
           style="display:flex;gap:8px;flex-wrap:wrap;align-items:center" id="uploadFileListForm">
         @Html.AntiForgeryToken()
         <div style="display:flex;flex-direction:column;gap:4px">
@@ -98,10 +98,37 @@
     </form>
 </div>
 
+<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
+@{
+    var redactCount  = Model.Fields.Count(f => !f.IsPreserve);
+    var preserveCount = Model.Fields.Count(f => f.IsPreserve);
+}
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+  <span style="font-size:12px;font-weight:600;color:var(--text3);margin-right:4px">Show:</span>
+  <button id="filter-all" onclick="setFilter('all')"
+          class="filter-tab active-filter"
+          style="padding:5px 16px;border-radius:20px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s">
+    All <span class="ftab-count">@Model.Fields.Count()</span>
+  </button>
+  <button id="filter-redact" onclick="setFilter('redact')"
+          class="filter-tab"
+          style="padding:5px 16px;border-radius:20px;border:1px solid var(--border2);background:var(--surface);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text2)">
+    🔒 Redact <span class="ftab-count">@redactCount</span>
+  </button>
+  <button id="filter-preserve" onclick="setFilter('preserve')"
+          class="filter-tab"
+          style="padding:5px 16px;border-radius:20px;border:1px solid var(--border2);background:var(--surface);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text2)">
+    🛡 Preserve <span class="ftab-count">@preserveCount</span>
+  </button>
+  <span style="flex:1"></span>
+  <span id="filter-status" style="font-size:11px;color:var(--text3)"></span>
+</div>
+
 @foreach (var f in Model.Fields)
 {
     var cardBorder = f.IsPreserve ? "border:1px solid rgba(82,196,26,.4);background:rgba(82,196,26,.03)" : "";
-    <div class="card" style="@(f.IsActive ? "" : "opacity:.65") @cardBorder">
+    <div class="card field-card" data-kind="@(f.IsPreserve ? "preserve" : "redact")"
+         style="@(f.IsActive ? "" : "opacity:.65") @cardBorder">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)">
             @if (f.IsPreserve)
             { <span title="Preserve / Do-not-touch field" style="font-size:16px">🛡</span> }
@@ -148,17 +175,33 @@
                     <th style="width:120px">Type</th>
                     <th>Pattern</th>
                     <th style="width:80px">Priority</th>
-                    <th style="width:80px"></th>
+                    <th style="width:110px"></th>
                 </tr>
                 @foreach (var p in f.Patterns.OrderByDescending(x => x.Priority))
                 {
+                    var isCL = p.PatternType == PiiRemover.Core.Models.PatternType.ConstList;
+                    var isFL = p.PatternType == PiiRemover.Core.Models.PatternType.FileList;
                     <tr>
                         <td><span class="badge badge-blue">@p.PatternType</span></td>
                         <td>
-                            @if (p.PatternType == PiiRemover.Core.Models.PatternType.FileList)
+                            @if (isFL)
                             {
                                 var count = p.Pattern.Split('\n', System.StringSplitOptions.RemoveEmptyEntries).Length;
                                 <span class="mono" title="@count terms stored in DB">@count terms (file list)</span>
+                            }
+                            else if (isCL)
+                            {
+                                var terms = p.Pattern.Split('|', System.StringSplitOptions.RemoveEmptyEntries);
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+                                    @foreach (var t in terms.Take(6))
+                                    {
+                                        <span style="background:rgba(22,119,255,.1);color:#1677ff;border:1px solid rgba(22,119,255,.25);border-radius:4px;padding:1px 7px;font-size:11px;white-space:nowrap">@t</span>
+                                    }
+                                    @if (terms.Length > 6)
+                                    {
+                                        <span style="font-size:11px;color:var(--text3)">+@(terms.Length - 6) more</span>
+                                    }
+                                </div>
                             }
                             else
                             {
@@ -166,14 +209,50 @@
                             }
                         </td>
                         <td>@p.Priority</td>
-                        <td>
-                            <form method="post">
+                        <td style="white-space:nowrap">
+                            @if (isCL)
+                            {
+                                <button type="button" class="btn btn-link btn-sm"
+                                        onclick="toggleEditor(@p.Id)"
+                                        style="color:#1677ff;padding:0 6px 0 0">✏ Edit</button>
+                            }
+                            <form method="post" style="display:inline">
                                 <input type="hidden" name="patternId" value="@p.Id" />
                                 <button asp-page-handler="DeletePattern" class="btn btn-link btn-sm"
                                         onclick="return confirm('Delete this pattern?')">Remove</button>
                             </form>
                         </td>
                     </tr>
+                    @if (isCL)
+                    {
+                        <tr id="editor-@p.Id" style="display:none">
+                            <td colspan="4" style="padding:0">
+                                <div style="padding:12px 14px;background:var(--surface2);border-top:1px solid var(--border)">
+
+                                    <!-- chip list (rendered from current terms) -->
+                                    <div id="chips-@p.Id" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;min-height:28px"></div>
+
+                                    <!-- add single term -->
+                                    <div style="display:flex;gap:6px;margin-bottom:10px">
+                                        <input type="text" id="newtm-@p.Id"
+                                               placeholder="Add term…"
+                                               style="flex:1;max-width:260px;padding:4px 8px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();addTerm(@p.Id)}" />
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="addTerm(@p.Id)">+ Add</button>
+                                    </div>
+
+                                    <!-- save / cancel -->
+                                    <form method="post" action="/admin/fields?handler=UpdatePattern" id="saveform-@p.Id">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="patternId" value="@p.Id" />
+                                        <input type="hidden" name="patternValue" id="patval-@p.Id" value="@p.Pattern" />
+                                        <button type="submit" class="btn btn-primary btn-sm">💾 Save changes</button>
+                                        <button type="button" class="btn btn-default btn-sm" onclick="toggleEditor(@p.Id)" style="margin-left:4px">Cancel</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
                 }
             </table>
         }
@@ -212,3 +291,116 @@
         </details>
     </div>
 }
+
+<script>
+// ── ConstList inline editor ────────────────────────────────────────────────
+
+// terms[patternId] = string[]
+const editorTerms = {};
+
+function toggleEditor(id) {
+  const row = document.getElementById('editor-' + id);
+  if (!row) return;
+  const opening = row.style.display === 'none';
+  row.style.display = opening ? '' : 'none';
+  if (opening) initEditor(id);
+}
+
+function initEditor(id) {
+  // Read current value from the hidden input (already rendered by Razor)
+  const hidden = document.getElementById('patval-' + id);
+  const raw    = hidden ? hidden.value : '';
+  editorTerms[id] = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
+  renderChips(id);
+  // focus add input
+  const inp = document.getElementById('newtm-' + id);
+  if (inp) setTimeout(() => inp.focus(), 50);
+}
+
+function renderChips(id) {
+  const container = document.getElementById('chips-' + id);
+  if (!container) return;
+  const terms = editorTerms[id] || [];
+  container.innerHTML = terms.length === 0
+    ? '<span style="font-size:12px;color:var(--text3);font-style:italic">No terms yet</span>'
+    : terms.map((t, i) => `
+        <span style="display:inline-flex;align-items:center;gap:4px;
+                     background:rgba(22,119,255,.1);color:#1677ff;
+                     border:1px solid rgba(22,119,255,.3);border-radius:4px;
+                     padding:2px 6px 2px 8px;font-size:12px">
+          ${esc(t)}
+          <button type="button"
+                  onclick="removeTerm(${id},${i})"
+                  style="background:none;border:none;cursor:pointer;color:#ff4d4f;
+                         font-size:13px;padding:0;line-height:1;margin-left:2px"
+                  title="Remove">×</button>
+        </span>`).join('');
+  syncHidden(id);
+}
+
+function addTerm(id) {
+  const inp  = document.getElementById('newtm-' + id);
+  const term = inp ? inp.value.trim() : '';
+  if (!term) return;
+  if (!editorTerms[id]) editorTerms[id] = [];
+  // support pasting pipe-separated bulk terms
+  const added = term.split('|').map(t => t.trim()).filter(t => t.length > 0);
+  for (const t of added)
+    if (!editorTerms[id].includes(t)) editorTerms[id].push(t);
+  inp.value = '';
+  renderChips(id);
+}
+
+function removeTerm(id, idx) {
+  if (editorTerms[id]) {
+    editorTerms[id].splice(idx, 1);
+    renderChips(id);
+  }
+}
+
+function syncHidden(id) {
+  const hidden = document.getElementById('patval-' + id);
+  if (hidden) hidden.value = (editorTerms[id] || []).join('|');
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Field filter tabs ──────────────────────────────────────────────────────
+let currentFilter = 'all';
+
+function setFilter(kind) {
+  currentFilter = kind;
+
+  // style buttons
+  document.querySelectorAll('.filter-tab').forEach(b => {
+    const isActive = b.id === 'filter-' + kind;
+    b.style.background    = isActive ? (kind === 'preserve' ? 'rgba(82,196,26,.12)' : kind === 'redact' ? 'rgba(22,119,255,.1)' : 'var(--surface2)') : 'var(--surface)';
+    b.style.borderColor   = isActive ? (kind === 'preserve' ? '#52c41a' : kind === 'redact' ? '#1677ff' : 'var(--border2)') : 'var(--border2)';
+    b.style.color         = isActive ? (kind === 'preserve' ? '#52c41a' : kind === 'redact' ? '#1677ff' : 'var(--text)') : 'var(--text2)';
+  });
+
+  // show/hide cards
+  let visible = 0;
+  document.querySelectorAll('.field-card').forEach(card => {
+    const show = kind === 'all' || card.dataset.kind === kind;
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  // status label
+  const status = document.getElementById('filter-status');
+  if (status) status.textContent = kind === 'all' ? '' : `Showing ${visible} field${visible !== 1 ? 's' : ''}`;
+}
+
+// keep filter active after page reload (TempData redirects)
+(function() {
+  const saved = sessionStorage.getItem('fields-filter');
+  if (saved && saved !== 'all') setFilter(saved);
+})();
+// save on click
+document.querySelectorAll('.filter-tab').forEach(b =>
+  b.addEventListener('click', () => sessionStorage.setItem('fields-filter', b.id.replace('filter-', '')))
+);
+</script>

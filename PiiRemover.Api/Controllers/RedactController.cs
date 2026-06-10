@@ -19,6 +19,7 @@ public class RedactController : ControllerBase
     private readonly IQuotaRepository _quota;
     private readonly ILogRepository _logs;
     private readonly IPiiLogger _logger;
+    private readonly ImageRedactor _imageRedactor;
 
     public RedactController(
         ExtractorFactory extractors,
@@ -26,7 +27,8 @@ public class RedactController : ControllerBase
         FieldsCache fieldsCache,
         IQuotaRepository quota,
         ILogRepository logs,
-        IPiiLogger logger)
+        IPiiLogger logger,
+        ImageRedactor imageRedactor)
     {
         _extractors   = extractors;
         _orchestrator = orchestrator;
@@ -34,6 +36,7 @@ public class RedactController : ControllerBase
         _quota        = quota;
         _logs         = logs;
         _logger       = logger;
+        _imageRedactor = imageRedactor;
     }
 
     [HttpPost("redact")]
@@ -120,6 +123,82 @@ public class RedactController : ControllerBase
         finally
         {
             TryDelete(tempPath);
+        }
+    }
+
+    /// <summary>
+    /// POST /api/v1/redact/redact-image
+    /// Accepts an image file, runs OCR, and paints black rectangles over EVERY detected
+    /// word — no PII filtering. Returns the scrubbed image as JPEG bytes.
+    ///
+    /// Response headers:
+    ///   X-Word-Count   — number of OCR words painted
+    ///   X-Duration-Ms  — total processing time in milliseconds
+    /// </summary>
+    [HttpPost("redact-image")]
+    [DisableRequestSizeLimit]
+    [RequestFormLimits(MultipartBodyLengthLimit = long.MaxValue)]
+    public async Task<IActionResult> RedactImage(IFormFile file, CancellationToken ct)
+    {
+        var clientId   = HttpContext.Items["ClientId"]   as int?;
+        var clientName = HttpContext.Items["ClientName"] as string;
+        var sw         = Stopwatch.StartNew();
+
+        try
+        {
+            if (file is null || file.Length == 0)
+                return BadRequest(new { error = "No file provided." });
+
+            var mime = (file.ContentType ?? string.Empty).ToLowerInvariant();
+            if (!mime.StartsWith("image/"))
+                return BadRequest(new { error = $"Unsupported MIME type: {file.ContentType}. Upload an image (PNG, JPEG, TIFF, BMP)." });
+
+            var imageBytes = new byte[file.Length];
+            using (var ms  = new MemoryStream(imageBytes))
+                await file.CopyToAsync(ms, ct);
+
+            var result = await _imageRedactor.RedactAllTextAsync(imageBytes, ct);
+
+            sw.Stop();
+            await _quota.IncrementAsync();
+
+            _logger.LogRequest(new PiiRequestLog
+            {
+                Operation     = "RedactImage",
+                ClientId      = clientId,
+                ClientName    = clientName,
+                FileName      = file.FileName,
+                FileSizeBytes = file.Length,
+                MimeType      = mime,
+                ExtractorUsed = "OcrExtractor",
+                DurationMs    = result.DurationMs,
+                MatchCount    = result.MatchCount,
+                FieldsHit     = result.FieldsHit,
+                ExtractedText = result.OcrText,
+                RedactedText  = $"[image — {result.MatchCount} words painted]"
+            });
+            await _logs.InsertAsync(new RequestLogEntry
+            {
+                ClientId   = clientId,
+                FileName   = file.FileName,
+                FileSizeKb = (int)(file.Length / 1024),
+                DurationMs = result.DurationMs,
+                FieldsHit  = "[\"(all text)\"]",
+                ErrorMsg   = null
+            });
+
+            Response.Headers["X-Word-Count"]  = result.MatchCount.ToString();
+            Response.Headers["X-Duration-Ms"] = result.DurationMs.ToString();
+
+            return File(result.RedactedImage, "image/jpeg",
+                        Path.GetFileNameWithoutExtension(file.FileName) + "_redacted.jpg");
+        }
+        catch (OperationCanceledException) { return StatusCode(499); }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogError("RedactImage", clientName, ex, file?.FileName);
+            return StatusCode(500, new { error = "Image text-scrub failed.", detail = ex.Message });
         }
     }
 

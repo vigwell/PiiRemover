@@ -1,0 +1,290 @@
+@page "/admin/image-redactor"
+@model ImageRedactorModel
+@{
+    ViewData["Title"] = "Image Redactor";
+    ViewData["Nav"]   = "imageredactor";
+    Layout = "_AdminLayout";
+}
+
+<style>
+/* ── Drop zone ──────────────────────────────────────────────────────── */
+.drop-zone {
+  border:2px dashed var(--border2);border-radius:10px;
+  padding:36px 24px;text-align:center;cursor:pointer;
+  transition:border-color .15s,background .15s;background:var(--surface);
+}
+.drop-zone:hover,.drop-zone.drag-over {
+  border-color:#1677ff;background:rgba(22,119,255,.05);
+}
+.drop-zone input { display:none; }
+.drop-zone .dz-icon { font-size:36px;margin-bottom:8px; }
+.drop-zone .dz-hint { font-size:13px;color:var(--text3); }
+.drop-zone .dz-hint strong { color:var(--text); }
+
+/* ── Controls row ───────────────────────────────────────────────────── */
+.ctrl-row {
+  display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;
+}
+.chip-file {
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(22,119,255,.1);border:1px solid rgba(22,119,255,.3);
+  color:#1677ff;border-radius:6px;padding:4px 10px;font-size:13px;
+}
+.chip-file button {
+  background:none;border:none;color:#1677ff;cursor:pointer;
+  font-size:14px;line-height:1;padding:0;
+}
+
+/* ── Comparison grid ────────────────────────────────────────────────── */
+.compare-grid {
+  display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;
+}
+@@media(max-width:700px){ .compare-grid{grid-template-columns:1fr;} }
+.img-card {
+  border:1px solid var(--border);border-radius:10px;overflow:hidden;
+  background:var(--surface);
+}
+.img-card-header {
+  padding:8px 14px;font-size:12px;font-weight:600;letter-spacing:.3px;
+  border-bottom:1px solid var(--border);background:var(--surface2);
+  display:flex;align-items:center;gap:8px;
+}
+.img-card img {
+  width:100%;height:auto;display:block;max-height:60vh;object-fit:contain;
+  background:#000;
+}
+
+/* ── Stats bar ──────────────────────────────────────────────────────── */
+.stats-bar {
+  display:flex;align-items:center;flex-wrap:wrap;gap:0;
+  padding:6px 16px;border-bottom:1px solid var(--border);
+  font-size:12px;color:var(--text2);
+}
+.stat-item {
+  display:flex;align-items:center;gap:4px;padding:2px 12px 2px 0;
+  margin-right:12px;border-right:1px solid var(--border);
+}
+.stat-item:last-child{border-right:none;}
+.stat-val{font-weight:700;color:var(--text);}
+.stat-val.blue{color:#1677ff;}
+.stat-val.warn{color:#faad14;}
+.stat-val.good{color:#52c41a;}
+
+/* ── Match table ────────────────────────────────────────────────────── */
+.match-table {
+  width:100%;border-collapse:collapse;font-size:12px;margin-top:0;
+}
+.match-table th {
+  text-align:left;padding:6px 12px;font-weight:600;font-size:11px;
+  letter-spacing:.4px;color:var(--text3);border-bottom:2px solid var(--border);
+  background:var(--surface2);text-transform:uppercase;
+}
+.match-table td {
+  padding:6px 12px;border-bottom:1px solid var(--border);
+  vertical-align:middle;
+}
+.match-table tr:last-child td { border-bottom:none; }
+.match-table tr:hover td { background:var(--surface2); }
+.hit-text {
+  font-family:'Consolas','Courier New',monospace;
+  background:rgba(250,173,20,.18);border-radius:3px;padding:1px 5px;
+  color:#d48806;border:1px solid rgba(250,173,20,.35);
+}
+.field-chip {
+  background:rgba(26,111,240,.12);color:#4a90d9;
+  border:1px solid rgba(26,111,240,.2);border-radius:4px;
+  padding:1px 7px;font-size:11px;font-weight:600;
+}
+.replace-chip {
+  font-family:'Consolas','Courier New',monospace;font-size:11px;
+  background:rgba(82,196,26,.12);color:#52c41a;
+  border:1px solid rgba(82,196,26,.25);border-radius:3px;padding:1px 5px;
+}
+
+/* ── OCR text box ───────────────────────────────────────────────────── */
+.ocr-box {
+  border:1px solid var(--border);border-radius:8px;padding:12px 14px;
+  font-size:12px;font-family:'Consolas','Courier New',monospace;
+  color:var(--text2);background:var(--surface2);
+  max-height:160px;overflow-y:auto;white-space:pre-wrap;line-height:1.5;
+}
+
+/* ── Skeleton / spinner ─────────────────────────────────────────────── */
+.spinner {
+  display:inline-block;width:18px;height:18px;border:3px solid var(--border2);
+  border-top-color:#1677ff;border-radius:50%;animation:spin .7s linear infinite;
+}
+@@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+
+<!-- Page header -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+  <h1 class="page-title" style="margin:0">🖼 Image Redactor</h1>
+  <span style="font-size:12px;color:var(--text3)">
+    Upload an image → OCR → PII detection → paint black over matched words
+  </span>
+</div>
+
+<!-- Upload card -->
+<div class="card" style="padding:20px">
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('imgInput').click()">
+    <input type="file" id="imgInput" accept="image/png,image/jpeg,image/jpg,image/tiff,image/bmp,image/webp">
+    <div class="dz-icon">🖼</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:4px">Drop image here or click to browse</div>
+    <div class="dz-hint">PNG · JPEG · TIFF · BMP · WebP — max 200 MB</div>
+  </div>
+
+  <div class="ctrl-row">
+    <div id="fileChip" style="display:none"></div>
+    <button class="btn btn-primary" id="analyzeBtn" disabled onclick="runAnalysis()">
+      🖊 Analyze &amp; Redact
+    </button>
+    <span id="statusMsg" style="font-size:12px;color:var(--text3)"></span>
+  </div>
+</div>
+
+<!-- Results (injected by JS) -->
+<div id="results"></div>
+
+<!-- Anti-forgery token -->
+<form id="__AntiForgery" style="display:none">@Html.AntiForgeryToken()</form>
+
+<script>
+'use strict';
+
+let selectedFile = null;
+const dropZone   = document.getElementById('dropZone');
+const imgInput   = document.getElementById('imgInput');
+const analyzeBtn = document.getElementById('analyzeBtn');
+
+imgInput.addEventListener('change', () => {
+  if (imgInput.files[0]) setFile(imgInput.files[0]);
+  imgInput.value = '';
+});
+imgInput.addEventListener('click', e => e.stopPropagation());
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+function setFile(f) {
+  selectedFile = f;
+  analyzeBtn.disabled = false;
+  const chip = document.getElementById('fileChip');
+  chip.style.display = 'inline-flex';
+  chip.innerHTML = `<span class="chip-file">🖼 ${h(f.name)} (${fmtSize(f.size)})
+    <button onclick="clearFile()">✕</button></span>`;
+  document.getElementById('statusMsg').textContent = '';
+}
+
+function clearFile() {
+  selectedFile = null;
+  analyzeBtn.disabled = true;
+  document.getElementById('fileChip').style.display = 'none';
+  document.getElementById('statusMsg').textContent = '';
+}
+
+function getToken() {
+  const el = document.querySelector('#__AntiForgery input[name="__RequestVerificationToken"]');
+  return el ? el.value : '';
+}
+
+async function runAnalysis() {
+  if (!selectedFile) return;
+
+  analyzeBtn.disabled = true;
+  setStatus('<span class="spinner"></span> Running OCR + painting all text…', false);
+
+  const form = new FormData();
+  form.append('file', selectedFile);
+
+  let data;
+  try {
+    const r = await fetch('/admin/image-redactor?handler=AnalyzeImage', {
+      method: 'POST',
+      headers: { 'RequestVerificationToken': getToken() },
+      body: form
+    });
+    data = await r.json();
+  } catch (e) {
+    setStatus('❌ Network error: ' + e.message, true);
+    analyzeBtn.disabled = false;
+    return;
+  }
+
+  analyzeBtn.disabled = false;
+
+  if (!data.ok) {
+    setStatus('❌ ' + (data.error || 'Unknown error'), true);
+    return;
+  }
+
+  setStatus(`✓ Done in ${data.durationMs} ms — ${data.matchCount} word${data.matchCount !== 1 ? 's' : ''} painted`, false);
+  renderResult(data);
+}
+
+function setStatus(html, isError) {
+  const el = document.getElementById('statusMsg');
+  el.innerHTML = html;
+  el.style.color = isError ? '#ff4d4f' : 'var(--text3)';
+}
+
+function renderResult(d) {
+  const orig = `data:image/jpeg;base64,${d.originalBase64}`;
+  const redt = `data:image/jpeg;base64,${d.redactedBase64}`;
+
+  document.getElementById('results').innerHTML = `
+<div class="card" style="margin-top:20px;overflow:hidden">
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <div class="stat-item">📄 <span>${h(d.fileName)}</span></div>
+    <div class="stat-item">💾 <span class="stat-val">${fmtSize(d.fileSize)}</span></div>
+    <div class="stat-item">⏱ <span class="stat-val blue">${d.durationMs} ms</span></div>
+    <div class="stat-item">
+      🖊 <span class="stat-val ${d.matchCount > 0 ? 'blue' : 'warn'}">${d.matchCount}</span>
+      &nbsp;word${d.matchCount !== 1 ? 's' : ''} painted
+    </div>
+  </div>
+
+  <!-- Image comparison -->
+  <div class="compare-grid" style="padding:16px;gap:16px">
+    <div class="img-card">
+      <div class="img-card-header">
+        <span>📷 Original</span>
+        <a href="${orig}" download="${h(d.fileName)}_original.jpg"
+           style="margin-left:auto;font-size:11px;color:#1677ff;text-decoration:none">⬇ Save</a>
+      </div>
+      <img src="${orig}" alt="Original image">
+    </div>
+    <div class="img-card">
+      <div class="img-card-header">
+        <span>🔒 All Text Scrubbed</span>
+        <a href="${redt}" download="${h(d.fileName)}_redacted.jpg"
+           style="margin-left:auto;font-size:11px;color:#1677ff;text-decoration:none">⬇ Save</a>
+      </div>
+      <img src="${redt}" alt="Redacted image">
+    </div>
+  </div>
+
+  ${d.ocrText ? `
+  <!-- OCR text -->
+  <div style="padding:0 16px 16px">
+    <div style="font-size:12px;font-weight:600;color:var(--text3);
+                margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">Extracted text (OCR)</div>
+    <div class="ocr-box">${h(d.ocrText)}</div>
+  </div>` : ''}
+
+</div>`;
+}
+
+function h(s)  { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtSize(b) {
+  if (b < 1024)    return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+</script>

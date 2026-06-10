@@ -5,98 +5,57 @@ using PiiRemover.Core.Models;
 namespace PiiRemover.Core.Engines;
 
 /// <summary>
-/// Matches any term from a newline-separated list stored in the pattern value.
-/// Designed for large name/keyword lists uploaded from external files.
+/// Matches any term from a newline/pipe-separated list stored in the pattern value.
 ///
-/// Matching is case-insensitive and whole-word aware: "Cohen" will NOT match
-/// the substring inside "Cohenberg", but WILL match "Cohen," or "COHEN".
+/// Algorithm: word-tokenizer + HashSet lookup (O(1) per word), NOT regex alternation.
+/// A regex with 100 000+ alternations degrades exponentially; this approach stays
+/// constant regardless of term count — only text length matters.
 ///
-/// For performance the term list is parsed and cached per pattern ID.
-/// With FieldsCache the entire field catalog is already held in memory —
-/// FileListEngine adds a second-level Regex-per-term cache so the hot path
-/// is a single pre-compiled AhoCorasick-like alternation regex, not a loop
-/// over thousands of IndexOf calls.
+/// Multi-word terms ("Tel Aviv") are matched by sliding a window of 1..maxWords
+/// consecutive tokens and doing a normalised HashSet lookup on each span.
 /// </summary>
 public sealed class FileListEngine : IPatternEngine
 {
-    // Cache key = pattern.Id (unique per DB row) so updating the file list
-    // invalidates automatically when FieldsCache is cleared.
-    private static readonly ConcurrentDictionary<int, Regex> RegexCache = new();
+    // Cache compiled TermIndex per pattern DB row id
+    private static readonly ConcurrentDictionary<int, TermIndex> IndexCache = new();
 
     public PatternType SupportedType => PatternType.FileList;
 
     public IEnumerable<RedactMatch> FindMatches(string text, PiiPattern pattern, string replacement)
     {
-        if (string.IsNullOrWhiteSpace(pattern.Pattern)) yield break;
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(pattern.Pattern))
+            yield break;
 
-        if (!RegexCache.TryGetValue(pattern.Id, out var regex))
-        {
-            var built = BuildRegex(pattern.Pattern);
-            if (built is null) yield break;
-            regex = RegexCache.GetOrAdd(pattern.Id, built);
-        }
-        if (regex is null) yield break;
+        var index = IndexCache.GetOrAdd(pattern.Id, _ => new TermIndex(
+            pattern.Pattern.Split(new[] { '\n', '\r', '|' }, StringSplitOptions.RemoveEmptyEntries)
+                           .Select(t => t.Trim())
+                           .Where(t => t.Length > 0)));
 
-        foreach (Match m in regex.Matches(text))
+        foreach (var m in index.FindMatches(text))
         {
             yield return new RedactMatch
             {
-                StartIndex  = m.Index,
+                StartIndex  = m.Start,
                 Length      = m.Length,
                 Replacement = replacement,
-                MatchedText = m.Value
+                MatchedText = m.Matched
             };
         }
     }
 
-    /// <summary>
-    /// Invalidate the compiled regex for a specific pattern (call after update).
-    /// FieldsCache.Invalidate() already evicts the data layer; this evicts the
-    /// compiled regex so the next call rebuilds from the fresh pattern string.
-    /// </summary>
-    public static void InvalidateCache(int patternId) =>
-        RegexCache.TryRemove(patternId, out _);
-
-    /// <summary>Invalidate all cached regexes (e.g. on full catalog reload).</summary>
-    public static void InvalidateAll() => RegexCache.Clear();
-
-    // ── Internals ─────────────────────────────────────────────────────────────
-
-    private static Regex? BuildRegex(string patternValue)
-    {
-        // Split by newline (primary delimiter); also accept pipe for compatibility
-        var terms = patternValue
-            .Split(new[] { '\n', '\r', '|' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(t => t.Trim())
-            .Where(t => t.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(t => t.Length) // longer terms first so "ABU AMOUNA" wins over "ABU"
-            .ToList();
-
-        if (terms.Count == 0) return null;
-
-        // Build a single alternation regex: \b(term1|term2|…)\b
-        // This is compiled once and is far faster than looping over IndexOf per term.
-        var escaped   = terms.Select(Regex.Escape);
-        var alternation = string.Join('|', escaped);
-
-        return new Regex(
-            $@"\b(?:{alternation})\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase,
-            TimeSpan.FromSeconds(5));
-    }
+    public static void InvalidateCache(int patternId) => IndexCache.TryRemove(patternId, out _);
+    public static void InvalidateAll()               => IndexCache.Clear();
 
     // ── File parsing helpers (used by admin upload handler) ──────────────────
 
     /// <summary>
-    /// Parse any supported file format into a list of terms to match.
+    /// Parse any supported file format into a deduplicated list of terms.
     ///
     /// Supported formats:
     ///  • Single-column TXT/CSV  — one term per line
-    ///  • Fixed-width dual-column (e.g. NAMES_TO_REDACT.DAT) — splits each line
-    ///    at 2+ consecutive spaces and extracts all non-empty tokens from both
-    ///    columns, giving both Hebrew and English name variants.
-    ///  • Pipe-separated  — splits on | as well
+    ///  • Fixed-width dual-column (NAMES_TO_REDACT.DAT style) — splits each line
+    ///    at 2+ consecutive spaces, extracts both Hebrew and English tokens
+    ///  • Pipe-separated — splits on |
     /// </summary>
     public static IReadOnlyList<string> ParseFile(string fileContent)
     {
@@ -107,13 +66,12 @@ public sealed class FileListEngine : IPatternEngine
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line) || line.StartsWith('#')) continue;
 
-            // Dual-column fixed-width detection: line contains 2+ consecutive spaces
             if (Regex.IsMatch(line, @"\s{2,}"))
             {
-                // Split on runs of 2+ spaces → get individual column values
+                // Dual-column fixed-width
                 var cols = Regex.Split(line, @"\s{2,}")
                                 .Select(c => c.Trim())
-                                .Where(c => c.Length > 1); // skip single-char artifacts
+                                .Where(c => c.Length > 1);
                 foreach (var col in cols) terms.Add(col);
             }
             else if (line.Contains('|'))
@@ -136,4 +94,110 @@ public sealed class FileListEngine : IPatternEngine
     /// <summary>Serialize a term list back to the newline-separated DB format.</summary>
     public static string Serialize(IEnumerable<string> terms) =>
         string.Join('\n', terms.Where(t => !string.IsNullOrWhiteSpace(t)));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TermIndex — the fast lookup structure
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Immutable lookup structure built once per pattern, cached in memory.
+///
+/// Single-word terms  → HashSet lookup,  O(1)
+/// Multi-word terms   → sliding window of N consecutive tokens, O(text × maxWords)
+///   where maxWords is capped at 6 so performance is still O(text)
+/// </summary>
+internal sealed class TermIndex
+{
+    // Normalised term → original (for MatchedText)
+    private readonly Dictionary<string, string> _terms;
+    private readonly int _maxWordCount;
+
+    private static readonly Regex NonWordRun = new(@"[^\p{L}\p{N}]+", RegexOptions.Compiled);
+
+    public TermIndex(IEnumerable<string> rawTerms)
+    {
+        // Normalise in parallel for large lists (480k+ terms), then load into Dictionary
+        var pairs = rawTerms
+            .AsParallel()
+            .Select(raw => (norm: Normalize(raw), raw))
+            .Where(x => x.norm.Length > 0)
+            .ToList();
+
+        _terms = new Dictionary<string, string>(pairs.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var (norm, raw) in pairs)
+            _terms.TryAdd(norm, raw);
+
+        // Pre-compute max word count so the inner loop has a tight upper bound
+        _maxWordCount = _terms.Count == 0
+            ? 1
+            : Math.Min(6, _terms.Keys.Max(k => k.Split(' ').Length));
+    }
+
+    /// <summary>
+    /// Walk <paramref name="text"/> token-by-token and yield every match.
+    /// Greedy: at each position tries longest window first to avoid
+    /// matching "Cohen" inside "Cohen Levi" if "Cohen Levi" is also a term.
+    /// </summary>
+    public IEnumerable<(int Start, int Length, string Matched)> FindMatches(string text)
+    {
+        if (_terms.Count == 0) yield break;
+
+        var tokens = Tokenize(text);
+        int i = 0;
+
+        while (i < tokens.Count)
+        {
+            bool found = false;
+
+            int maxWc = Math.Min(_maxWordCount, tokens.Count - i);
+            for (int wc = maxWc; wc >= 1; wc--)
+            {
+                int spanStart = tokens[i].Start;
+                int spanEnd   = tokens[i + wc - 1].Start + tokens[i + wc - 1].Length;
+                var span      = text.AsSpan(spanStart, spanEnd - spanStart);
+                var norm      = Normalize(span.ToString());
+
+                if (_terms.TryGetValue(norm, out var original))
+                {
+                    yield return (spanStart, spanEnd - spanStart, original);
+                    i    += wc;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) i++;
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /// Collapse any run of non-letter/digit chars to a single space, lowercase.
+    private static string Normalize(string s)
+    {
+        var trimmed = s.Trim();
+        if (trimmed.Length == 0) return string.Empty;
+        return NonWordRun.Replace(trimmed, " ").ToLowerInvariant().Trim();
+    }
+
+    /// Extract word tokens (letter/digit runs, hyphens included) with their
+    /// start positions. Runs of O(text length).
+    private static List<(int Start, int Length)> Tokenize(string text)
+    {
+        var result = new List<(int, int)>(text.Length / 6 + 16);
+        int i = 0;
+        while (i < text.Length)
+        {
+            while (i < text.Length && !IsWordChar(text[i])) i++;
+            if (i >= text.Length) break;
+            int s = i;
+            while (i < text.Length && IsWordChar(text[i])) i++;
+            result.Add((s, i - s));
+        }
+        return result;
+    }
+
+    /// Letters, digits, and hyphens (for compound names like Abu-Ali, Bat-Sheva)
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '-';
 }

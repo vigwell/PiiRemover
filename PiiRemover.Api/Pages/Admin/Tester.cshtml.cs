@@ -112,6 +112,7 @@ public class TesterModel : AdminPageModel
             fieldName   = f.FieldName,
             replaceWith = f.ReplaceWith,
             isActive    = f.IsActive,
+            isPreserve  = f.IsPreserve,
             patterns    = f.Patterns.Select(p => new
             {
                 id       = p.Id,
@@ -123,32 +124,70 @@ public class TesterModel : AdminPageModel
     }
 
     // ── Add a new pattern to an existing field ────────────────────────────────
-    public async Task<IActionResult> OnPostAddPatternAsync(int fieldId, string patternType, string pattern)
+    // NOTE: called via JSON fetch (apiPost), so [FromBody] is required.
+    public async Task<IActionResult> OnPostAddPatternAsync([FromBody] AddPatternRequest req)
     {
-        if (!Enum.TryParse<PatternType>(patternType, true, out var pt))
-            return BadRequest(new { error = $"Unknown pattern type: {patternType}" });
-        if (string.IsNullOrWhiteSpace(pattern))
+        if (!Enum.TryParse<PatternType>(req.PatternType, true, out var pt))
+            return BadRequest(new { error = $"Unknown pattern type: {req.PatternType}" });
+        if (string.IsNullOrWhiteSpace(req.Pattern))
             return BadRequest(new { error = "Pattern cannot be empty." });
 
-        var id = await _fields.CreatePatternAsync(fieldId, pt, pattern.Trim(), 0);
+        var id = await _fields.CreatePatternAsync(req.FieldId, pt, req.Pattern.Trim(), 0);
         _fieldsCache.Invalidate();
         return new JsonResult(new { ok = true, patternId = id });
     }
 
     // ── Append a value to an existing ConstList pattern ───────────────────────
-    public async Task<IActionResult> OnPostAppendConstListAsync(int patternId, string currentPattern, string appendValue)
+    public async Task<IActionResult> OnPostAppendConstListAsync([FromBody] AppendConstListRequest req)
     {
-        if (string.IsNullOrWhiteSpace(appendValue))
+        if (string.IsNullOrWhiteSpace(req.AppendValue))
             return BadRequest(new { error = "Value cannot be empty." });
 
-        var trimmed    = appendValue.Trim();
-        var newPattern = string.IsNullOrWhiteSpace(currentPattern)
+        var trimmed    = req.AppendValue.Trim();
+        var newPattern = string.IsNullOrWhiteSpace(req.CurrentPattern)
             ? trimmed
-            : currentPattern.TrimEnd('|') + "|" + trimmed;
+            : req.CurrentPattern.TrimEnd('|') + "|" + trimmed;
 
-        await _fields.UpdatePatternAsync(patternId, PatternType.ConstList, newPattern, 0);
+        await _fields.UpdatePatternAsync(req.PatternId, PatternType.ConstList, newPattern, 0);
         _fieldsCache.Invalidate();
         return new JsonResult(new { ok = true, newPattern });
+    }
+
+    // ── OCR only — extract text, skip redaction entirely ─────────────────────
+    public async Task<IActionResult> OnPostOcrOnlyAsync(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file provided." });
+
+        Core.Extractors.ITextExtractor extractor;
+        try   { extractor = _extractors.GetExtractor(file.ContentType ?? "application/octet-stream"); }
+        catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+
+        var tmp = Path.GetTempFileName();
+        try
+        {
+            await using (var fs = System.IO.File.Create(tmp))
+                await file.CopyToAsync(fs, ct);
+
+            var sw   = Stopwatch.StartNew();
+            var text = await extractor.ExtractAsync(tmp, ct);
+            sw.Stop();
+
+            return new JsonResult(new
+            {
+                fileName      = file.FileName,
+                fileSize      = file.Length,
+                ocr = new {
+                    text,
+                    charCount     = text.Length,
+                    durationMs    = sw.ElapsedMilliseconds,
+                    extractorUsed = extractor.GetType().Name
+                }
+            });
+        }
+        catch (OperationCanceledException) { return StatusCode(499); }
+        catch (Exception ex) { return StatusCode(500, new { error = "OCR failed.", detail = ex.Message }); }
+        finally { try { System.IO.File.Delete(tmp); } catch { } }
     }
 
     // ── Redact plain text (no file/OCR) ──────────────────────────────────────
@@ -181,22 +220,27 @@ public class TesterModel : AdminPageModel
     }
 
     // ── Create a new field with its first pattern ──────────────────────────────
-    public async Task<IActionResult> OnPostCreateFieldAsync(
-        string fieldName, string replaceWith, string patternType, string pattern)
+    public async Task<IActionResult> OnPostCreateFieldAsync([FromBody] CreateFieldRequest req)
     {
-        if (string.IsNullOrWhiteSpace(fieldName))
+        if (string.IsNullOrWhiteSpace(req.FieldName))
             return BadRequest(new { error = "Field name cannot be empty." });
-        if (!Enum.TryParse<PatternType>(patternType, true, out var pt))
-            return BadRequest(new { error = $"Unknown pattern type: {patternType}" });
-        if (string.IsNullOrWhiteSpace(pattern))
+        if (!Enum.TryParse<PatternType>(req.PatternType, true, out var pt))
+            return BadRequest(new { error = $"Unknown pattern type: {req.PatternType}" });
+        if (string.IsNullOrWhiteSpace(req.Pattern))
             return BadRequest(new { error = "Pattern cannot be empty." });
 
-        var rw      = string.IsNullOrWhiteSpace(replaceWith) ? "████" : replaceWith.Trim();
-        var fieldId = await _fields.CreateFieldAsync(null, fieldName.Trim(), rw);
-        var patId   = await _fields.CreatePatternAsync(fieldId, pt, pattern.Trim(), 0);
+        var rw       = string.IsNullOrWhiteSpace(req.ReplaceWith) ? (req.IsPreserve ? "—" : "████") : req.ReplaceWith.Trim();
+        var priority = req.IsPreserve ? 999 : 0;
+        var fieldId  = await _fields.CreateFieldAsync(null, req.FieldName.Trim(), rw, req.IsPreserve);
+        var patId    = await _fields.CreatePatternAsync(fieldId, pt, req.Pattern.Trim(), priority);
         _fieldsCache.Invalidate();
         return new JsonResult(new { ok = true, fieldId, patternId = patId });
     }
 }
 
 public record RedactTextRequest(string Text);
+public record AddPatternRequest(int FieldId, string PatternType, string Pattern);
+public record AppendConstListRequest(int PatternId, string CurrentPattern, string AppendValue);
+public record CreateFieldRequest(
+    string FieldName, string ReplaceWith, string PatternType, string Pattern,
+    bool IsPreserve = false);

@@ -157,13 +157,14 @@ details summary:hover{text-decoration:underline}
 
 <nav class="nav">
   <span class="brand">🔒 PiiRemover</span>
-  <a href="/admin"          class="@(ViewData["Nav"]?.ToString()=="home"    ?"active":"")">Dashboard</a>
-  <a href="/admin/clients"  class="@(ViewData["Nav"]?.ToString()=="clients" ?"active":"")">Clients</a>
-  <a href="/admin/fields"   class="@(ViewData["Nav"]?.ToString()=="fields"  ?"active":"")">PII Fields</a>
-  <a href="/admin/logs"     class="@(ViewData["Nav"]?.ToString()=="logs"    ?"active":"")">Logs</a>
-  <a href="/admin/settings" class="@(ViewData["Nav"]?.ToString()=="settings"?"active":"")">Settings</a>
-  <a href="/admin/health"   class="@(ViewData["Nav"]?.ToString()=="health"  ?"active":"")">Health</a>
-  <a href="/admin/tester"        class="@(ViewData["Nav"]?.ToString()=="tester"     ?"active":"")">🔍 Tester</a>
+  <a href="/admin"              class="@(ViewData["Nav"]?.ToString()=="home"       ?"active":"")">Dashboard</a>
+  <a href="/admin/tester"          class="@(ViewData["Nav"]?.ToString()=="tester"        ?"active":"")">🔍 Tester &amp; Debug</a>
+  <a href="/admin/image-redactor" class="@(ViewData["Nav"]?.ToString()=="imageredactor" ?"active":"")">🖼 Image Redactor</a>
+  <a href="/admin/clients"      class="@(ViewData["Nav"]?.ToString()=="clients"    ?"active":"")">Clients</a>
+  <a href="/admin/fields"       class="@(ViewData["Nav"]?.ToString()=="fields"     ?"active":"")">PII Fields</a>
+  <a href="/admin/logs"         class="@(ViewData["Nav"]?.ToString()=="logs"       ?"active":"")">Logs</a>
+  <a href="/admin/settings"     class="@(ViewData["Nav"]?.ToString()=="settings"   ?"active":"")">Settings</a>
+  <a href="/admin/health"       class="@(ViewData["Nav"]?.ToString()=="health"     ?"active":"")">Health</a>
   <a href="/admin/pattern-help" class="@(ViewData["Nav"]?.ToString()=="patternhelp"?"active":"")">📖 Pattern Help</a>
   <span class="spacer"></span>
   <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle dark / light mode">🌙</button>

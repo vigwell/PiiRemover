@@ -97,6 +97,9 @@ builder.Services.AddSingleton<ITextExtractor>(sp => sp.GetRequiredService<OcrExt
 builder.Services.AddSingleton<ExtractorFactory>(sp =>
     new ExtractorFactory(sp.GetServices<ITextExtractor>()));
 
+// ── Image redactor (pixel-level selective PII painting) ───────────────────────
+builder.Services.AddSingleton<ImageRedactor>();
+
 // ── ASP.NET ───────────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

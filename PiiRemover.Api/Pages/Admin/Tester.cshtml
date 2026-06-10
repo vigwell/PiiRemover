@@ -60,19 +60,6 @@
   padding:2px 9px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap; }
 .upload-expand-btn:hover { border-color:#1677ff;color:#1677ff; }
 
-/* ── Basket button ─────────────────────────────────────────────── */
-.basket-btn {
-  display:inline-flex;align-items:center;gap:6px;
-  background:var(--surface);border:1px solid var(--border2);
-  color:var(--text2);padding:6px 14px;border-radius:6px;font-size:13px;
-  cursor:pointer;transition:all .2s;position:relative;
-}
-.basket-btn:hover { border-color:#faad14;color:#faad14; }
-.basket-btn.has-items { border-color:#faad14;color:#faad14; }
-.basket-count {
-  background:#faad14;color:#000;border-radius:10px;padding:0 6px;
-  font-size:11px;font-weight:700;min-width:18px;text-align:center;
-}
 
 /* ── Result card ───────────────────────────────────────────────── */
 .result-card { background:var(--surface);border:1px solid var(--border);
@@ -210,17 +197,6 @@ mark.search-hit.active {
 .modal-footer { padding:10px 18px;border-top:1px solid var(--border);
                 display:flex;justify-content:flex-end;gap:8px;flex-shrink:0; }
 
-/* ── Basket items ──────────────────────────────────────────────── */
-.basket-item {
-  display:flex;align-items:flex-start;gap:10px;padding:10px 0;
-  border-bottom:1px solid var(--border);
-}
-.basket-item:last-child { border-bottom:none; }
-.basket-text { font-family:'Consolas','Courier New',monospace;font-size:13px;
-               color:var(--text);background:var(--mono-bg);border:1px solid var(--border);
-               border-radius:4px;padding:3px 8px;flex:1;word-break:break-all; }
-.basket-source { font-size:11px;color:var(--text3);margin-top:3px; }
-.basket-actions { display:flex;gap:5px;flex-shrink:0;margin-top:2px; }
 
 /* ── Add PII form ──────────────────────────────────────────────── */
 .pii-mode-radio { display:flex;flex-direction:column;gap:12px;margin-bottom:14px; }
@@ -326,12 +302,9 @@ mark.search-hit.active {
 
 <!-- ── Page header ──────────────────────────────────────────────────────── -->
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-  <h1 class="page-title" style="margin:0">🔍 Live Tester &amp; Demo</h1>
+  <h1 class="page-title" style="margin:0">🔍 Live Tester &amp; Debug</h1>
   <div style="display:flex;align-items:center;gap:10px">
     <button class="help-toggle" id="helpToggleBtn" onclick="toggleHelp()">❓ How to use</button>
-    <button class="basket-btn" id="basketBtn" onclick="openBasket()">
-      🧺 <span class="basket-count" id="basketCount">0</span>&nbsp;Missing Patterns
-    </button>
   </div>
 </div>
 
@@ -443,45 +416,41 @@ mark.search-hit.active {
       </div>
     </div>
 
-    <!-- Right-click & basket -->
+    <!-- Right-click -->
     <div class="help-section">
-      <div class="help-section-title">🧺 Missing Patterns &amp; Right-Click</div>
+      <div class="help-section-title">🖱 Right-Click to Add Rules</div>
       <div class="help-row">
         <span class="help-icon">🖱</span>
-        <span class="help-text"><strong>Select any text</strong> in the <em>Redacted</em> pane and <strong>right-click</strong> to see the context menu.</span>
+        <span class="help-text"><strong>Select any text</strong> in the OCR or Redacted pane and <strong>right-click</strong> to see the context menu.</span>
       </div>
       <div class="help-row">
-        <span class="help-icon">🧺</span>
-        <span class="help-text"><strong>Collect Missing Pattern</strong> — saves the selection to the <strong>basket</strong> at the top of the page. Review later and decide what to do with each one.</span>
+        <span class="help-icon">🔒</span>
+        <span class="help-text"><strong>Add Value to Redact…</strong> — adds the selection as a new <em>redact</em> rule. Pick an existing field or create a new one with a replacement text.</span>
       </div>
       <div class="help-row">
-        <span class="help-icon">➕</span>
-        <span class="help-text"><strong>Add to PII Field</strong> — opens the <em>Add to PII Fields &amp; Patterns</em> dialog immediately, skipping the basket.</span>
-      </div>
-      <div class="help-row">
-        <span class="help-icon">📌</span>
-        <span class="help-text">The basket persists for the <strong>whole browser session</strong>. Click <strong>🧺 Missing Patterns</strong> to review, remove items, or push each one directly to a PII field.</span>
+        <span class="help-icon">🛡</span>
+        <span class="help-text"><strong>Add Value to Preserve…</strong> — adds the selection to a <em>preserve</em> field so it is never redacted (e.g. a hospital name or brand). No replacement text needed.</span>
       </div>
     </div>
 
-    <!-- Add to PII Field modal -->
+    <!-- Add value modals -->
     <div class="help-section">
-      <div class="help-section-title">➕ Add to PII Fields &amp; Patterns</div>
+      <div class="help-section-title">➕ Add Value dialog</div>
       <div class="help-row">
         <span class="help-icon">1️⃣</span>
-        <span class="help-text"><strong>Add to existing field</strong> — pick a field, then either <em>append to a const-list pattern</em> (adds a new keyword) or <em>add a new pattern</em> of any type to that field.</span>
+        <span class="help-text"><strong>Existing field</strong> — pick a field from the dropdown. The value is added as a <em>Whole Word</em> pattern immediately.</span>
       </div>
       <div class="help-row">
         <span class="help-icon">2️⃣</span>
-        <span class="help-text"><strong>Create new field</strong> — give the field a name, replacement text (e.g. <code style="font-size:11px">[NAME]</code>), choose a pattern type and enter the pattern. The new field is active immediately.</span>
+        <span class="help-text"><strong>New field</strong> — enter a field name and (for Redact) a replacement placeholder such as <code style="font-size:11px">[NAME]</code> or <code style="font-size:11px">████</code>.</span>
       </div>
       <div class="help-row">
         <span class="help-icon">🔄</span>
-        <span class="help-text">Changes take effect on the <strong>next Run Analysis</strong> — the PII fields cache is invalidated automatically so the redaction engine picks up the new rule.</span>
+        <span class="help-text">Changes take effect on the <strong>next analysis</strong> — the PII cache is invalidated automatically.</span>
       </div>
       <div class="help-row">
         <span class="help-icon">📖</span>
-        <span class="help-text">Not sure which pattern type to use? See <a href="/admin/pattern-help" target="_blank" style="color:#1677ff">📖 Pattern Help</a> for examples of all 11 types.</span>
+        <span class="help-text">For advanced pattern configuration visit the <a href="/admin/fields" style="color:#1677ff">Fields page</a> or see <a href="/admin/pattern-help" target="_blank" style="color:#1677ff">📖 Pattern Help</a>.</span>
       </div>
     </div>
 
@@ -617,106 +586,69 @@ mark.search-hit.active {
 
 <!-- ── Context menu ──────────────────────────────────────────────────────── -->
 <div id="ctxMenu" class="ctx-menu" style="display:none">
-  <div class="ctx-item" onclick="ctxAddToBasket()">🧺 Collect Missing Pattern</div>
-  <div class="ctx-item" onclick="ctxAddPiiDirect()">➕ Add to PII Field</div>
+  <div class="ctx-item" onclick="ctxAddRedact()">🔒 Add Value to Redact…</div>
+  <div class="ctx-item" onclick="ctxAddPreserve()">🛡 Add Value to Preserve…</div>
 </div>
 
-<!-- ── Basket modal ──────────────────────────────────────────────────────── -->
-<div id="basketModal" class="modal-overlay" style="display:none" onclick="overlayClose(event,'basketModal')">
-  <div class="modal-box modal-wide">
-    <div class="modal-header">
-      🧺 Missing Patterns Basket
-      <button class="modal-close" onclick="closeBasket()">✕</button>
-    </div>
-    <div class="modal-body" id="basketBody" style="min-height:60px"></div>
-    <div class="modal-footer">
-      <button class="btn btn-danger btn-sm" onclick="clearBasket()">Clear All</button>
-      <button class="btn btn-default btn-sm" onclick="closeBasket()">Close</button>
-    </div>
-  </div>
-</div>
 
-<!-- ── Add PII Field modal ────────────────────────────────────────────────── -->
+<!-- ── Add Value modal (Redact / Preserve) ───────────────────────────────── -->
 <div id="addPiiModal" class="modal-overlay" style="display:none" onclick="overlayClose(event,'addPiiModal')">
   <div class="modal-box">
     <div class="modal-header">
-      ➕ Add to PII Fields &amp; Patterns
+      <span id="addPiiTitle">➕ Add Value</span>
       <button class="modal-close" onclick="closeAddPii()">✕</button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:12px">
-        <span style="font-size:12px;color:var(--text3)">Pattern text:</span><br>
+
+      <!-- selected value -->
+      <div style="margin-bottom:14px">
+        <span style="font-size:12px;color:var(--text3)">Value to add:</span><br>
         <span class="pattern-pill" id="addPiiText"></span>
       </div>
 
-      <div class="pii-mode-radio">
-        <!-- Existing field -->
-        <div>
-          <label class="pii-mode-option">
-            <input type="radio" name="piiMode" value="existing" onchange="piiModeChange()" checked>
-            <span>
-              <span class="pii-mode-label">Add to existing field</span>
-              <div style="font-size:12px;color:var(--text3)">Append to const list or add new pattern</div>
-            </span>
-          </label>
-          <div class="pii-mode-body active" id="piiExistingBody">
-            <label class="form-label">Field</label>
-            <select class="form-ctrl" id="piiFieldSelect" onchange="piiFieldChanged()">
-              <option value="">— loading fields… —</option>
-            </select>
-
-            <div id="piiConstListSection" style="display:none">
-              <label class="form-label">Append to const list pattern</label>
-              <select class="form-ctrl" id="piiConstListSelect">
-                <option value="">— select pattern —</option>
-              </select>
-              <label class="form-label" style="margin-top:4px">Value to append</label>
-              <input type="text" class="form-ctrl" id="piiConstAppendVal" placeholder="e.g. כהן">
-              <button class="btn btn-primary btn-sm" style="margin-top:2px" onclick="submitAppendConstList()">✓ Append &amp; Activate</button>
-            </div>
-
-            <div id="piiNewPatternSection" style="margin-top:10px">
-              <label class="form-label">— or — Add new pattern to this field</label>
-              <select class="form-ctrl" id="piiNewPatternType">
-                <optgroup label="Simple"><option value="WholeWord">Whole Word</option><option value="Like">Like (* ?)</option><option value="BeginsWith">Begins With</option><option value="EndsWith">Ends With</option><option value="ConstList">Keyword List (|)</option></optgroup>
-                <optgroup label="Context"><option value="AfterLabel">After Label</option><option value="BetweenMarkers">Between Markers</option><option value="NumberSequence">Number Sequence</option></optgroup>
-                <optgroup label="Advanced"><option value="Regex">Regex</option></optgroup>
-              </select>
-              <label class="form-label" style="margin-top:4px">Pattern</label>
-              <input type="text" class="form-ctrl" id="piiNewPatternVal" placeholder="e.g. (?i)\bכהן\b">
-              <button class="btn btn-primary btn-sm" style="margin-top:2px" onclick="submitAddPattern()">✓ Add Pattern &amp; Activate</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- New field -->
-        <div>
-          <label class="pii-mode-option">
-            <input type="radio" name="piiMode" value="new" onchange="piiModeChange()">
-            <span>
-              <span class="pii-mode-label">Create new field</span>
-              <div style="font-size:12px;color:var(--text3)">Define a brand-new PII field</div>
-            </span>
-          </label>
-          <div class="pii-mode-body" id="piiNewBody">
-            <label class="form-label">Field name</label>
-            <input type="text" class="form-ctrl" id="piiNewFieldName" placeholder="e.g. Full Name">
-            <label class="form-label">Replace with</label>
-            <input type="text" class="form-ctrl" id="piiNewFieldReplace" value="████">
-            <label class="form-label">Pattern type</label>
-            <select class="form-ctrl" id="piiNewFieldType">
-              <optgroup label="Simple"><option value="WholeWord">Whole Word</option><option value="Like">Like (* ?)</option><option value="BeginsWith">Begins With</option><option value="EndsWith">Ends With</option><option value="ConstList">Keyword List (|)</option></optgroup>
-              <optgroup label="Context"><option value="AfterLabel">After Label</option><option value="BetweenMarkers">Between Markers</option><option value="NumberSequence">Number Sequence</option></optgroup>
-              <optgroup label="Advanced"><option value="Regex">Regex</option></optgroup>
-            </select>
-            <label class="form-label" style="margin-top:4px">Pattern</label>
-            <input type="text" class="form-ctrl" id="piiNewFieldPattern">
-            <button class="btn btn-primary btn-sm" style="margin-top:4px" onclick="submitCreateField()">✓ Create Field &amp; Activate</button>
-          </div>
-        </div>
+      <!-- existing / new toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;
+                      border:2px solid var(--border2);border-radius:8px;padding:10px 12px;
+                      transition:border-color .15s" id="addModeExistingLbl">
+          <input type="radio" name="addMode" value="existing" checked onchange="addModeChange()">
+          <span>
+            <div style="font-size:13px;font-weight:600">Existing field</div>
+            <div style="font-size:11px;color:var(--text3)">Add to a field you already have</div>
+          </span>
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;
+                      border:2px solid var(--border2);border-radius:8px;padding:10px 12px;
+                      transition:border-color .15s" id="addModeNewLbl">
+          <input type="radio" name="addMode" value="new" onchange="addModeChange()">
+          <span>
+            <div style="font-size:13px;font-weight:600">New field</div>
+            <div style="font-size:11px;color:var(--text3)">Create a brand-new field</div>
+          </span>
+        </label>
       </div>
 
-      <div id="addPiiStatus" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+      <!-- existing field section -->
+      <div id="addExistingSection">
+        <label class="form-label">Field</label>
+        <select class="form-ctrl" id="addFieldSelect">
+          <option value="">— loading… —</option>
+        </select>
+        <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="submitAddToExisting()">✓ Add to Field</button>
+      </div>
+
+      <!-- new field section -->
+      <div id="addNewSection" style="display:none">
+        <label class="form-label">Field name</label>
+        <input type="text" class="form-ctrl" id="addNewName" placeholder="e.g. Doctor Names">
+        <div id="addReplaceRow">
+          <label class="form-label">Replace with</label>
+          <input type="text" class="form-ctrl" id="addNewReplace" value="████" placeholder="e.g. [NAME]">
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="submitAddNewField()">✓ Create Field &amp; Add</button>
+      </div>
+
+      <div id="addPiiStatus" style="font-size:12px;margin-top:10px;min-height:16px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-default btn-sm" onclick="closeAddPii()">Close</button>
@@ -743,10 +675,6 @@ let textFontSize = 13;
 
 // Per-card state: { fontSize, dir, ocrText, piiMatches, searchTerm, hitIdx, hitCount }
 const cardStates  = new Map();
-
-// Basket stored in sessionStorage
-let basket = [];
-try { basket = JSON.parse(sessionStorage.getItem('pii-basket') || '[]'); } catch {}
 
 // Context menu state
 let ctxText   = '';
@@ -987,7 +915,7 @@ async function runFileAnalysis() {
   const token = getToken();
   let done = 0;
   await Promise.all(selectedFiles.map((file, i) =>
-    uploadAnalyze(file, token)
+    uploadAnalyze(file, token, ocrOnly)
       .then(data => { done++; const msg = `${done}/${selectedFiles.length} done…`; statusEl.textContent = statusElMini.textContent = msg; renderResult(ids[i], file, data, ocrOnly); })
       .catch(err  => { done++; const msg = `${done}/${selectedFiles.length} done…`; statusEl.textContent = statusElMini.textContent = msg; renderError(ids[i], file, String(err)); })
   ));
@@ -1004,10 +932,11 @@ async function runFileAnalysis() {
 // backward compat alias (mini bar uses runAnalysis in some paths)
 function runAnalysis() { runFileAnalysis(); }
 
-async function uploadAnalyze(file, token) {
-  const fd = new FormData();
+async function uploadAnalyze(file, token, ocrOnly) {
+  const fd      = new FormData();
+  const handler = ocrOnly ? 'OcrOnly' : 'Analyze';
   fd.append('file', file);
-  const r = await fetch('/admin/tester?handler=Analyze', {
+  const r = await fetch(`/admin/tester?handler=${handler}`, {
     method: 'POST', headers: { 'RequestVerificationToken': token }, body: fd
   });
   const body = await r.json();
@@ -1549,7 +1478,7 @@ const ctxMenu = document.getElementById('ctxMenu');
 let ctxCardId = '';
 
 document.getElementById('results').addEventListener('contextmenu', e => {
-  const paneBody = e.target.closest('.pane-redact .pane-body');
+  const paneBody = e.target.closest('.pane-body');   // both OCR and Redact panes
   if (!paneBody) return;
   const sel = window.getSelection();
   const txt = sel ? sel.toString().trim() : '';
@@ -1559,96 +1488,69 @@ document.getElementById('results').addEventListener('contextmenu', e => {
   const card = paneBody.closest('.result-card');
   ctxCardId  = card ? card.id : '';
   ctxSource  = card ? (card.querySelector('.fname')?.textContent || '') : '';
+  // label which pane the selection came from
+  const isOcr = paneBody.closest('.pane-ocr') !== null;
+  ctxSource  += isOcr ? ' (OCR)' : ' (Redacted)';
   ctxMenu.style.display = 'block';
   ctxMenu.style.left    = Math.min(e.clientX, window.innerWidth  - 210) + 'px';
   ctxMenu.style.top     = Math.min(e.clientY, window.innerHeight - 60)  + 'px';
 });
 
 document.addEventListener('click',       hideCtx);
-document.addEventListener('contextmenu', e => { if (!e.target.closest('.pane-redact .pane-body')) hideCtx(); });
+document.addEventListener('contextmenu', e => { if (!e.target.closest('.pane-body')) hideCtx(); });
 function hideCtx() { ctxMenu.style.display = 'none'; }
 
-function ctxAddToBasket() {
+function ctxAddRedact() {
   hideCtx();
   if (!ctxText) return;
-  basket.push({ id: Date.now() + '_' + Math.random().toString(36).slice(2),
-                text: ctxText, source: ctxSource,
-                addedAt: new Date().toLocaleString() });
-  saveBasket();
-  updateBasketBtn();
-  document.getElementById('basketBtn').classList.add('has-items');
+  openAddPii(ctxText, 'redact');
 }
 
-function ctxAddPiiDirect() {
+function ctxAddPreserve() {
   hideCtx();
   if (!ctxText) return;
-  openAddPii(ctxText);
+  openAddPii(ctxText, 'preserve');
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BASKET
+// ADD VALUE MODAL  (Redact / Preserve)
 // ═══════════════════════════════════════════════════════════════════
-function saveBasket() {
-  try { sessionStorage.setItem('pii-basket', JSON.stringify(basket)); } catch {}
-}
-function updateBasketBtn() {
-  const cnt = document.getElementById('basketCount');
-  const btn = document.getElementById('basketBtn');
-  cnt.textContent = basket.length;
-  btn.classList.toggle('has-items', basket.length > 0);
-}
-updateBasketBtn();
+let addPiiMode = 'redact';   // 'redact' | 'preserve'
 
-function openBasket() {
-  renderBasketBody();
-  document.getElementById('basketModal').style.display = 'flex';
-}
-function closeBasket() { document.getElementById('basketModal').style.display = 'none'; }
-function clearBasket() { basket = []; saveBasket(); updateBasketBtn(); renderBasketBody(); }
-function removeBasketItem(id) {
-  basket = basket.filter(x => x.id !== id);
-  saveBasket(); updateBasketBtn(); renderBasketBody();
-}
-
-function renderBasketBody() {
-  const el = document.getElementById('basketBody');
-  if (!basket.length) {
-    el.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:16px 0">Basket is empty.<br>Select text in the Redacted pane and right-click to add patterns.</p>';
-    return;
-  }
-  el.innerHTML = basket.map(item => `
-<div class="basket-item">
-  <div style="flex:1">
-    <div class="basket-text">${h(item.text)}</div>
-    <div class="basket-source">📄 ${h(item.source)} · ${h(item.addedAt)}</div>
-  </div>
-  <div class="basket-actions">
-    <button class="btn btn-danger btn-sm" onclick="removeBasketItem('${item.id}')">✕</button>
-    <button class="btn btn-primary btn-sm" onclick="openAddPii('${h(item.text)}')">+ PII Field</button>
-  </div>
-</div>`).join('');
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// ADD TO PII FIELD MODAL
-// ═══════════════════════════════════════════════════════════════════
-async function openAddPii(text) {
+async function openAddPii(text, mode) {
+  addPiiMode        = mode || 'redact';
   addPiiCurrentText = text;
+
+  const isPreserve  = addPiiMode === 'preserve';
+  document.getElementById('addPiiTitle').textContent =
+    isPreserve ? '🛡 Add Value to Preserve' : '🔒 Add Value to Redact';
   document.getElementById('addPiiText').textContent = text;
   document.getElementById('addPiiStatus').textContent = '';
-  document.getElementById('piiNewPatternVal').value  = text;
-  document.getElementById('piiNewFieldPattern').value = text;
+
+  // Show / hide Replace-with row (not needed for preserve)
+  document.getElementById('addReplaceRow').style.display = isPreserve ? 'none' : '';
+
+  // Reset to "existing" mode
+  document.querySelector('input[name="addMode"][value="existing"]').checked = true;
+  addModeChange();
+
   document.getElementById('addPiiModal').style.display = 'flex';
 
-  // Reset mode to existing
-  document.querySelector('input[name="piiMode"][value="existing"]').checked = true;
-  piiModeChange();
-
-  // Load fields (cached)
   if (!cachedFields) await reloadFields();
   else populateFieldSelect();
 }
+
 function closeAddPii() { document.getElementById('addPiiModal').style.display = 'none'; }
+
+function addModeChange() {
+  const mode = document.querySelector('input[name="addMode"]:checked')?.value || 'existing';
+  document.getElementById('addExistingSection').style.display = mode === 'existing' ? '' : 'none';
+  document.getElementById('addNewSection').style.display      = mode === 'new'      ? '' : 'none';
+
+  const accent = '#1677ff';
+  document.getElementById('addModeExistingLbl').style.borderColor = mode === 'existing' ? accent : 'var(--border2)';
+  document.getElementById('addModeNewLbl').style.borderColor      = mode === 'new'      ? accent : 'var(--border2)';
+}
 
 async function reloadFields() {
   try {
@@ -1661,93 +1563,50 @@ async function reloadFields() {
 }
 
 function populateFieldSelect() {
-  const sel = document.getElementById('piiFieldSelect');
+  const isPreserve = addPiiMode === 'preserve';
+  const filtered   = (cachedFields || []).filter(f => !!f.isPreserve === isPreserve);
+  const sel        = document.getElementById('addFieldSelect');
   sel.innerHTML = '<option value="">— select a field —</option>'
-    + (cachedFields || []).map(f =>
-        `<option value="${f.id}">${h(f.fieldName)} (${h(f.replaceWith)})</option>`
-      ).join('');
-  piiFieldChanged();
+    + filtered.map(f => {
+        const label = isPreserve
+          ? h(f.fieldName)
+          : `${h(f.fieldName)} → ${h(f.replaceWith)}`;
+        return `<option value="${f.id}">${label}</option>`;
+      }).join('');
 }
 
-function piiModeChange() {
-  const mode = document.querySelector('input[name="piiMode"]:checked')?.value;
-  document.getElementById('piiExistingBody').classList.toggle('active', mode === 'existing');
-  document.getElementById('piiNewBody').classList.toggle('active',      mode === 'new');
-}
-
-function piiFieldChanged() {
-  const fieldId = parseInt(document.getElementById('piiFieldSelect').value);
-  const field   = (cachedFields || []).find(f => f.id === fieldId);
-  const clSec   = document.getElementById('piiConstListSection');
-
-  if (!field) { clSec.style.display = 'none'; return; }
-
-  const clPatterns = (field.patterns || []).filter(p => p.type === 'ConstList');
-  if (clPatterns.length) {
-    const clSel = document.getElementById('piiConstListSelect');
-    clSel.innerHTML = '<option value="">— select pattern —</option>'
-      + clPatterns.map(p => `<option value="${p.id}" data-current="${ha(p.pattern)}">${h(p.pattern.slice(0,60))}${p.pattern.length>60?'…':''}</option>`).join('');
-    clSec.style.display = 'block';
-  } else {
-    clSec.style.display = 'none';
-  }
-}
-
-async function submitAppendConstList() {
-  const fieldId   = document.getElementById('piiFieldSelect').value;
-  const patSel    = document.getElementById('piiConstListSelect');
-  const patternId = patSel.value;
-  const curOpt    = patSel.selectedOptions[0];
-  const current   = curOpt ? (curOpt.dataset.current || '') : '';
-  const appendVal = document.getElementById('piiConstAppendVal').value.trim();
-
-  if (!fieldId || !patternId) { setAddPiiStatus('Please select a field and a pattern.', 'error'); return; }
-  if (!appendVal)              { setAddPiiStatus('Please enter a value to append.',       'error'); return; }
-
-  setAddPiiStatus('Saving…', 'info');
-  const r = await apiPost('/admin/tester?handler=AppendConstList',
-    { patternId: +patternId, currentPattern: current, appendValue: appendVal });
-  if (r.ok) {
-    setAddPiiStatus(`✓ Appended "${appendVal}" to pattern.`, 'ok');
-    cachedFields = null; // invalidate cache
-  } else {
-    setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
-  }
-}
-
-async function submitAddPattern() {
-  const fieldId = document.getElementById('piiFieldSelect').value;
-  const type    = document.getElementById('piiNewPatternType').value;
-  const pattern = document.getElementById('piiNewPatternVal').value.trim();
-
+async function submitAddToExisting() {
+  const fieldId = document.getElementById('addFieldSelect').value;
   if (!fieldId) { setAddPiiStatus('Please select a field.', 'error'); return; }
-  if (!pattern) { setAddPiiStatus('Please enter a pattern.', 'error'); return; }
 
   setAddPiiStatus('Saving…', 'info');
   const r = await apiPost('/admin/tester?handler=AddPattern',
-    { fieldId: +fieldId, patternType: type, pattern });
+    { fieldId: +fieldId, patternType: 'WholeWord', pattern: addPiiCurrentText });
   if (r.ok) {
-    setAddPiiStatus('✓ Pattern added to field.', 'ok');
+    setAddPiiStatus('✓ Added as Whole Word pattern.', 'ok');
     cachedFields = null;
   } else {
     setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
   }
 }
 
-async function submitCreateField() {
-  const name    = document.getElementById('piiNewFieldName').value.trim();
-  const replace = document.getElementById('piiNewFieldReplace').value.trim() || '████';
-  const type    = document.getElementById('piiNewFieldType').value;
-  const pattern = document.getElementById('piiNewFieldPattern').value.trim();
+async function submitAddNewField() {
+  const name       = document.getElementById('addNewName').value.trim();
+  const replace    = document.getElementById('addNewReplace').value.trim() || '████';
+  const isPreserve = addPiiMode === 'preserve';
 
-  if (!name)    { setAddPiiStatus('Field name is required.', 'error'); return; }
-  if (!pattern) { setAddPiiStatus('Pattern is required.',    'error'); return; }
+  if (!name) { setAddPiiStatus('Field name is required.', 'error'); return; }
 
   setAddPiiStatus('Creating field…', 'info');
-  const r = await apiPost('/admin/tester?handler=CreateField',
-    { fieldName: name, replaceWith: replace, patternType: type, pattern });
+  const r = await apiPost('/admin/tester?handler=CreateField', {
+    fieldName:   name,
+    replaceWith: isPreserve ? '—' : replace,
+    patternType: 'WholeWord',
+    pattern:     addPiiCurrentText,
+    isPreserve
+  });
   if (r.ok) {
-    setAddPiiStatus(`✓ Field "${name}" created and activated.`, 'ok');
+    setAddPiiStatus(`✓ Field "${h(name)}" created.`, 'ok');
     cachedFields = null;
   } else {
     setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');

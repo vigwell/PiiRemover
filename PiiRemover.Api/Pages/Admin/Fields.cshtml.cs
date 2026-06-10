@@ -10,7 +10,7 @@ namespace PiiRemover.Api.Pages.Admin;
 
 [Authorize]
 [DisableRequestSizeLimit]
-[RequestFormLimits(MultipartBodyLengthLimit = 50 * 1024 * 1024)] // 50 MB for file uploads
+[RequestFormLimits(MultipartBodyLengthLimit = 200 * 1024 * 1024)] // 200 MB for file uploads
 public class FieldsModel : AdminPageModel
 {
     private readonly IFieldRepository _fields;
@@ -72,6 +72,21 @@ public class FieldsModel : AdminPageModel
 
         _cache.Invalidate();
         TempData["Success"] = $"Preserve field '{preserveFieldName}' created.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostUpdatePatternAsync(int patternId, string patternValue)
+    {
+        var all     = await _fields.GetAllFieldsAsync();
+        var pattern = all.SelectMany(f => f.Patterns).FirstOrDefault(p => p.Id == patternId);
+        if (pattern is not null)
+        {
+            await _fields.UpdatePatternAsync(patternId, pattern.PatternType,
+                                             patternValue.Trim(), pattern.Priority);
+            FileListEngine.InvalidateCache(patternId);
+            _cache.Invalidate();
+            TempData["Success"] = "Pattern updated.";
+        }
         return RedirectToPage();
     }
 
