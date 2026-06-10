@@ -73,7 +73,13 @@ public class OcrController : ControllerBase
                 ErrorMsg   = null
             });
 
-            return Ok(new { text, charCount = text.Length, durationMs = sw.ElapsedMilliseconds });
+            return Ok(new
+            {
+                text,
+                charCount     = text.Length,
+                durationMs    = sw.ElapsedMilliseconds,
+                extractorUsed = extractor.GetType().Name
+            });
         }
         catch (OperationCanceledException) { return StatusCode(499); }
         catch (Exception ex)

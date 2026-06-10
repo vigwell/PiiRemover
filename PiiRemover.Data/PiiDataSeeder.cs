@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Dapper;
 using Microsoft.Data.Sqlite;
+using PiiRemover.Core.Engines;
 
 namespace PiiRemover.Data;
 
@@ -16,13 +17,14 @@ public static class PiiDataSeeder
     private const string DemoClientName = "Demo Client";
     private const string DemoApiKey     = "demo-api-key-changeme-12345";
 
-    public static void Seed(string connectionString)
+    public static void Seed(string connectionString, string? namesFilePath = null)
     {
         using var conn = new SqliteConnection(connectionString);
         conn.Open();
 
         SeedDemoClient(conn);
         SeedFields(conn);
+        SeedNamesFile(conn, namesFilePath);
     }
 
     // ── Demo client ───────────────────────────────────────────────────────────
@@ -210,6 +212,62 @@ public static class PiiDataSeeder
                 }
             }
         }
+    }
+
+    // ── FileList seed: NAMES_TO_REDACT.DAT ───────────────────────────────────
+
+    private const string NamesFieldName = "Names List (FileList)";
+
+    private static void SeedNamesFile(SqliteConnection conn, string? filePath)
+    {
+        // Skip if already seeded
+        var exists = conn.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM PiiFields WHERE FieldName = @name AND ClientId IS NULL",
+            new { name = NamesFieldName });
+        if (exists > 0) return;
+
+        // Resolve the names file: check supplied path, then well-known download location
+        var candidates = new List<string?> { filePath };
+        candidates.Add(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Downloads", "NAMES_TO_REDACT.DAT"));
+
+        string? content = null;
+        foreach (var candidate in candidates)
+        {
+            if (candidate is not null && File.Exists(candidate))
+            {
+                content = File.ReadAllText(candidate, System.Text.Encoding.UTF8);
+                Console.WriteLine($"[PiiDataSeeder] Seeding names from: {candidate}");
+                break;
+            }
+        }
+
+        if (content is null)
+        {
+            Console.WriteLine("[PiiDataSeeder] NAMES_TO_REDACT.DAT not found — skipping names list seed. " +
+                              "Import it later via Admin → PII Fields → Import File List.");
+            return;
+        }
+
+        var terms = FileListEngine.ParseFile(content);
+        if (terms.Count == 0) return;
+
+        var serialized = FileListEngine.Serialize(terms);
+
+        var fieldId = conn.ExecuteScalar<int>(
+            """
+            INSERT INTO PiiFields (ClientId, FieldName, ReplaceWith, IsActive)
+            VALUES (NULL, @name, '[שם]', 1);
+            SELECT last_insert_rowid();
+            """,
+            new { name = NamesFieldName });
+
+        conn.Execute(
+            "INSERT INTO PiiPatterns (FieldId, PatternType, Pattern, Priority) VALUES (@fid, 'FileList', @pattern, 80)",
+            new { fid = fieldId, pattern = serialized });
+
+        Console.WriteLine($"[PiiDataSeeder] Seeded '{NamesFieldName}' with {terms.Count} terms.");
     }
 
     private static string HashKey(string raw)

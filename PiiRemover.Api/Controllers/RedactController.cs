@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using SysFile = System.IO.File;
 using PiiRemover.Api.Extractors;
+using PiiRemover.Api.Services;
 using PiiRemover.Core.Engines;
 using PiiRemover.Core.Logging;
 using PiiRemover.Data.Repositories;
@@ -14,7 +15,7 @@ public class RedactController : ControllerBase
 {
     private readonly ExtractorFactory _extractors;
     private readonly RedactionOrchestrator _orchestrator;
-    private readonly IFieldRepository _fields;
+    private readonly FieldsCache _fieldsCache;
     private readonly IQuotaRepository _quota;
     private readonly ILogRepository _logs;
     private readonly IPiiLogger _logger;
@@ -22,14 +23,14 @@ public class RedactController : ControllerBase
     public RedactController(
         ExtractorFactory extractors,
         RedactionOrchestrator orchestrator,
-        IFieldRepository fields,
+        FieldsCache fieldsCache,
         IQuotaRepository quota,
         ILogRepository logs,
         IPiiLogger logger)
     {
         _extractors   = extractors;
         _orchestrator = orchestrator;
-        _fields       = fields;
+        _fieldsCache  = fieldsCache;
         _quota        = quota;
         _logs         = logs;
         _logger       = logger;
@@ -59,7 +60,7 @@ public class RedactController : ControllerBase
             // Extractor reads directly from tempPath — no additional copy
             var text = await extractor!.ExtractAsync(tempPath, ct);
 
-            var activeFields = await _fields.GetFieldsWithPatternsAsync(clientId);
+            var activeFields = await _fieldsCache.GetFieldsAsync(clientId);
             var result = _orchestrator.Redact(text, activeFields);
 
             sw.Stop();
@@ -95,8 +96,18 @@ public class RedactController : ControllerBase
             {
                 redactedText = result.RedactedText,
                 matchCount   = result.Matches.Count,
-                fieldsHit    = result.Matches.Select(m => m.FieldName).Distinct(),
-                durationMs   = result.DurationMs
+                fieldsHit    = result.Matches.Select(m => m.FieldName).Distinct().ToArray(),
+                durationMs   = result.DurationMs,
+                matches      = result.Matches
+                    .OrderBy(m => m.StartIndex)
+                    .Select(m => new
+                    {
+                        startIndex  = m.StartIndex,
+                        length      = m.Length,
+                        fieldName   = m.FieldName,
+                        replacement = m.Replacement,
+                        matchedText = m.MatchedText
+                    })
             });
         }
         catch (OperationCanceledException) { return StatusCode(499); }

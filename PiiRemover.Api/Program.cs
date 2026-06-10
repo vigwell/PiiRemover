@@ -42,7 +42,7 @@ DapperConfig.Register(); // must be before any DB access
 var cs = $"Data Source={dbPath};Cache=Shared";
 new SchemaInitializer(cs).Initialize();
 AdminSeeder.SeedAdminPassword(cs);
-PiiDataSeeder.Seed(cs);
+PiiDataSeeder.Seed(cs, cfg["Seed:NamesFilePath"]);
 
 builder.Services.AddSingleton<IClientRepository>(_ => new ClientRepository(cs));
 builder.Services.AddSingleton<IFieldRepository>(_ => new FieldRepository(cs));
@@ -64,8 +64,19 @@ builder.Services.AddHostedService<LogCleanupService>();
 builder.Services.AddSingleton<IPatternEngine, RegexPatternEngine>();
 builder.Services.AddSingleton<IPatternEngine, ConstListEngine>();
 builder.Services.AddSingleton<IPatternEngine, LlmPromptEngine>();
+builder.Services.AddSingleton<IPatternEngine, LikePatternEngine>();
+builder.Services.AddSingleton<IPatternEngine, BeginsWithEngine>();
+builder.Services.AddSingleton<IPatternEngine, EndsWithEngine>();
+builder.Services.AddSingleton<IPatternEngine, WholeWordEngine>();
+builder.Services.AddSingleton<IPatternEngine, AfterLabelEngine>();
+builder.Services.AddSingleton<IPatternEngine, BetweenMarkersEngine>();
+builder.Services.AddSingleton<IPatternEngine, NumberSequenceEngine>();
+builder.Services.AddSingleton<IPatternEngine, FileListEngine>();
 builder.Services.AddSingleton<RedactionOrchestrator>(sp =>
     new RedactionOrchestrator(sp.GetServices<IPatternEngine>()));
+
+// ── Fields cache (avoids DB hit on every redaction request) ───────────────────
+builder.Services.AddSingleton<FieldsCache>();
 
 // ── OCR options + extractors ──────────────────────────────────────────────────
 var ocrOpts = new OcrOptions();

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -35,11 +36,23 @@ if (string.IsNullOrWhiteSpace(cfg.ApiUrl))
 int totalOk = 0, totalFail = 0;
 var sessionSw = Stopwatch.StartNew();
 
+var ocrParallel    = cfg.Ocr?.MaxParallel    > 0 ? cfg.Ocr.MaxParallel    : 3;
+var redactParallel = cfg.Redact?.MaxParallel > 0 ? cfg.Redact.MaxParallel : 3;
+
 Console.WriteLine("╔══════════════════════════════════════════════════════════╗");
 Console.WriteLine("║           PiiRemover Batch Loader                        ║");
 Console.WriteLine("╚══════════════════════════════════════════════════════════╝");
-Console.WriteLine($"  API   : {cfg.ApiUrl}");
-Console.WriteLine($"  Move  : {(cfg.MoveProcessedToDone ? "yes — processed files moved to done/" : "no")}");
+Console.WriteLine($"  Config : {configPath}");
+Console.WriteLine($"  API    : {cfg.ApiUrl}");
+Console.WriteLine($"  Move   : {(cfg.MoveProcessedToDone ? "yes — processed files moved to done/" : "no")}");
+if (cfg.Ocr?.Enabled == true)
+{
+    Console.WriteLine($"  OCR    : {ocrParallel} parallel  |  input={cfg.Ocr.InputFolder}  |  exists={Directory.Exists(cfg.Ocr.InputFolder ?? "")}");
+}
+if (cfg.Redact?.Enabled == true)
+{
+    Console.WriteLine($"  Redact : {redactParallel} parallel  |  input={cfg.Redact.InputFolder}  |  exists={Directory.Exists(cfg.Redact.InputFolder ?? "")}");
+}
 Console.WriteLine();
 
 // Trust the ASP.NET dev certificate when hitting localhost over HTTPS
@@ -64,7 +77,7 @@ if (cfg.Ocr?.Enabled == true)
     var (ok, fail) = await ProcessBatchAsync(
         cfg.Ocr.InputFolder, cfg.Ocr.OutputFolder,
         "api/v1/ocr/extract", "text",
-        cfg.Ocr.FilePatterns,
+        cfg.Ocr.FilePatterns, ocrParallel,
         cfg.MoveProcessedToDone, http);
     totalOk += ok; totalFail += fail;
     Console.WriteLine();
@@ -77,7 +90,7 @@ if (cfg.Redact?.Enabled == true)
     var (ok, fail) = await ProcessBatchAsync(
         cfg.Redact.InputFolder, cfg.Redact.OutputFolder,
         "api/v1/redact/redact", "redactedText",
-        cfg.Redact.FilePatterns,
+        cfg.Redact.FilePatterns, redactParallel,
         cfg.MoveProcessedToDone, http);
     totalOk += ok; totalFail += fail;
     Console.WriteLine();
@@ -87,11 +100,11 @@ sessionSw.Stop();
 Console.WriteLine($"══ Done  ok={totalOk}  fail={totalFail}  elapsed={sessionSw.Elapsed:mm\\:ss\\.fff} ══");
 return totalFail > 0 ? 2 : 0;
 
-// ── Core batch processor ──────────────────────────────────────────────────────
+// ── Core batch processor (parallel) ──────────────────────────────────────────
 static async Task<(int ok, int fail)> ProcessBatchAsync(
     string?       inputFolder,  string? outputFolder,
     string        endpoint,     string  responseField,
-    List<string>? filePatterns,
+    List<string>? filePatterns, int     maxParallel,
     bool          moveToDone,   HttpClient http)
 {
     if (string.IsNullOrWhiteSpace(inputFolder) || string.IsNullOrWhiteSpace(outputFolder))
@@ -102,13 +115,18 @@ static async Task<(int ok, int fail)> ProcessBatchAsync(
 
     if (!Directory.Exists(inputFolder))
     {
-        Console.WriteLine($"  [SKIP] Input folder not found: {inputFolder}");
+        var prev = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"  [SKIP] Input folder does not exist: {inputFolder}");
+        Console.WriteLine($"         Create this folder and place files in it, then re-run.");
+        Console.ForegroundColor = prev;
         return (0, 0);
     }
 
     Directory.CreateDirectory(outputFolder);
+    Console.WriteLine($"  Output folder ready : {outputFolder}");
 
-    // Collect files matching configured patterns (default: all non-.txt files)
+    // Collect files matching configured patterns
     var patterns = filePatterns?.Count > 0 ? filePatterns : null;
     IEnumerable<string> files;
     if (patterns is not null)
@@ -133,8 +151,9 @@ static async Task<(int ok, int fail)> ProcessBatchAsync(
     }
 
     var patternsLabel = patterns is not null ? string.Join(", ", patterns) : "all files";
-    Console.WriteLine($"  Input  : {inputFolder}  ({files2.Length} file(s), patterns: {patternsLabel})");
-    Console.WriteLine($"  Output : {outputFolder}");
+    Console.WriteLine($"  Input    : {inputFolder}  ({files2.Length} file(s), patterns: {patternsLabel})");
+    Console.WriteLine($"  Output   : {outputFolder}");
+    Console.WriteLine($"  Parallel : {maxParallel} concurrent calls");
     Console.WriteLine();
 
     string? doneFolder = null;
@@ -146,86 +165,149 @@ static async Task<(int ok, int fail)> ProcessBatchAsync(
         Console.WriteLine();
     }
 
+    // Thread-safe counters and console lock
     int ok = 0, fail = 0;
+    int completed = 0;
+    var consoleLock = new SemaphoreSlim(1, 1);
+    var semaphore   = new SemaphoreSlim(maxParallel, maxParallel);
 
-    for (int i = 0; i < files2.Length; i++)
+    // Capture loop variables — avoids closure capture issues in parallel lambdas
+    var capturedOutput   = outputFolder!;
+    var capturedDone     = doneFolder;
+    var capturedEndpoint = endpoint;
+    var capturedField    = responseField;
+    var capturedMove     = moveToDone;
+    var total            = files2.Length;
+
+    // Launch all files in parallel, capped at maxParallel concurrent
+    var tasks = files2.Select(async (file, i) =>
     {
-        var file    = files2[i];
-        var name    = Path.GetFileName(file);
-        var outFile = Path.Combine(outputFolder,
-                          Path.GetFileNameWithoutExtension(name) + ".txt");
-        var sw      = Stopwatch.StartNew();
-
-        Console.Write($"  [{i + 1:D3}/{files2.Length:D3}] {name,-40} ");
-
+        await semaphore.WaitAsync();
         try
         {
-            await using var stream  = File.OpenRead(file);
-            var multipart           = new MultipartFormDataContent();
-            var part                = new StreamContent(stream);
-            part.Headers.ContentType = new MediaTypeHeaderValue(GuessMime(file));
-            multipart.Add(part, "file", name);
+            var name    = Path.GetFileName(file);
+            // Avoid collision: prefix with original extension so ocr/redact outputs never clash
+            var outFile = Path.Combine(capturedOutput,
+                              Path.GetFileNameWithoutExtension(name) + ".txt");
+            var sw      = Stopwatch.StartNew();
 
-            var resp = await http.PostAsync(endpoint, multipart);
-            sw.Stop();
-
-            if (!resp.IsSuccessStatusCode)
+            try
             {
-                var body = await resp.Content.ReadAsStringAsync();
-                WriteColored($"FAIL  {sw.ElapsedMilliseconds,5}ms  HTTP {(int)resp.StatusCode}  {Truncate(body, 100)}", ConsoleColor.Red);
-                fail++;
-                continue;
+                var mime = GuessMime(file);
+
+                await using var stream = File.OpenRead(file);
+                var multipart          = new MultipartFormDataContent();
+                var part               = new StreamContent(stream);
+                part.Headers.ContentType = new MediaTypeHeaderValue(mime);
+                multipart.Add(part, "file", name);
+
+                var resp = await http.PostAsync(capturedEndpoint, multipart);
+                sw.Stop();
+
+                var idx = Interlocked.Increment(ref completed);
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    var body = await resp.Content.ReadAsStringAsync();
+                    await PrintLineAsync(consoleLock,
+                        $"  [{idx:D3}/{total:D3}] {name,-40} FAIL  {sw.ElapsedMilliseconds,5}ms  HTTP {(int)resp.StatusCode}  {Truncate(body, 80)}",
+                        ConsoleColor.Red);
+                    Interlocked.Increment(ref fail);
+                    return;
+                }
+
+                var responseBody = await resp.Content.ReadAsStringAsync();
+                JsonElement json;
+                try   { json = JsonSerializer.Deserialize<JsonElement>(responseBody); }
+                catch {
+                    var idx2 = completed;
+                    await PrintLineAsync(consoleLock,
+                        $"  [{idx:D3}/{total:D3}] {name,-40} FAIL  {sw.ElapsedMilliseconds,5}ms  Bad JSON: {Truncate(responseBody, 80)}",
+                        ConsoleColor.Red);
+                    Interlocked.Increment(ref fail);
+                    return;
+                }
+
+                string text;
+                string extra = string.Empty;
+
+                if (capturedField == "text")
+                {
+                    if (!json.TryGetProperty("text", out var textProp))
+                    {
+                        await PrintLineAsync(consoleLock,
+                            $"  [{idx:D3}/{total:D3}] {name,-40} FAIL  {sw.ElapsedMilliseconds,5}ms  Missing 'text' in response: {Truncate(responseBody, 120)}",
+                            ConsoleColor.Red);
+                        Interlocked.Increment(ref fail);
+                        return;
+                    }
+                    text = textProp.GetString() ?? string.Empty;
+                    if (json.TryGetProperty("charCount", out var cc))
+                        extra = $"  chars={cc.GetInt32()}";
+                }
+                else
+                {
+                    if (!json.TryGetProperty("redactedText", out var redactProp))
+                    {
+                        await PrintLineAsync(consoleLock,
+                            $"  [{idx:D3}/{total:D3}] {name,-40} FAIL  {sw.ElapsedMilliseconds,5}ms  Missing 'redactedText' in response: {Truncate(responseBody, 120)}",
+                            ConsoleColor.Red);
+                        Interlocked.Increment(ref fail);
+                        return;
+                    }
+                    text = redactProp.GetString() ?? string.Empty;
+                    if (json.TryGetProperty("matchCount", out var mc))
+                        extra = $"  matches={mc.GetInt32()}";
+                }
+
+                await File.WriteAllTextAsync(outFile, text, System.Text.Encoding.UTF8);
+
+                await PrintLineAsync(consoleLock,
+                    $"  [{idx:D3}/{total:D3}] {name,-40} OK    {sw.ElapsedMilliseconds,5}ms  -> {Path.GetFileName(outFile)}{extra}",
+                    ConsoleColor.Green);
+                Interlocked.Increment(ref ok);
+
+                if (capturedMove && capturedDone is not null)
+                {
+                    var dest = Path.Combine(capturedDone, name);
+                    if (File.Exists(dest)) File.Delete(dest);
+                    File.Move(file, dest);
+                }
             }
-
-            var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
-
-            string text;
-            string extra = string.Empty;
-
-            if (responseField == "text")
+            catch (Exception ex)
             {
-                text = json.GetProperty("text").GetString() ?? string.Empty;
-                if (json.TryGetProperty("charCount", out var cc))
-                    extra = $"  chars={cc.GetInt32()}";
-            }
-            else
-            {
-                text = json.GetProperty("redactedText").GetString() ?? string.Empty;
-                if (json.TryGetProperty("matchCount", out var mc))
-                    extra = $"  matches={mc.GetInt32()}";
-            }
-
-            await File.WriteAllTextAsync(outFile, text, System.Text.Encoding.UTF8);
-
-            WriteColored($"OK    {sw.ElapsedMilliseconds,5}ms  -> {Path.GetFileName(outFile)}{extra}", ConsoleColor.Green);
-            ok++;
-
-            if (moveToDone && doneFolder is not null)
-            {
-                var dest = Path.Combine(doneFolder, name);
-                if (File.Exists(dest)) File.Delete(dest);
-                File.Move(file, dest);
+                sw.Stop();
+                Interlocked.Increment(ref completed);
+                await PrintLineAsync(consoleLock,
+                    $"  [---/{total:D3}] {Path.GetFileName(file),-40} ERROR {sw.ElapsedMilliseconds,5}ms  {ex.GetType().Name}: {ex.Message}",
+                    ConsoleColor.Red);
+                Interlocked.Increment(ref fail);
             }
         }
-        catch (Exception ex)
+        finally
         {
-            sw.Stop();
-            WriteColored($"ERROR {sw.ElapsedMilliseconds,5}ms  {ex.Message}", ConsoleColor.Red);
-            fail++;
+            semaphore.Release();
         }
-    }
+    });
+
+    await Task.WhenAll(tasks);
 
     Console.WriteLine();
     Console.WriteLine($"  Result: {ok} ok, {fail} failed");
     return (ok, fail);
 }
 
-static void WriteColored(string text, ConsoleColor color)
+static async Task PrintLineAsync(SemaphoreSlim lock_, string text, ConsoleColor color)
 {
-    var prev = Console.ForegroundColor;
-    Console.ForegroundColor = color;
-    Console.WriteLine(text);
-    Console.ForegroundColor = prev;
+    await lock_.WaitAsync();
+    try
+    {
+        var prev = Console.ForegroundColor;
+        Console.ForegroundColor = color;
+        Console.WriteLine(text);
+        Console.ForegroundColor = prev;
+    }
+    finally { lock_.Release(); }
 }
 
 static string GuessMime(string path) => Path.GetExtension(path).ToLowerInvariant() switch
@@ -242,10 +324,10 @@ static string GuessMime(string path) => Path.GetExtension(path).ToLowerInvariant
 static string Truncate(string s, int max) =>
     s.Length <= max ? s : s[..max] + "…";
 
-// ── Config model ──────────────────────────────────────────────────────────────
+// ── Config models ─────────────────────────────────────────────────────────────
 record BatchConfig(
-    string?      ApiUrl,
-    string?      ApiKey,
+    string?       ApiUrl,
+    string?       ApiKey,
     FolderConfig? Ocr,
     FolderConfig? Redact,
     bool          MoveProcessedToDone);
@@ -254,4 +336,5 @@ record FolderConfig(
     string?       InputFolder,
     string?       OutputFolder,
     bool          Enabled,
+    int           MaxParallel,
     List<string>? FilePatterns);

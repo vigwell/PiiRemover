@@ -6,10 +6,24 @@
     ViewData["Nav"] = "fields";
 }
 
-<h1 class="page-title">PII Fields &amp; Patterns</h1>
+@if (TempData["Success"] is string ok)
+{
+    <div class="alert alert-success">✅ @ok</div>
+}
+@if (TempData["Error"] is string err)
+{
+    <div class="alert alert-danger">❌ @err</div>
+}
 
+<h1 class="page-title">PII Fields &amp; Patterns
+  <a href="/admin/pattern-help" style="font-size:13px;font-weight:400;margin-left:12px;color:#1677ff">
+    📖 Pattern Help
+  </a>
+</h1>
+
+<div class="grid-2">
 <div class="card">
-    <h3>Add PII Field</h3>
+    <h3>Add PII Field <span style="font-size:11px;font-weight:400;color:var(--text3)">(redact matches)</span></h3>
     <form method="post" asp-page-handler="CreateField" style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" asp-for="NewFieldName" placeholder="Field name (e.g. Israeli ID)" required
                style="max-width:240px" />
@@ -19,23 +33,105 @@
     </form>
 </div>
 
+<div class="card" style="border:1px solid rgba(82,196,26,.35);background:rgba(82,196,26,.04)">
+    <h3>🛡 Add Preserve Field <span style="font-size:11px;font-weight:400;color:var(--text3)">(do not touch / leave as is)</span></h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px">
+        Words listed here are <strong style="color:#52c41a">never redacted</strong> — they override every other rule.
+        Useful for institution names, medicine names, or any terms that look like PII but must be preserved.
+    </p>
+    <form method="post" asp-page-handler="CreatePreserveField" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px">
+            <label style="font-size:11px;color:var(--text3)">Field name</label>
+            <input type="text" name="preserveFieldName" placeholder="e.g. Medical Terms" required style="max-width:240px" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:2;min-width:220px">
+            <label style="font-size:11px;color:var(--text3)">Initial terms (pipe-separated, can add more later)</label>
+            <input type="text" name="preserveTerms" placeholder="e.g. Medilis|Ibuprofen|MRI" style="max-width:100%" />
+        </div>
+        <div style="align-self:flex-end">
+            <button class="btn btn-primary" type="submit" style="background:#52c41a;border-color:#52c41a">🛡 Create</button>
+        </div>
+    </form>
+</div>
+</div>
+
+<div class="card">
+    <h3>📂 Import File List (FileList pattern)</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
+        Upload a <code>.txt</code>, <code>.dat</code>, or <code>.csv</code> file with terms to redact — one per line, pipe-separated, or dual-column fixed-width (Hebrew/English).
+        Both columns are extracted automatically. The content is stored in the database; no file is kept on disk.
+    </p>
+    <form method="post" asp-page-handler="UploadFileList" enctype="multipart/form-data"
+          style="display:flex;gap:8px;flex-wrap:wrap;align-items:center" id="uploadFileListForm">
+        @Html.AntiForgeryToken()
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">Target field (leave blank to create new)</label>
+            <select name="fieldId" style="width:220px">
+                <option value="0">— Create new field from file name —</option>
+                @foreach (var f in Model.Fields)
+                {
+                    <option value="@f.Id">@f.FieldName</option>
+                }
+            </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">New field name (if creating new)</label>
+            <input type="text" name="fieldName" placeholder="e.g. Names List" style="width:200px" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">File to upload</label>
+            <input type="file" name="file" accept=".txt,.dat,.csv" required
+                   style="width:auto;border:1px solid var(--border2);border-radius:4px;padding:5px 8px;background:var(--surface);color:var(--text)" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">Mode</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;
+                          border:1px solid var(--border2);border-radius:4px;padding:5px 10px;
+                          background:var(--surface);white-space:nowrap">
+                <input type="checkbox" name="append" value="true" id="appendChk" />
+                Append to existing list
+            </label>
+        </div>
+        <div style="align-self:flex-end">
+            <button type="submit" class="btn btn-primary">📤 Import</button>
+        </div>
+    </form>
+</div>
+
 @foreach (var f in Model.Fields)
 {
-    <div class="card" style="@(f.IsActive ? "" : "opacity:.65")">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f0f0f0">
+    var cardBorder = f.IsPreserve ? "border:1px solid rgba(82,196,26,.4);background:rgba(82,196,26,.03)" : "";
+    <div class="card" style="@(f.IsActive ? "" : "opacity:.65") @cardBorder">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+            @if (f.IsPreserve)
+            { <span title="Preserve / Do-not-touch field" style="font-size:16px">🛡</span> }
             <span style="font-size:15px;font-weight:600">@f.FieldName</span>
-            @if (f.IsActive)
+            @if (f.IsPreserve)
+            { <span class="badge" style="background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3)">Preserve</span> }
+            else if (f.IsActive)
             { <span class="badge badge-green">Active</span> }
             else
             { <span class="badge badge-red">Inactive</span> }
-            <span style="color:#888;font-size:12px">replaces with <span class="mono">@f.ReplaceWith</span></span>
+            @if (!f.IsPreserve)
+            { <span style="color:var(--text3);font-size:12px">replaces with <span class="mono">@f.ReplaceWith</span></span> }
             <span style="flex:1"></span>
+            <form method="post" style="display:inline">
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <button asp-page-handler="TogglePreserve" class="btn btn-sm"
+                        style="@(f.IsPreserve ? "background:rgba(82,196,26,.12);border-color:#52c41a;color:#52c41a" : "background:var(--surface);border-color:var(--border2);color:var(--text3)")"
+                        title="@(f.IsPreserve ? "Click to turn OFF preserve mode" : "Click to turn ON preserve mode (do not touch)")">
+                    @(f.IsPreserve ? "🛡 Preserving" : "🛡 Set Preserve")
+                </button>
+            </form>
+            @if (!f.IsPreserve)
+            {
             <form method="post" style="display:inline">
                 <input type="hidden" name="fieldId" value="@f.Id" />
                 <button asp-page-handler="ToggleField" class="btn btn-default btn-sm">
                     @(f.IsActive ? "Disable" : "Enable")
                 </button>
             </form>
+            }
             <form method="post" style="display:inline">
                 <input type="hidden" name="fieldId" value="@f.Id" />
                 <button asp-page-handler="DeleteField" class="btn btn-danger btn-sm"
@@ -58,7 +154,17 @@
                 {
                     <tr>
                         <td><span class="badge badge-blue">@p.PatternType</span></td>
-                        <td><span class="mono">@p.Pattern</span></td>
+                        <td>
+                            @if (p.PatternType == PiiRemover.Core.Models.PatternType.FileList)
+                            {
+                                var count = p.Pattern.Split('\n', System.StringSplitOptions.RemoveEmptyEntries).Length;
+                                <span class="mono" title="@count terms stored in DB">@count terms (file list)</span>
+                            }
+                            else
+                            {
+                                <span class="mono">@p.Pattern</span>
+                            }
+                        </td>
                         <td>@p.Priority</td>
                         <td>
                             <form method="post">
@@ -81,10 +187,23 @@
             <form method="post" asp-page-handler="CreatePattern"
                   style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
                 <input type="hidden" name="fieldId" value="@f.Id" />
-                <select name="patternType" class="ctrl" style="width:160px">
-                    <option value="Regex">Regex</option>
-                    <option value="ConstList">Keyword List (| separated)</option>
-                    <option value="LlmPrompt">LLM Prompt (future)</option>
+                <select name="patternType" class="ctrl" style="width:200px">
+                    <optgroup label="Simple">
+                        <option value="WholeWord">Whole Word</option>
+                        <option value="Like">Like (wildcards * ?)</option>
+                        <option value="BeginsWith">Begins With</option>
+                        <option value="EndsWith">Ends With</option>
+                        <option value="ConstList">Keyword List (| separated)</option>
+                    </optgroup>
+                    <optgroup label="Context-aware">
+                        <option value="AfterLabel">After Label</option>
+                        <option value="BetweenMarkers">Between Markers</option>
+                        <option value="NumberSequence">Number Sequence</option>
+                    </optgroup>
+                    <optgroup label="Advanced">
+                        <option value="Regex">Regex (full .NET)</option>
+                        <option value="LlmPrompt">LLM Prompt (future)</option>
+                    </optgroup>
                 </select>
                 <input name="pattern" placeholder="Pattern or keywords" required style="width:320px" />
                 <input name="priority" type="number" value="0" style="width:80px" title="Priority (higher = first)" />

@@ -15,18 +15,30 @@ public class RedactionOrchestrator
 
     public RedactResult Redact(string text, IEnumerable<PiiField> fields)
     {
-        var sw = Stopwatch.StartNew();
-        var allMatches = new List<RedactMatch>();
+        var sw         = Stopwatch.StartNew();
+        var activeFields = fields.Where(f => f.IsActive).ToList();
 
-        foreach (var field in fields.Where(f => f.IsActive))
+        // ── Step 1: collect PRESERVE (whitelist) regions ──────────────────────
+        // These are spans that must never be touched, regardless of other rules.
+        var preserveRegions = new List<(int Start, int End)>();
+        foreach (var field in activeFields.Where(f => f.IsPreserve))
+        {
+            foreach (var pattern in field.Patterns)
+            {
+                if (!_engines.TryGetValue(pattern.PatternType, out var engine)) continue;
+                foreach (var hit in engine.FindMatches(text, pattern, string.Empty))
+                    preserveRegions.Add((hit.StartIndex, hit.StartIndex + hit.Length));
+            }
+        }
+
+        // ── Step 2: collect REDACT candidates from normal fields ──────────────
+        var allMatches = new List<RedactMatch>();
+        foreach (var field in activeFields.Where(f => !f.IsPreserve))
         {
             foreach (var pattern in field.Patterns.OrderByDescending(p => p.Priority))
             {
-                if (!_engines.TryGetValue(pattern.PatternType, out var engine))
-                    continue;
-
-                var hits = engine.FindMatches(text, pattern, field.ReplaceWith);
-                foreach (var hit in hits)
+                if (!_engines.TryGetValue(pattern.PatternType, out var engine)) continue;
+                foreach (var hit in engine.FindMatches(text, pattern, field.ReplaceWith))
                 {
                     hit.FieldName = field.FieldName;
                     allMatches.Add(hit);
@@ -34,10 +46,19 @@ public class RedactionOrchestrator
             }
         }
 
-        // Deduplicate overlapping matches, keeping highest-priority (largest span wins)
+        // ── Step 3: remove candidates that overlap any preserve region ─────────
+        if (preserveRegions.Count > 0)
+        {
+            allMatches = allMatches
+                .Where(m => !preserveRegions.Any(p =>
+                    m.StartIndex < p.End && (m.StartIndex + m.Length) > p.Start))
+                .ToList();
+        }
+
+        // ── Step 4: deduplicate overlapping matches ───────────────────────────
         var deduped = DeduplicateOverlaps(allMatches);
 
-        // Apply right-to-left so indices remain valid
+        // ── Step 5: apply right-to-left so indices remain valid ───────────────
         var sb = new StringBuilder(text);
         foreach (var match in deduped.OrderByDescending(m => m.StartIndex))
         {

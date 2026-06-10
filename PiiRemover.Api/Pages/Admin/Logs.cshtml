@@ -1,9 +1,19 @@
 @page "/admin/logs"
 @model PiiRemover.Api.Pages.Admin.LogsModel
+@using System.Text.Json
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = "Request Logs";
     ViewData["Nav"] = "logs";
+}
+
+@functions {
+    static List<string> ParseFields(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try { return JsonSerializer.Deserialize<List<string>>(json) ?? new(); }
+        catch { return new(); }
+    }
 }
 
 <h1 class="page-title">Request Logs</h1>
@@ -45,7 +55,22 @@
                     title="@log.FileName">@log.FileName</td>
                 <td>@log.FileSizeKb</td>
                 <td>@log.DurationMs</td>
-                <td style="font-size:12px">@log.FieldsHit</td>
+                <td style="font-size:12px">
+                    @{
+                        var fields = ParseFields(log.FieldsHit);
+                    }
+                    @if (fields.Any())
+                    {
+                        @foreach (var f in fields)
+                        {
+                            <span style="display:inline-block;background:rgba(26,111,240,.12);color:#4a90d9;border:1px solid rgba(26,111,240,.2);border-radius:4px;padding:1px 6px;margin:1px 2px;font-size:11px;white-space:nowrap">@f</span>
+                        }
+                    }
+                    else
+                    {
+                        <span style="color:#aaa">—</span>
+                    }
+                </td>
                 <td style="color:#cf1322;font-size:12px">@log.ErrorMsg</td>
             </tr>
         }

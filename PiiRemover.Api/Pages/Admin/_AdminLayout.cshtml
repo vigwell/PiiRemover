@@ -163,6 +163,8 @@ details summary:hover{text-decoration:underline}
   <a href="/admin/logs"     class="@(ViewData["Nav"]?.ToString()=="logs"    ?"active":"")">Logs</a>
   <a href="/admin/settings" class="@(ViewData["Nav"]?.ToString()=="settings"?"active":"")">Settings</a>
   <a href="/admin/health"   class="@(ViewData["Nav"]?.ToString()=="health"  ?"active":"")">Health</a>
+  <a href="/admin/tester"        class="@(ViewData["Nav"]?.ToString()=="tester"     ?"active":"")">🔍 Tester</a>
+  <a href="/admin/pattern-help" class="@(ViewData["Nav"]?.ToString()=="patternhelp"?"active":"")">📖 Pattern Help</a>
   <span class="spacer"></span>
   <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle dark / light mode">🌙</button>
   <form method="post" asp-page-handler="Logout" style="margin:0">

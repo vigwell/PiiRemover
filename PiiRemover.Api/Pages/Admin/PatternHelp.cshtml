@@ -1,0 +1,415 @@
+@page "/admin/pattern-help"
+@model PiiRemover.Api.Pages.Admin.PatternHelpModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Pattern Type Reference";
+    ViewData["Nav"] = "patternhelp";
+}
+
+<style>
+.ph-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@@media(max-width:900px){ .ph-grid{ grid-template-columns:1fr } }
+.ph-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:18px 20px; box-shadow:var(--shadow);
+}
+.ph-type { display:inline-flex; align-items:center; gap:8px; margin-bottom:8px; }
+.ph-badge {
+  font-size:11px; font-weight:700; letter-spacing:.5px; padding:2px 9px;
+  border-radius:12px; text-transform:uppercase;
+}
+.badge-simple   { background:rgba(82,196,26,.15);  color:#52c41a; border:1px solid rgba(82,196,26,.3); }
+.badge-context  { background:rgba(250,173,20,.15); color:#faad14; border:1px solid rgba(250,173,20,.3); }
+.badge-advanced { background:rgba(22,119,255,.12); color:#1677ff; border:1px solid rgba(22,119,255,.2); }
+.badge-file     { background:rgba(147,112,219,.15);color:#9370db; border:1px solid rgba(147,112,219,.3); }
+.badge-preserve { background:rgba(82,196,26,.18);  color:#52c41a; border:2px solid #52c41a; }
+.ph-card-preserve { border:1px solid rgba(82,196,26,.4) !important; background:rgba(82,196,26,.04) !important; }
+.ph-name { font-size:15px; font-weight:700; color:var(--text); }
+.ph-desc { font-size:13px; color:var(--text2); margin-bottom:12px; line-height:1.6; }
+.ph-table { width:100%; border-collapse:collapse; font-size:12px; }
+.ph-table th { color:var(--text3); font-weight:600; padding:3px 8px 6px; text-align:left; border-bottom:1px solid var(--border); }
+.ph-table td { padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+.ph-table tr:last-child td { border-bottom:none; }
+.ph-table .col-pattern { font-family:'Consolas','Courier New',monospace; color:#1677ff; }
+.ph-table .col-match   { color:#52c41a; }
+.ph-table .col-no      { color:#ff4d4f; }
+code { font-family:'Consolas','Courier New',monospace; font-size:12px;
+       background:var(--mono-bg); padding:1px 5px; border-radius:3px; color:#faad14; }
+.ph-note { margin-top:8px; font-size:12px; color:var(--text3); line-height:1.6;
+           border-left:3px solid var(--border2); padding-left:8px; }
+.toc { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+.toc a { font-size:12px; padding:3px 10px; background:var(--surface);
+         border:1px solid var(--border2); border-radius:4px; color:var(--text2); }
+.toc a:hover { border-color:#1677ff; color:#1677ff; text-decoration:none; }
+.section-label { font-size:11px; font-weight:700; letter-spacing:1px; color:var(--text3);
+                 text-transform:uppercase; margin:24px 0 10px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+</style>
+
+<h1 class="page-title">📖 Pattern Type Reference</h1>
+
+<p style="color:var(--text2);font-size:13px;margin-bottom:16px">
+  Choose the simplest type that covers your use case. Use <strong>Regex</strong> only when no simpler type fits.
+  All matching is <strong>case-insensitive</strong> unless noted.
+</p>
+
+<!-- Quick-jump TOC -->
+<div class="toc">
+  <a href="#preserve">🛡 Preserve (do-not-touch)</a>
+  <a href="#simple">Simple types</a>
+  <a href="#context">Context-aware</a>
+  <a href="#file">File-based</a>
+  <a href="#advanced">Advanced</a>
+  <a href="#tips">Tips &amp; choosing guide</a>
+</div>
+
+<!-- ── PRESERVE ────────────────────────────────────────────────────────── -->
+<div class="section-label" id="preserve" style="color:#52c41a;border-color:rgba(82,196,26,.4)">
+  🛡 Preserve Fields — Do Not Touch / Leave As Is
+</div>
+
+<div class="ph-grid" style="margin-bottom:8px">
+  <div class="ph-card ph-card-preserve" style="grid-column:1/-1">
+    <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap">
+
+      <div style="flex:1;min-width:260px">
+        <div class="ph-type">
+          <span class="ph-badge badge-preserve">🛡 Preserve</span>
+          <span class="ph-name">Preserve Field</span>
+        </div>
+        <div class="ph-desc">
+          A <strong>Preserve field</strong> is the opposite of a PII field — it defines words and phrases that must
+          <strong>never be redacted</strong>, no matter what other rules match.
+          It acts as a <em>whitelist</em> that overrides every redaction rule at the highest priority.
+        </div>
+        <div class="ph-desc">
+          Any pattern type can be used inside a preserve field (ConstList, FileList, Regex, etc.).
+          When any preserve pattern matches a span of text, <em>all</em> redaction candidates that
+          overlap that span are silently suppressed.
+        </div>
+        <div class="ph-note" style="border-left-color:#52c41a">
+          ⚙ <strong>How it works under the hood:</strong><br>
+          1. All preserve fields run first → build a set of <em>protected zones</em>.<br>
+          2. All normal PII fields run → build redaction candidates.<br>
+          3. Any candidate overlapping a protected zone is <strong>discarded</strong>.<br>
+          4. Remaining candidates are applied right-to-left as usual.
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:260px">
+        <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:8px">Use cases &amp; examples</div>
+        <table class="ph-table">
+          <tr><th>Scenario</th><th>Pattern type</th><th>Example terms</th></tr>
+          <tr>
+            <td>Institution / product names that resemble person names</td>
+            <td class="col-pattern">ConstList</td>
+            <td>Medilis|Ibuprofen|MRI</td>
+          </tr>
+          <tr>
+            <td>Medical procedure codes that are digit sequences</td>
+            <td class="col-pattern">ConstList</td>
+            <td>ICD-10|CPT-99213</td>
+          </tr>
+          <tr>
+            <td>Large list of institution names from a file</td>
+            <td class="col-pattern">FileList</td>
+            <td>Upload hospitals.txt</td>
+          </tr>
+          <tr>
+            <td>Keep all occurrences of a known label intact</td>
+            <td class="col-pattern">WholeWord</td>
+            <td>Medilis · Ichilov</td>
+          </tr>
+          <tr>
+            <td>Keep any text matching a specific pattern</td>
+            <td class="col-pattern">Regex</td>
+            <td><code>ICD-[A-Z]\d+</code></td>
+          </tr>
+        </table>
+
+        <div style="margin-top:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:6px">Live example</div>
+          <div style="font-size:12px;font-family:'Consolas','Courier New',monospace;background:var(--mono-bg);padding:10px;border-radius:5px;line-height:2">
+            <div>Rule: redact all names &nbsp;→&nbsp; <span style="background:rgba(250,173,20,.3);border-bottom:2px solid #faad14;padding:0 2px">Cohen</span></div>
+            <div>Preserve: <code>Medilis|Ichilov</code></div>
+            <br>
+            <div style="color:var(--text3);font-size:11px">Input:</div>
+            <div>Patient: Cohen, referred by Ichilov hospital</div>
+            <br>
+            <div style="color:var(--text3);font-size:11px">Output:</div>
+            <div>Patient: <span style="background:rgba(82,196,26,.2);color:#52c41a;font-weight:700;padding:0 2px">[שם]</span>, referred by <span style="background:rgba(82,196,26,.08);border:1px solid rgba(82,196,26,.3);border-radius:2px;padding:0 3px">Ichilov</span> hospital</div>
+            <div style="font-size:11px;color:#52c41a;margin-top:4px">↑ "Ichilov" is protected — not redacted even though it matches the name rule</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;font-weight:700;color:#52c41a;margin-bottom:4px">✅ Good uses for Preserve</div>
+        <ul style="font-size:12px;color:var(--text2);line-height:1.8;padding-left:16px;margin:0">
+          <li>Hospital / clinic names that share words with person names</li>
+          <li>Drug / medicine product names</li>
+          <li>City or country names you never want masked</li>
+          <li>Procedure codes or test names that look like IDs</li>
+          <li>Specific keywords that must appear verbatim in output (e.g. department names)</li>
+        </ul>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;font-weight:700;color:#ff4d4f;margin-bottom:4px">⚠ Things to watch out for</div>
+        <ul style="font-size:12px;color:var(--text2);line-height:1.8;padding-left:16px;margin:0">
+          <li>If a patient happens to have the same name as a hospital, the name will also be preserved — keep lists specific</li>
+          <li>Preserve rules are whole-word by default for ConstList/FileList; a Regex preserve can protect very broad spans if you're not careful</li>
+          <li>Preserve fields must be <strong>Active</strong> to have effect — inactive preserve fields are ignored</li>
+        </ul>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:4px">🛠 How to create</div>
+        <ol style="font-size:12px;color:var(--text2);line-height:1.8;padding-left:16px;margin:0">
+          <li>Go to <a href="/admin/fields">PII Fields &amp; Patterns</a></li>
+          <li>Use the green <strong>🛡 Add Preserve Field</strong> card at the top</li>
+          <li>Enter the field name and initial pipe-separated terms</li>
+          <li>Add more patterns (FileList, Regex, etc.) just like a normal field</li>
+          <li>You can also convert any existing field by clicking <strong>🛡 Set Preserve</strong> on it</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SIMPLE ──────────────────────────────────────────────────────────── -->
+<div class="section-label" id="simple">Simple — no technical knowledge required</div>
+<div class="ph-grid">
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-simple">Simple</span>
+      <span class="ph-name">Whole Word</span>
+    </div>
+    <div class="ph-desc">Exact word match, case-insensitive. Best starting point for names and keywords.</div>
+    <table class="ph-table">
+      <tr><th>Pattern</th><th>✓ Matches</th><th>✗ Does NOT match</th></tr>
+      <tr><td class="col-pattern">Cohen</td><td class="col-match">Cohen · COHEN · cohen</td><td class="col-no">Cohenberg · mccohen</td></tr>
+      <tr><td class="col-pattern">Dr</td><td class="col-match">Dr (standalone)</td><td class="col-no">Dr. · Doctor</td></tr>
+    </table>
+    <div class="ph-note">💡 Use <strong>ConstList</strong> when you have many words to match at once.</div>
+  </div>
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-simple">Simple</span>
+      <span class="ph-name">Keyword List (ConstList)</span>
+    </div>
+    <div class="ph-desc">Pipe-separated list of exact values. Efficient for up to ~500 terms inline. For larger lists use <strong>FileList</strong>.</div>
+    <table class="ph-table">
+      <tr><th>Pattern</th><th>✓ Matches any of</th><th></th></tr>
+      <tr><td class="col-pattern">Cohen|Levi|Goldberg</td><td class="col-match">Cohen · Levi · Goldberg</td><td></td></tr>
+      <tr><td class="col-pattern">Dr.|Prof.|Eng.</td><td class="col-match">dr. · PROF. · eng.</td><td></td></tr>
+    </table>
+    <div class="ph-note">💡 Values are matched as substrings (not whole-word). Wrap in Regex with <code>\b</code> if you need word boundaries.</div>
+  </div>
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-simple">Simple</span>
+      <span class="ph-name">Like</span>
+    </div>
+    <div class="ph-desc">SQL-style wildcards: <code>*</code> = any characters, <code>?</code> = exactly one character.</div>
+    <table class="ph-table">
+      <tr><th>Pattern</th><th>✓ Matches</th><th>✗ Does NOT match</th></tr>
+      <tr><td class="col-pattern">*@@gmail.com</td><td class="col-match">user@@gmail.com · x@@gmail.com</td><td class="col-no">@@yahoo.com</td></tr>
+      <tr><td class="col-pattern">Dr.?</td><td class="col-match">Dr.A · DR.B</td><td class="col-no">Dr.AB</td></tr>
+      <tr><td class="col-pattern">*Cohen*</td><td class="col-match">MrCohen · CohenBerg</td><td class="col-no">—</td></tr>
+    </table>
+    <div class="ph-note">💡 Leading/trailing <code>*</code> removes word boundaries. Without wildcards acts like Whole Word.</div>
+  </div>
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-simple">Simple</span>
+      <span class="ph-name">Begins With</span>
+    </div>
+    <div class="ph-desc">Matches any whitespace-delimited token that starts with the given prefix.</div>
+    <table class="ph-table">
+      <tr><th>Pattern (prefix)</th><th>✓ Matches</th><th>✗ Does NOT match</th></tr>
+      <tr><td class="col-pattern">Dr.</td><td class="col-match">Dr.Cohen · DR.SMITH · dr.ali</td><td class="col-no">MDr.x (not at word start)</td></tr>
+      <tr><td class="col-pattern">PAT-</td><td class="col-match">PAT-001 · PAT-9932</td><td class="col-no">XPAT-1</td></tr>
+    </table>
+  </div>
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-simple">Simple</span>
+      <span class="ph-name">Ends With</span>
+    </div>
+    <div class="ph-desc">Matches any whitespace-delimited token that ends with the given suffix.</div>
+    <table class="ph-table">
+      <tr><th>Pattern (suffix)</th><th>✓ Matches</th><th>✗ Does NOT match</th></tr>
+      <tr><td class="col-pattern">@@hospital.org</td><td class="col-match">admin@@hospital.org · no-reply@@hospital.org</td><td class="col-no">hospital.org.il</td></tr>
+      <tr><td class="col-pattern">.il</td><td class="col-match">example.co.il · site.il</td><td class="col-no">.ile</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ── CONTEXT-AWARE ───────────────────────────────────────────────────────── -->
+<div class="section-label" id="context">Context-aware — label / delimiter based</div>
+<div class="ph-grid">
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-context">Context</span>
+      <span class="ph-name">After Label</span>
+    </div>
+    <div class="ph-desc">
+      Redacts the <em>value</em> that follows a known label. The label itself is <strong>preserved</strong>.
+      Extremely useful for structured medical and admin documents.
+    </div>
+    <table class="ph-table">
+      <tr><th>Pattern</th><th>Input line</th><th>Result (redacted part)</th></tr>
+      <tr><td class="col-pattern">Patient Name:</td><td>Patient Name: Victor Cohen</td><td class="col-match">Victor Cohen (whole line)</td></tr>
+      <tr><td class="col-pattern">Patient Name:|2</td><td>Patient Name: Victor Cohen Age: 45</td><td class="col-match">Victor Cohen (2 words)</td></tr>
+      <tr><td class="col-pattern">Date of Birth:|1</td><td>Date of Birth: 01/01/1990 Ward: 3</td><td class="col-match">01/01/1990 (1 word)</td></tr>
+      <tr><td class="col-pattern">ת.ז.:</td><td>ת.ז.: 123456789</td><td class="col-match">123456789</td></tr>
+    </table>
+    <div class="ph-note">
+      Format: <code>Label text</code> → capture to end of line<br>
+      Format: <code>Label text|N</code> → capture next N words only
+    </div>
+  </div>
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-context">Context</span>
+      <span class="ph-name">Between Markers</span>
+    </div>
+    <div class="ph-desc">Redacts text between two delimiter strings on the same line. Delimiters are preserved.</div>
+    <table class="ph-table">
+      <tr><th>Pattern</th><th>Input</th><th>Redacted part</th></tr>
+      <tr><td class="col-pattern">ID: | DOB</td><td>ID: 123456789 DOB: 1990</td><td class="col-match">123456789 </td></tr>
+      <tr><td class="col-pattern">Name: | ,</td><td>Name: Victor Cohen, Age: 45</td><td class="col-match">Victor Cohen</td></tr>
+    </table>
+    <div class="ph-note">Format: <code>left delimiter | right delimiter</code> (space·pipe·space as separator between the two markers)</div>
+  </div>
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-context">Context</span>
+      <span class="ph-name">Number Sequence</span>
+    </div>
+    <div class="ph-desc">Matches standalone digit sequences of an exact or ranged length. Ignores digits embedded in longer numbers.</div>
+    <table class="ph-table">
+      <tr><th>Pattern</th><th>✓ Matches</th><th>✗ Does NOT match</th></tr>
+      <tr><td class="col-pattern">9</td><td class="col-match">123456789</td><td class="col-no">1234567890 (10 digits)</td></tr>
+      <tr><td class="col-pattern">7,10</td><td class="col-match">1234567 · 123456789</td><td class="col-no">12345 (too short)</td></tr>
+      <tr><td class="col-pattern">4,4</td><td class="col-match">1234 · 9876</td><td class="col-no">123 · 12345</td></tr>
+    </table>
+    <div class="ph-note">Format: <code>N</code> exact length · <code>min,max</code> range</div>
+  </div>
+
+</div>
+
+<!-- ── FILE-BASED ──────────────────────────────────────────────────────────── -->
+<div class="section-label" id="file">File-based — large external lists</div>
+<div class="ph-grid">
+
+  <div class="ph-card" style="grid-column:1/-1">
+    <div class="ph-type">
+      <span class="ph-badge badge-file">File</span>
+      <span class="ph-name">File List</span>
+    </div>
+    <div class="ph-desc">
+      Upload a text file containing hundreds or thousands of terms to match.
+      The content is stored in the database and cached in memory — no file-system
+      dependency at runtime. Scales to tens of thousands of entries without
+      affecting redaction performance.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:6px">Supported file formats</div>
+        <table class="ph-table">
+          <tr><th>Format</th><th>Description</th></tr>
+          <tr><td class="col-pattern">Plain TXT</td><td>One term per line</td></tr>
+          <tr><td class="col-pattern">Pipe-separated</td><td>term1|term2|term3 (per line or all)</td></tr>
+          <tr><td class="col-pattern">Fixed-width dual-column</td><td>Hebrew name &nbsp;&nbsp; English name — both columns extracted</td></tr>
+          <tr><td class="col-pattern">CSV (first column)</td><td>first token per line used as term</td></tr>
+        </table>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:6px">Example: NAMES_TO_REDACT.DAT</div>
+        <pre style="font-size:11px;color:var(--text2);background:var(--mono-bg);padding:8px;border-radius:4px;overflow:auto">(רחמה) לוריס      RAHMEH LORIS
+א אחמד             A AHMAD
+א בו אמונה         ABU AMOUNA</pre>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">
+          → Extracts 6 terms per 3 lines (both columns).<br>
+          Matching is whole-word, case-insensitive.
+        </div>
+      </div>
+    </div>
+    <div class="ph-note" style="margin-top:12px">
+      💡 <strong>When to use FileList vs ConstList:</strong>
+      use <em>ConstList</em> for &lt;100 values you maintain manually;
+      use <em>FileList</em> when you have an existing reference file,
+      expect to refresh it periodically, or have more than ~200 terms.
+    </div>
+  </div>
+
+</div>
+
+<!-- ── ADVANCED ───────────────────────────────────────────────────────────── -->
+<div class="section-label" id="advanced">Advanced</div>
+<div class="ph-grid">
+
+  <div class="ph-card">
+    <div class="ph-type">
+      <span class="ph-badge badge-advanced">Advanced</span>
+      <span class="ph-name">Regex</span>
+    </div>
+    <div class="ph-desc">Full .NET regular expression. Use when no simpler type fits. Compiled and cached at first use.</div>
+    <table class="ph-table">
+      <tr><th>Pattern</th><th>Matches</th></tr>
+      <tr><td class="col-pattern">\b\d{9}\b</td><td>9-digit standalone number (Israeli ID)</td></tr>
+      <tr><td class="col-pattern">\b[A-Z0-9._%+-]+@@[A-Z0-9.-]+\.[A-Z]{2,}\b</td><td>Email address</td></tr>
+      <tr><td class="col-pattern">(?:\+972|0)[-\s]?\d{2}[-\s]?\d{7}</td><td>Israeli mobile / landline</td></tr>
+      <tr><td class="col-pattern">(?i)\b(mr|mrs|dr|prof)\.\s*\w+</td><td>Title + surname</td></tr>
+    </table>
+    <div class="ph-note">All matching is case-insensitive by default. Regex executes with a 2-second timeout to prevent catastrophic backtracking.</div>
+  </div>
+
+</div>
+
+<!-- ── TIPS ───────────────────────────────────────────────────────────────── -->
+<div class="section-label" id="tips">Choosing guide</div>
+<div class="card">
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr>
+      <th style="padding:8px 12px;border-bottom:2px solid var(--border);text-align:left">I want to redact…</th>
+      <th style="padding:8px 12px;border-bottom:2px solid var(--border);text-align:left">Recommended type</th>
+      <th style="padding:8px 12px;border-bottom:2px solid var(--border);text-align:left">Example pattern</th>
+    </tr>
+    @foreach (var row in new (string what, string type, string example)[] {
+      ("A specific person's name",             "Whole Word",       "Cohen"),
+      ("A list of names (up to ~200)",          "Keyword List",     "Cohen|Levi|Goldberg"),
+      ("A large list from a file",              "File List",        "upload .txt / .dat file"),
+      ("Text after a label in a report",        "After Label",      "Patient Name:|2"),
+      ("Value between two known markers",       "Between Markers",  "ID: | DOB"),
+      ("Israeli ID number (9 digits)",          "Number Sequence",  "9"),
+      ("Any email address",                     "Regex",            @"\b\S+@@\S+\.\S+\b"),
+      ("Title + name (Dr. Cohen)",              "Begins With",      "Dr."),
+      ("Any address ending in .co.il",          "Ends With",        ".co.il"),
+      ("Wildcard token (Ref-????)",             "Like",             "Ref-????"),
+    })
+    {
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:7px 12px;color:var(--text)">@row.what</td>
+        <td style="padding:7px 12px"><span class="badge badge-blue">@row.type</span></td>
+        <td style="padding:7px 12px;font-family:'Consolas','Courier New',monospace;font-size:12px;color:#faad14">@row.example</td>
+      </tr>
+    }
+    <tr style="background:rgba(82,196,26,.05);border-top:2px solid rgba(82,196,26,.3)">
+      <td style="padding:7px 12px;color:var(--text)">A word/phrase that must <strong>never</strong> be redacted (institution, medicine name, etc.)</td>
+      <td style="padding:7px 12px"><span class="badge badge-preserve">🛡 Preserve Field</span></td>
+      <td style="padding:7px 12px;font-family:'Consolas','Courier New',monospace;font-size:12px;color:#52c41a">Medilis|MRI|Ibuprofen</td>
+    </tr>
+  </table>
+</div>

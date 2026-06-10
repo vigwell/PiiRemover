@@ -53,12 +53,19 @@ public class FieldRepository : IFieldRepository
         return fields;
     }
 
-    public async Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith)
+    public async Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith, bool isPreserve = false)
     {
         using var conn = Open();
         return await conn.ExecuteScalarAsync<int>(
-            "INSERT INTO PiiFields (ClientId, FieldName, ReplaceWith) VALUES (@clientId, @fieldName, @replaceWith); SELECT last_insert_rowid();",
-            new { clientId, fieldName, replaceWith });
+            "INSERT INTO PiiFields (ClientId, FieldName, ReplaceWith, IsPreserve) VALUES (@clientId, @fieldName, @replaceWith, @isPreserve); SELECT last_insert_rowid();",
+            new { clientId, fieldName, replaceWith, isPreserve = isPreserve ? 1 : 0 });
+    }
+
+    public async Task SetPreserveAsync(int fieldId, bool isPreserve)
+    {
+        using var conn = Open();
+        await conn.ExecuteAsync("UPDATE PiiFields SET IsPreserve = @v WHERE Id = @fieldId",
+            new { v = isPreserve ? 1 : 0, fieldId });
     }
 
     public async Task SetFieldActiveAsync(int fieldId, bool active)

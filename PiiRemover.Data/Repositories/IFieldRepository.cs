@@ -6,7 +6,8 @@ public interface IFieldRepository
 {
     Task<IEnumerable<PiiField>> GetFieldsWithPatternsAsync(int? clientId);
     Task<IEnumerable<PiiField>> GetAllFieldsAsync();
-    Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith);
+    Task<int> CreateFieldAsync(int? clientId, string fieldName, string replaceWith, bool isPreserve = false);
+    Task SetPreserveAsync(int fieldId, bool isPreserve);
     Task SetFieldActiveAsync(int fieldId, bool active);
     Task DeleteFieldAsync(int fieldId);
 

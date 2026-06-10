@@ -10,10 +10,10 @@
 
 $ErrorActionPreference = 'Stop'
 
-function Write-Step  { param($msg) Write-Host "  $msg" -ForegroundColor Cyan   }
-function Write-Ok    { param($msg) Write-Host "  [OK]  $msg" -ForegroundColor Green  }
-function Write-Fail  { param($msg) Write-Host "  [ERR] $msg" -ForegroundColor Red    }
-function Write-Info  { param($msg) Write-Host "  [..] $msg"  -ForegroundColor Gray   }
+function Write-Step { param($msg) Write-Host "  $msg"       -ForegroundColor Cyan  }
+function Write-Ok   { param($msg) Write-Host "  [OK]  $msg" -ForegroundColor Green }
+function Write-Fail { param($msg) Write-Host "  [ERR] $msg" -ForegroundColor Red   }
+function Write-Info { param($msg) Write-Host "  [..]  $msg" -ForegroundColor Gray  }
 
 Write-Host ""
 Write-Host "  PiiRemover — Hebrew OCR Language Pack Setup" -ForegroundColor White
@@ -48,6 +48,9 @@ if ($tags -contains 'he-IL') {
 Write-Host ""
 Write-Step "Hebrew (he-IL) not found. Installing language pack..."
 
+# Track whether any method succeeded
+$installed = $false
+
 # Try Install-Language cmdlet (Windows 11 / Server 2022+)
 $installLangCmd = Get-Command Install-Language -ErrorAction SilentlyContinue
 if ($installLangCmd) {
@@ -55,37 +58,62 @@ if ($installLangCmd) {
     try {
         Install-Language -Language he-IL -CopyToSettings
         Write-Ok "Install-Language completed."
+        $installed = $true
     } catch {
         Write-Fail "Install-Language failed: $_"
         Write-Info "Falling back to DISM..."
-        goto UseDism
     }
-} else {
-    :UseDism
-    Write-Info "Install-Language not available. Using DISM..."
+}
+
+# Fall back to DISM if Install-Language is unavailable or failed
+if (-not $installed) {
+    Write-Info "Using DISM to install Language.OCR capability..."
     try {
         $dismResult = dism.exe /Online /Add-Capability /CapabilityName:Language.OCR~~~he-IL~0.0.1.0 /NoRestart 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "DISM exited with code $LASTEXITCODE`n$dismResult"
         }
         Write-Ok "DISM install completed."
+        $installed = $true
     } catch {
         Write-Fail "DISM failed: $_"
-        Write-Host ""
-        Write-Host "  Manual steps:" -ForegroundColor Yellow
-        Write-Host "  1. Settings → Time & Language → Language & region" -ForegroundColor Yellow
-        Write-Host "  2. Add a language → Hebrew (עברית)" -ForegroundColor Yellow
-        Write-Host "  3. Make sure 'Optical character recognition' is checked" -ForegroundColor Yellow
-        Write-Host ""
-        exit 1
     }
+}
+
+# If DISM also failed, try lpksetup as a last resort
+if (-not $installed) {
+    Write-Info "Attempting lpksetup as last resort..."
+    try {
+        $lp = Start-Process -FilePath "lpksetup.exe" `
+                            -ArgumentList "/i he-IL /s /r" `
+                            -Wait -PassThru
+        if ($lp.ExitCode -eq 0) {
+            Write-Ok "lpksetup completed."
+            $installed = $true
+        } else {
+            throw "lpksetup exited with code $($lp.ExitCode)"
+        }
+    } catch {
+        Write-Fail "lpksetup failed: $_"
+    }
+}
+
+if (-not $installed) {
+    Write-Host ""
+    Write-Host "  All automated methods failed. Manual steps:" -ForegroundColor Yellow
+    Write-Host "  1. Settings → Time & Language → Language & region" -ForegroundColor Yellow
+    Write-Host "  2. Add a language → Hebrew (עברית)" -ForegroundColor Yellow
+    Write-Host "  3. Ensure 'Optical character recognition' is checked" -ForegroundColor Yellow
+    Write-Host "  4. Alternatively, run as admin in an elevated prompt:" -ForegroundColor Yellow
+    Write-Host "     dism /Online /Add-Capability /CapabilityName:Language.OCR~~~he-IL~0.0.1.0" -ForegroundColor Yellow
+    Write-Host ""
+    exit 1
 }
 
 # ── 4. Verify installation ───────────────────────────────────────────────────
 Write-Host ""
 Write-Step "Verifying installation..."
 
-# Re-query — WinRT caches, so reload in a fresh runspace
 $verify = Start-Job -ScriptBlock {
     Add-Type -AssemblyName System.Runtime.WindowsRuntime
     $null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType=WindowsRuntime]
