@@ -398,7 +398,7 @@ public class SettingsModel : AdminPageModel
                 foreach (var m in arr.EnumerateArray())
                     if (m.TryGetProperty("name", out var nm)) models.Add(nm.GetString() ?? "");
             if (models.Count == 0)
-                return new JsonResult(new { ok = false, error = "No models installed. Run: ollama pull phi3.5:latest" });
+                return new JsonResult(new { ok = false, error = "No models found. Download a model first (see 📥 Install AI Engine below)." });
             return new JsonResult(new { ok = true, models });
         }
         catch (Exception ex)

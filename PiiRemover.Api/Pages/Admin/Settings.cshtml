@@ -679,7 +679,7 @@
               <th style="padding:8px 12px;text-align:left">Scenario</th>
               <th style="padding:8px 12px;text-align:left">Model</th>
               <th style="padding:8px 12px;text-align:left">RAM</th>
-              <th style="padding:8px 12px;text-align:left">Pull command</th>
+              <th style="padding:8px 12px;text-align:left">Install command (Command Prompt)</th>
               <th style="padding:8px 12px;text-align:left">Notes</th>
             </tr>
             <tr style="border-bottom:1px solid var(--border);background:rgba(82,196,26,.04)">
@@ -700,20 +700,21 @@
         </div>
 
         <!-- Step 2 — Install runtime -->
-        <div style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:10px">② Install the inference runtime (Windows)</div>
+        <div style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:10px">② Install the AI Engine runtime (Windows)</div>
         <ol style="padding-left:20px;line-height:2.4;margin-bottom:20px">
           <li>
             <strong>Download the installer:</strong>
             <a href="https://ollama.com/download/windows" target="_blank" rel="noopener" style="color:#1677ff">
-              https://ollama.com/download/windows
+              Download AI Engine for Windows ↗
             </a>
           </li>
           <li>
-            <strong>Run the installer</strong> — the runtime starts automatically as a background service on port <code>11434</code>.
+            <strong>Run the installer</strong> — the AI Engine starts automatically as a background service on port <code>11434</code>.
           </li>
           <li>
-            <strong>Open a Command Prompt</strong> and pull the model you chose above, e.g.:<br/>
+            <strong>Open a Command Prompt</strong> and download the model you chose above, e.g.:<br/>
             <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull phi3.5:latest</code>
+            <span style="font-size:11px;color:var(--text3);margin-left:8px">(run this in Command Prompt)</span>
           </li>
         </ol>
 
@@ -722,14 +723,14 @@
         <ol style="padding-left:20px;line-height:2.4;margin-bottom:16px">
           <li>Toggle <strong>Enable AI Extraction Engine</strong> ON.</li>
           <li>Set <strong>AI Engine URL</strong> to <code>http://localhost:11434</code> (default — leave as-is unless the server runs remotely).</li>
-          <li>Set <strong>AI Model</strong> to the exact model name you pulled — <code>phi3.5:latest</code> or <code>mistral:latest</code>.</li>
+          <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>phi3.5:latest</code> or <code>mistral:latest</code>).</li>
           <li>Click <strong>🔍 Test AI Connection</strong> — you should see a green "Connected" message with the model name and response time.</li>
           <li>Click <strong>Save AI Settings</strong>.</li>
         </ol>
 
         <div style="background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2);border-radius:6px;padding:10px 14px;font-size:12px">
-          💡 You can switch models at any time — pull the new model with <code>ollama pull &lt;model&gt;</code>,
-          update the <em>AI Model</em> field, and save. No restart required.
+          💡 You can switch models at any time — download the new model (<code>ollama pull &lt;model-name&gt;</code> in Command Prompt),
+          click 🔄 in the <em>AI Model</em> field to refresh the list, select it, and save. No restart required.
         </div>
       </div>
     </details>
