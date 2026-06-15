@@ -80,7 +80,7 @@ public class SettingsModel : AdminPageModel
     // ── AI Extraction Engine ────────────────────────────────────────────
     [BindProperty] public bool   AiEnabled { get; set; } = false;
     [BindProperty] public string AiBaseUrl { get; set; } = "http://localhost:11434";
-    [BindProperty] public string AiModel   { get; set; } = "phi3.5:latest";
+    [BindProperty] public string AiModel   { get; set; } = "mistral:latest";
     [BindProperty] public int    AiTimeout { get; set; } = 15;
 
     // ── Backup ──────────────────────────────────────────────────────────

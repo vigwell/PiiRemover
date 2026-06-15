@@ -682,19 +682,22 @@
               <th style="padding:8px 12px;text-align:left">Install command (Command Prompt)</th>
               <th style="padding:8px 12px;text-align:left">Notes</th>
             </tr>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(82,196,26,.04)">
+            <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:9px 12px;font-weight:600;color:var(--text)">⚡ Fast pilot / low-RAM server</td>
               <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">phi3.5:latest</span></td>
               <td style="padding:9px 12px"><span class="badge badge-green">~2 GB</span></td>
               <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull phi3.5:latest</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">CPU-only, no GPU needed. Good for Hebrew + English names, IDs, phones. <strong>Recommended to start.</strong></td>
+              <td style="padding:9px 12px;color:var(--text3)">CPU-only, no GPU needed. Good for Hebrew + English names, IDs, phones.</td>
             </tr>
-            <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🎯 Higher accuracy / production</td>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(22,119,255,.04)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">
+                🎯 Higher accuracy / production
+                <span style="margin-left:6px;font-size:11px;font-weight:600;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);border-radius:10px;padding:2px 8px">⭐ Recommended</span>
+              </td>
               <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">mistral:latest</span></td>
               <td style="padding:9px 12px"><span class="badge badge-blue">~8 GB</span></td>
               <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull mistral:latest</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">7B parameter model. Significantly better on complex documents, free-form addresses, and ambiguous context.</td>
+              <td style="padding:9px 12px;color:var(--text3)">7B parameter model. Significantly better on complex documents, free-form addresses, and ambiguous context. <strong>Default model.</strong></td>
             </tr>
           </table>
         </div>
@@ -713,8 +716,8 @@
           </li>
           <li>
             <strong>Open a Command Prompt</strong> and download the model you chose above, e.g.:<br/>
-            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull phi3.5:latest</code>
-            <span style="font-size:11px;color:var(--text3);margin-left:8px">(run this in Command Prompt)</span>
+            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull mistral:latest</code>
+            <span style="font-size:11px;color:var(--text3);margin-left:8px">(run this in Command Prompt — or <code>ollama pull phi3.5:latest</code> for the low-RAM option)</span>
           </li>
         </ol>
 
@@ -902,8 +905,8 @@ async function loadAiModels() {
 
       // Known model descriptions
       const desc = {
-        'phi3.5:latest':  '⚡ phi3.5 — fast, ~2 GB RAM (recommended for start)',
-        'mistral:latest': '🎯 mistral — accurate, ~8 GB RAM (production)',
+        'phi3.5:latest':  '⚡ phi3.5 — fast, ~2 GB RAM (low-resource pilot)',
+        'mistral:latest': '🎯 mistral — accurate, ~8 GB RAM ⭐ Recommended',
       };
 
       data.models.forEach(m => {

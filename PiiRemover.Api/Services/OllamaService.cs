@@ -30,7 +30,7 @@ public class OllamaService : IAiService
 
     // Hard-coded defaults — seeded into DB on first use
     public const string DefaultBaseUrl     = "http://localhost:11434";
-    public const string DefaultModel       = "phi3.5:latest";
+    public const string DefaultModel       = "mistral:latest";
     public const string DefaultTimeoutSecs = "10";  // tighter default: fail fast if AI is slow
 
     // In-memory result cache: SHA256(text)+description → entities
