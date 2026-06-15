@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Data.Sqlite;
 using PiiRemover.Api.Services;
+using PiiRemover.Core.Engines;
 using PiiRemover.Core.Licensing;
 using PiiRemover.Data.Repositories;
 using static PiiRemover.Api.Pages.Admin.AdminAccountHelper;
@@ -21,6 +22,7 @@ public class SettingsModel : AdminPageModel
     private readonly LicenseInfo         _license;
     private readonly IConfiguration      _config;
     private readonly IBackupService      _backup;
+    private readonly IAiService          _ai;
 
     public LicenseInfo License => _license;
     public int DaysUntilExpiry => Math.Max(0,
@@ -80,7 +82,7 @@ public class SettingsModel : AdminPageModel
     // ── AI Extraction Engine ────────────────────────────────────────────
     [BindProperty] public bool   AiEnabled { get; set; } = false;
     [BindProperty] public string AiBaseUrl { get; set; } = "http://localhost:11434";
-    [BindProperty] public string AiModel   { get; set; } = "mistral:latest";
+    [BindProperty] public string AiModel   { get; set; } = "qwen2.5:14b";
     [BindProperty] public int    AiTimeout { get; set; } = 15;
 
     // ── Backup ──────────────────────────────────────────────────────────
@@ -105,13 +107,15 @@ public class SettingsModel : AdminPageModel
         };
 
     public SettingsModel(ISettingsRepository settings, IQuotaRepository quota,
-                         LicenseInfo license, IConfiguration config, IBackupService backup)
+                         LicenseInfo license, IConfiguration config, IBackupService backup,
+                         IAiService ai)
     {
         _settings = settings;
         _quota    = quota;
         _license  = license;
         _config   = config;
         _backup   = backup;
+        _ai       = ai;
     }
 
     public async Task OnGetAsync() => await LoadAsync();
@@ -413,6 +417,8 @@ public class SettingsModel : AdminPageModel
         await _settings.SetAsync("ai:baseUrl",        AiBaseUrl,                   "AI engine base URL");
         await _settings.SetAsync("ai:model",          AiModel,                     "AI model name");
         await _settings.SetAsync("ai:timeoutSeconds", AiTimeout.ToString(),        "AI request timeout (seconds)");
+        // Flush the in-memory enabled cache so the next redaction reflects the new setting immediately.
+        (_ai as OllamaService)?.InvalidateEnabledCache();
         TempData["SettingsSuccess"] = "AI settings saved.";
         return RedirectToPage(new { tab = "ai" });
     }
@@ -438,6 +444,53 @@ public class SettingsModel : AdminPageModel
         }
         catch (Exception ex)
         {
+            return new JsonResult(new { ok = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> OnPostTestAiExtractionAsync(
+        [FromForm] string sampleText, [FromForm] string samplePrompt)
+    {
+        if (string.IsNullOrWhiteSpace(sampleText) || string.IsNullOrWhiteSpace(samplePrompt))
+            return new JsonResult(new { ok = false, error = "Both sample text and prompt are required." });
+
+        var enabled = await _ai.IsEnabledAsync();
+        if (!enabled)
+            return new JsonResult(new { ok = false, error = "AI Extraction Engine is disabled. Enable it above and save settings first." });
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            var entities = await _ai.ExtractEntitiesAsync(sampleText, samplePrompt, cts.Token);
+            sw.Stop();
+
+            // Mirror exactly what LlmPromptEngine does: IndexOf scan → StartIndex + Length + MatchedText
+            var matches = new List<object>();
+            foreach (var entity in entities)
+            {
+                if (entity.Length == 0) continue;
+                var from = 0;
+                while (from < sampleText.Length)
+                {
+                    var idx = sampleText.IndexOf(entity, from, StringComparison.OrdinalIgnoreCase);
+                    if (idx < 0) break;
+                    matches.Add(new
+                    {
+                        matchedText = sampleText.Substring(idx, entity.Length),
+                        startIndex  = idx,
+                        length      = entity.Length,
+                        aiReturned  = entity
+                    });
+                    from = idx + entity.Length;
+                }
+            }
+
+            return new JsonResult(new { ok = true, matches, latencyMs = (int)sw.ElapsedMilliseconds });
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
             return new JsonResult(new { ok = false, error = ex.Message });
         }
     }

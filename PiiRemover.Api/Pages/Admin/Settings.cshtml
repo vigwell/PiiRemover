@@ -658,6 +658,48 @@
     </div>
   </form>
 
+  <!-- Live Extraction Tester -->
+  <div class="card" style="margin-top:16px">
+    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px">🧪 Live Extraction Tester</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">
+      Test the AI extraction engine with sample text and a prompt. The AI engine must be <strong>enabled</strong> and running.
+    </p>
+    <div style="display:grid;gap:10px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <label style="font-size:12px;font-weight:600;color:var(--text2)">Sample Text</label>
+          <span style="display:flex;gap:6px">
+            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="loadAiSample('en')">🇬🇧 English</button>
+            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="loadAiSample('he')">🇮🇱 Hebrew</button>
+          </span>
+        </div>
+        <textarea id="aiTestSampleText" rows="6" dir="ltr" style="width:100%;box-sizing:border-box;font-size:13px;font-family:monospace;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);resize:vertical">Patient: David Cohen
+Date of Birth: 15/03/1982
+ID: 034567891
+Doctor: Dr. Sarah Levy
+Phone: 052-1234567
+Diagnosis: Hypertension, Type 2 Diabetes</textarea>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Extraction Prompt</label>
+        <input id="aiTestPrompt" type="text" value="patient name"
+               style="width:100%;box-sizing:border-box;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text)"
+               placeholder="e.g. patient full name, phone number, Israeli ID number" />
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="runAiExtraction()" id="aiExtractBtn">
+          🧪 Run Extraction
+        </button>
+        <span id="aiExtractSpinner" style="display:none;font-size:13px;color:var(--text2)">Processing…</span>
+        <span id="aiExtractLatency" style="display:none;font-size:12px;color:var(--text2)"></span>
+      </div>
+      <div id="aiExtractResult" style="display:none;margin-top:4px">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Extracted Entities</label>
+        <div id="aiExtractEntities" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:monospace;min-height:40px;white-space:pre-wrap"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Install AI Engine (collapsible) -->
   <div class="card">
     <details>
@@ -687,14 +729,28 @@
               <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">phi3.5:latest</span></td>
               <td style="padding:9px 12px"><span class="badge badge-green">~2 GB</span></td>
               <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull phi3.5:latest</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">CPU-only, no GPU needed. Good for Hebrew + English names, IDs, phones.</td>
+              <td style="padding:9px 12px;color:var(--text3)">CPU-only, no GPU needed. Good for English names, IDs, phones. Limited Hebrew.</td>
             </tr>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(22,119,255,.04)">
-              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🎯 Higher accuracy / production <span style="font-size:11px;font-weight:600;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);border-radius:10px;padding:2px 8px;white-space:nowrap">⭐ Recommended</span></td>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">📄 General / legacy</td>
               <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">mistral:latest</span></td>
               <td style="padding:9px 12px"><span class="badge badge-blue">~5 GB</span></td>
               <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull mistral:latest</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">7B parameter model. Significantly better on complex documents, free-form addresses, and ambiguous context. <strong>Default model.</strong></td>
+              <td style="padding:9px 12px;color:var(--text3)">7B model. Decent general accuracy. Weak Hebrew morphology.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(22,119,255,.04)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🎯 Hebrew + English production</td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">qwen2.5:7b</span></td>
+              <td style="padding:9px 12px"><span class="badge badge-blue">~5 GB</span></td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull qwen2.5:7b</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">Strong multilingual model. Best Hebrew + English PII accuracy on ~5 GB RAM.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(22,119,255,.04)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🏆 Best accuracy / high-RAM server <span style="font-size:11px;font-weight:600;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);border-radius:10px;padding:2px 8px;white-space:nowrap">⭐ Recommended</span></td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">qwen2.5:14b</span></td>
+              <td style="padding:9px 12px"><span class="badge badge-blue">~9 GB</span></td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull qwen2.5:14b</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">14B model. Noticeably better on complex Hebrew medical documents, free-form addresses, and ambiguous context. <strong>Default model.</strong></td>
             </tr>
           </table>
         </div>
@@ -713,8 +769,8 @@
           </li>
           <li>
             <strong>Open a Command Prompt</strong> and download the model you chose above, e.g.:<br/>
-            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull mistral:latest</code>
-            <span style="font-size:11px;color:var(--text3);margin-left:8px">(run this in Command Prompt — or <code>ollama pull phi3.5:latest</code> for the low-RAM option)</span>
+            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull qwen2.5:14b</code>
+            <span style="font-size:11px;color:var(--text3);margin-left:8px">(recommended — or <code>ollama pull qwen2.5:7b</code> for ~5 GB RAM, <code>ollama pull phi3.5:latest</code> for low-RAM)</span>
           </li>
         </ol>
 
@@ -723,7 +779,7 @@
         <ol style="padding-left:20px;line-height:2.4;margin-bottom:16px">
           <li>Toggle <strong>Enable AI Extraction Engine</strong> ON.</li>
           <li>Set <strong>AI Engine URL</strong> to <code>http://localhost:11434</code> (default — leave as-is unless the server runs remotely).</li>
-          <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>phi3.5:latest</code> or <code>mistral:latest</code>).</li>
+          <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>qwen2.5:7b</code>, <code>qwen2.5:14b</code>, <code>mistral:latest</code>, or <code>phi3.5:latest</code>).</li>
           <li>Click <strong>🔍 Test AI Connection</strong> — you should see a green "Connected" message with the model name and response time.</li>
           <li>Click <strong>Save AI Settings</strong>.</li>
         </ol>
@@ -804,6 +860,10 @@ if (DB_RESTORED) {
       if (n <= 0) { clearInterval(timer); doReload(); }
     }, 1000);
   })();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────
@@ -903,7 +963,9 @@ async function loadAiModels() {
       // Known model descriptions
       const desc = {
         'phi3.5:latest':  '⚡ phi3.5 — fast, ~2 GB RAM (low-resource pilot)',
-        'mistral:latest': '🎯 mistral — accurate, ~8 GB RAM ⭐ Recommended',
+        'mistral:latest': '📄 mistral — general, ~5 GB RAM (weak Hebrew)',
+        'qwen2.5:7b':     '🎯 qwen2.5:7b — Hebrew + English, ~5 GB RAM',
+        'qwen2.5:14b':    '🏆 qwen2.5:14b — best accuracy, ~9 GB RAM ⭐ Recommended',
       };
 
       data.models.forEach(m => {
@@ -965,6 +1027,95 @@ async function testAiConnection() {
   }
   spinner.style.display = 'none';
   result.style.display  = 'inline';
+  btn.disabled = false;
+}
+
+const aiSamples = {
+  en: {
+    dir: 'ltr',
+    text: `Patient: David Cohen
+Date of Birth: 15/03/1982
+ID: 034567891
+Doctor: Dr. Sarah Levy
+Phone: 052-1234567
+Diagnosis: Hypertension, Type 2 Diabetes`,
+    prompt: 'patient name'
+  },
+  he: {
+    dir: 'rtl',
+    text: `שם מלא: דוד כהן
+תאריך לידה: 15/03/1982
+תעודת זהות: 034567891
+רופא מטפל: ד"ר שרה לוי
+טלפון: 052-1234567
+אבחנה: יתר לחץ דם, סוכרת סוג 2`,
+    prompt: 'שם מלא של מטופל'
+  }
+};
+
+function loadAiSample(lang) {
+  const s = aiSamples[lang];
+  if (!s) return;
+  const ta = document.getElementById('aiTestSampleText');
+  ta.value = s.text;
+  ta.dir   = s.dir;
+  document.getElementById('aiTestPrompt').value = s.prompt;
+  document.getElementById('aiExtractResult').style.display = 'none';
+}
+
+async function runAiExtraction() {
+  const btn      = document.getElementById('aiExtractBtn');
+  const spinner  = document.getElementById('aiExtractSpinner');
+  const latency  = document.getElementById('aiExtractLatency');
+  const resultEl = document.getElementById('aiExtractResult');
+  const entities = document.getElementById('aiExtractEntities');
+  const text     = document.getElementById('aiTestSampleText').value;
+  const prompt   = document.getElementById('aiTestPrompt').value;
+
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  latency.style.display = 'none';
+  resultEl.style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('sampleText',  text);
+  fd.append('samplePrompt', prompt);
+
+  try {
+    const token = document.querySelector('input[name=__RequestVerificationToken]')?.value ?? '';
+    const resp = await fetch('/admin/settings?handler=TestAiExtraction', {
+      method: 'POST',
+      headers: { 'RequestVerificationToken': token },
+      body: fd
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      if (!data.matches?.length) {
+        entities.textContent = '(no matches found)';
+        entities.style.color = 'var(--text2)';
+      } else {
+        entities.innerHTML = data.matches.map(m => {
+          const caseNote = m.matchedText !== m.aiReturned
+            ? ` <span style="color:var(--text2);font-size:11px">(AI returned: "${m.aiReturned}")</span>`
+            : '';
+          return `<div style="padding:4px 0;border-bottom:1px solid var(--border)">` +
+            `<span style="color:#52c41a;font-weight:600">"${escHtml(m.matchedText)}"</span>${caseNote}` +
+            `<span style="margin-left:12px;color:var(--text2);font-size:11px">pos&nbsp;${m.startIndex}&nbsp;·&nbsp;len&nbsp;${m.length}</span>` +
+            `</div>`;
+        }).join('');
+        entities.style.color = 'var(--text)';
+      }
+      latency.textContent = `${data.latencyMs} ms`;
+      latency.style.display = 'inline';
+    } else {
+      entities.innerHTML = `<span style="color:#ff4d4f">❌ ${data.error ?? 'Extraction failed'}</span>`;
+    }
+  } catch (e) {
+    entities.innerHTML = `<span style="color:#ff4d4f">❌ Request failed: ${e.message}</span>`;
+  }
+
+  spinner.style.display = 'none';
+  resultEl.style.display = 'block';
   btn.disabled = false;
 }
 </script>

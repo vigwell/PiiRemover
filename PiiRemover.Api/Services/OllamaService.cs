@@ -30,14 +30,20 @@ public class OllamaService : IAiService
 
     // Hard-coded defaults — seeded into DB on first use
     public const string DefaultBaseUrl     = "http://localhost:11434";
-    public const string DefaultModel       = "mistral:latest";
+    public const string DefaultModel       = "qwen2.5:14b";
     public const string DefaultTimeoutSecs = "10";  // tighter default: fail fast if AI is slow
 
     // In-memory result cache: SHA256(text)+description → entities
     // Bounded at 500 entries; evicts oldest 50 when full.
     private readonly ConcurrentDictionary<string, (List<string> entities, long tick)> _cache = new();
-    private const int CacheMax  = 500;
+    private const int CacheMax   = 500;
     private const int CacheEvict = 50;
+
+    // Enabled-flag cache — avoids a DB hit on every redaction call.
+    // Invalidated explicitly when settings are saved; falls back to TTL as a safety net.
+    private bool _enabledCache;
+    private long _enabledCachedAt = 0; // 0 = never cached (any real TickCount64 > TTL)
+    private const long EnabledCacheTtlMs = 60_000; // 1 minute safety-net TTL
 
     public OllamaService(HttpClient http, ISettingsRepository settings)
     {
@@ -46,16 +52,23 @@ public class OllamaService : IAiService
     }
 
     /// <summary>Returns true if the AI engine is enabled in the DB settings.</summary>
+    /// <remarks>Result is cached in memory; call <see cref="InvalidateEnabledCache"/> after saving settings.</remarks>
     public async Task<bool> IsEnabledAsync()
     {
+        if (Environment.TickCount64 - _enabledCachedAt < EnabledCacheTtlMs)
+            return _enabledCache;
+
         var val = await _settings.GetAsync(KeyEnabled);
         if (val is null)
-        {
             await _settings.SetAsync(KeyEnabled, "false", "AI Extraction Engine enabled");
-            return false;
-        }
-        return val.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+        _enabledCache    = val?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+        _enabledCachedAt = Environment.TickCount64;
+        return _enabledCache;
     }
+
+    /// <summary>Call this after saving AI settings so the next redaction sees the new value immediately.</summary>
+    public void InvalidateEnabledCache() => _enabledCachedAt = 0;
 
     /// <summary>
     /// Extracts all entity strings matching <paramref name="description"/> from <paramref name="text"/>.
