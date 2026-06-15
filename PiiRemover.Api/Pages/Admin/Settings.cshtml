@@ -646,35 +646,72 @@
       <summary style="cursor:pointer;font-size:14px;font-weight:600;color:var(--text)">
         📥 Install AI Engine
       </summary>
-      <div style="margin-top:16px;font-size:13px;color:var(--text2);max-width:680px">
-        <p style="margin-bottom:12px">
+      <div style="margin-top:16px;font-size:13px;color:var(--text2);max-width:780px">
+
+        <p style="margin-bottom:16px">
           The AI Extraction Engine requires a locally-installed inference runtime.
-          Once installed, it runs entirely on-premises — no internet connection needed for processing.
+          Once installed it runs entirely on-premises — no internet connection needed for processing.
         </p>
-        <ol style="padding-left:20px;line-height:2.2">
+
+        <!-- Step 1 — Choose model -->
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:10px">① Choose a model</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <tr style="background:var(--surface2)">
+              <th style="padding:8px 12px;text-align:left">Scenario</th>
+              <th style="padding:8px 12px;text-align:left">Model</th>
+              <th style="padding:8px 12px;text-align:left">RAM</th>
+              <th style="padding:8px 12px;text-align:left">Pull command</th>
+              <th style="padding:8px 12px;text-align:left">Notes</th>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(82,196,26,.04)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">⚡ Fast pilot / low-RAM server</td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">phi3.5:latest</span></td>
+              <td style="padding:9px 12px"><span class="badge badge-green">~2 GB</span></td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull phi3.5:latest</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">CPU-only, no GPU needed. Good for Hebrew + English names, IDs, phones. <strong>Recommended to start.</strong></td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🎯 Higher accuracy / production</td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">mistral:latest</span></td>
+              <td style="padding:9px 12px"><span class="badge badge-blue">~8 GB</span></td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull mistral:latest</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">7B parameter model. Significantly better on complex documents, free-form addresses, and ambiguous context.</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Step 2 — Install runtime -->
+        <div style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:10px">② Install the inference runtime (Windows)</div>
+        <ol style="padding-left:20px;line-height:2.4;margin-bottom:20px">
           <li>
-            <strong>Download the installer</strong> for Windows:<br/>
-            <a href="https://ollama.com/download/windows" target="_blank" rel="noopener"
-               style="color:#1677ff">
+            <strong>Download the installer:</strong>
+            <a href="https://ollama.com/download/windows" target="_blank" rel="noopener" style="color:#1677ff">
               https://ollama.com/download/windows
             </a>
           </li>
           <li>
-            <strong>Run the installer</strong> — it starts automatically as a background service on port 11434.
+            <strong>Run the installer</strong> — the runtime starts automatically as a background service on port <code>11434</code>.
           </li>
           <li>
-            <strong>Download the AI model</strong> — open a Command Prompt and run:<br/>
-            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull phi3.5:latest</code><br/>
-            <span style="font-size:11px;color:var(--text3)">~2 GB download, ~2 GB RAM at runtime. CPU-only — no GPU required.</span>
-          </li>
-          <li>
-            <strong>Click "Test AI Connection"</strong> above to confirm the engine is running.
+            <strong>Open a Command Prompt</strong> and pull the model you chose above, e.g.:<br/>
+            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull phi3.5:latest</code>
           </li>
         </ol>
-        <div style="background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2);border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px">
-          💡 <strong>Larger model option:</strong> For higher accuracy on complex documents,
-          use <code>mistral:latest</code> (~8 GB RAM).
-          Change the <em>AI Model</em> field above after pulling the model.
+
+        <!-- Step 3 — Configure in settings -->
+        <div style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:10px">③ Configure in Settings (above)</div>
+        <ol style="padding-left:20px;line-height:2.4;margin-bottom:16px">
+          <li>Toggle <strong>Enable AI Extraction Engine</strong> ON.</li>
+          <li>Set <strong>AI Engine URL</strong> to <code>http://localhost:11434</code> (default — leave as-is unless the server runs remotely).</li>
+          <li>Set <strong>AI Model</strong> to the exact model name you pulled — <code>phi3.5:latest</code> or <code>mistral:latest</code>.</li>
+          <li>Click <strong>🔍 Test AI Connection</strong> — you should see a green "Connected" message with the model name and response time.</li>
+          <li>Click <strong>Save AI Settings</strong>.</li>
+        </ol>
+
+        <div style="background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2);border-radius:6px;padding:10px 14px;font-size:12px">
+          💡 You can switch models at any time — pull the new model with <code>ollama pull &lt;model&gt;</code>,
+          update the <em>AI Model</em> field, and save. No restart required.
         </div>
       </div>
     </details>
