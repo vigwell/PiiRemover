@@ -29,7 +29,7 @@ public class OllamaService : IAiService
     public const string KeyTimeoutSecs = "ai:timeoutSeconds";
 
     // Hard-coded defaults — seeded into DB on first use
-    public const string DefaultBaseUrl     = "http://localhost";
+    public const string DefaultBaseUrl     = "http://localhost:11434";
     public const string DefaultModel       = "mistral:latest";
     public const string DefaultTimeoutSecs = "10";  // tighter default: fail fast if AI is slow
 

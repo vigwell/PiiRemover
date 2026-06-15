@@ -608,9 +608,9 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;max-width:780px;margin-bottom:16px">
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text2)">AI Engine URL</label>
-            <input name="AiBaseUrl" value="@Model.AiBaseUrl" placeholder="http://localhost"
+            <input name="AiBaseUrl" value="@Model.AiBaseUrl" placeholder="http://localhost:11434"
                    class="ctrl" style="width:100%;margin-top:6px" />
-            <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: http://localhost</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: http://localhost:11434</div>
           </div>
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text2)">
@@ -722,7 +722,7 @@
         <div style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:10px">③ Configure in Settings (above)</div>
         <ol style="padding-left:20px;line-height:2.4;margin-bottom:16px">
           <li>Toggle <strong>Enable AI Extraction Engine</strong> ON.</li>
-          <li>Set <strong>AI Engine URL</strong> to <code>http://localhost</code> (default — leave as-is unless the server runs remotely).</li>
+          <li>Set <strong>AI Engine URL</strong> to <code>http://localhost:11434</code> (default — leave as-is unless the server runs remotely).</li>
           <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>phi3.5:latest</code> or <code>mistral:latest</code>).</li>
           <li>Click <strong>🔍 Test AI Connection</strong> — you should see a green "Connected" message with the model name and response time.</li>
           <li>Click <strong>Save AI Settings</strong>.</li>
