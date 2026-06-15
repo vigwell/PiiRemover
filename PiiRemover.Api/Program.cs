@@ -151,10 +151,11 @@ var app = builder.Build();
     var aiModel   = await aiRepo.GetAsync("ai:model")          ?? cfg["Ollama:Model"]          ?? "mistral:latest";
     var aiTimeout = await aiRepo.GetAsync("ai:timeoutSeconds") ?? cfg["Ollama:TimeoutSeconds"] ?? "10";
     var aiEnabled = await aiRepo.GetAsync("ai:enabled")        ?? "false";
-    Console.WriteLine($"AI Engine URL    : {aiUrl}");
-    Console.WriteLine($"AI Engine model  : {aiModel}");
-    Console.WriteLine($"AI Engine timeout: {aiTimeout}s");
-    Console.WriteLine($"AI Engine enabled: {aiEnabled}");
+    var aiLogger  = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PiiRemover.AI");
+    aiLogger.LogInformation("AI Engine URL    : {Url}",     aiUrl);
+    aiLogger.LogInformation("AI Engine model  : {Model}",   aiModel);
+    aiLogger.LogInformation("AI Engine timeout: {Timeout}s", aiTimeout);
+    aiLogger.LogInformation("AI Engine enabled: {Enabled}", aiEnabled);
 }
 #endif
 
