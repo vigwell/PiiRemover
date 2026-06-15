@@ -613,10 +613,28 @@
             <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: http://localhost:11434</div>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:var(--text2)">AI Model</label>
-            <input name="AiModel" value="@Model.AiModel" placeholder="phi3.5:latest"
-                   class="ctrl" style="width:100%;margin-top:6px" />
-            <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: phi3.5:latest (~2 GB RAM)</div>
+            <label style="font-size:12px;font-weight:600;color:var(--text2)">
+              AI Model
+              <button type="button" onclick="loadAiModels()" id="aiModelRefreshBtn"
+                      title="Load installed models from AI engine"
+                      style="margin-left:6px;background:none;border:none;cursor:pointer;font-size:13px;padding:0;color:#1677ff">🔄</button>
+              <span id="ai-model-loading" style="display:none;font-size:11px;color:var(--text3)">loading…</span>
+            </label>
+            <!-- Hidden real input always submitted with the form -->
+            <input type="hidden" name="AiModel" id="aiModelHidden" value="@Model.AiModel" />
+            <!-- Dropdown shown when models are loaded -->
+            <select id="aiModelSelect" class="ctrl"
+                    style="width:100%;margin-top:6px;display:none"
+                    onchange="document.getElementById('aiModelHidden').value=this.value;
+                              document.getElementById('aiModelText').value=this.value">
+            </select>
+            <!-- Text input shown as fallback / when no models loaded yet -->
+            <input id="aiModelText" value="@Model.AiModel" placeholder="phi3.5:latest"
+                   class="ctrl" style="width:100%;margin-top:6px"
+                   oninput="document.getElementById('aiModelHidden').value=this.value" />
+            <div id="ai-model-hint" style="font-size:11px;color:var(--text3);margin-top:4px">
+              Click 🔄 to load installed models, or type a model name manually.
+            </div>
           </div>
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text2)">Timeout (seconds)</label>
@@ -856,6 +874,72 @@ function toggleAiFields(enabled) {
   const badge  = document.getElementById('ai-status-badge');
   if (fields) { fields.style.opacity = enabled ? '1' : '.45'; fields.style.pointerEvents = enabled ? '' : 'none'; }
   if (badge)  { badge.textContent = enabled ? 'Enabled' : 'Disabled'; badge.className = 'badge ' + (enabled ? 'badge-green' : 'badge-red'); }
+}
+
+async function loadAiModels() {
+  const btn      = document.getElementById('aiModelRefreshBtn');
+  const loading  = document.getElementById('ai-model-loading');
+  const select   = document.getElementById('aiModelSelect');
+  const textInp  = document.getElementById('aiModelText');
+  const hidden   = document.getElementById('aiModelHidden');
+  const hint     = document.getElementById('ai-model-hint');
+
+  btn.style.display = 'none';
+  loading.style.display = 'inline';
+
+  try {
+    const tok = document.querySelector('input[name=__RequestVerificationToken]').value;
+    const resp = await fetch('/admin/settings?handler=AiModels', {
+      method: 'POST',
+      headers: { 'RequestVerificationToken': tok }
+    });
+    const data = await resp.json();
+
+    if (data.ok && data.models && data.models.length > 0) {
+      const current = hidden.value || '';
+      select.innerHTML = '';
+
+      // Known model descriptions
+      const desc = {
+        'phi3.5:latest':  '⚡ phi3.5 — fast, ~2 GB RAM (recommended for start)',
+        'mistral:latest': '🎯 mistral — accurate, ~8 GB RAM (production)',
+      };
+
+      data.models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = desc[m] || ('✅ ' + m);
+        if (m === current) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      // If current value not in list, add it as first option
+      if (current && !data.models.includes(current)) {
+        const opt = document.createElement('option');
+        opt.value = current;
+        opt.textContent = current + ' (saved — not found locally)';
+        opt.selected = true;
+        select.insertBefore(opt, select.firstChild);
+      }
+
+      select.style.display = 'block';
+      textInp.style.display = 'none';
+      hidden.value = select.value;
+      hint.innerHTML = `<span style="color:#52c41a">✅ ${data.models.length} model(s) installed</span>`;
+    } else {
+      hint.innerHTML = `<span style="color:#ff4d4f">❌ ${data.error ?? 'No models found — is the AI engine running?'}</span>
+        <br/><span style="color:var(--text3)">Type a model name manually, or install one (see 📥 Install AI Engine below).</span>`;
+      select.style.display = 'none';
+      textInp.style.display = 'block';
+    }
+  } catch (e) {
+    hint.innerHTML = `<span style="color:#ff4d4f">❌ Could not reach AI engine: ${e.message}</span>`;
+    select.style.display = 'none';
+    textInp.style.display = 'block';
+  }
+
+  btn.style.display = 'inline';
+  loading.style.display = 'none';
 }
 
 async function testAiConnection() {

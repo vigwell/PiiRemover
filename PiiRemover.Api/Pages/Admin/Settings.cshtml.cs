@@ -381,6 +381,32 @@ public class SettingsModel : AdminPageModel
     private string DbPath() => _config["Database:Path"] ?? "piiremovals.db";
 
     // ── AI Extraction Engine handlers ────────────────────────────────────
+    public async Task<IActionResult> OnPostAiModelsAsync()
+    {
+        try
+        {
+            var http    = HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient();
+            var baseUrl = await _settings.GetAsync("ai:baseUrl") ?? "http://localhost:11434";
+            http.Timeout = TimeSpan.FromSeconds(5);
+            var resp = await http.GetAsync($"{baseUrl.TrimEnd('/')}/api/tags");
+            if (!resp.IsSuccessStatusCode)
+                return new JsonResult(new { ok = false, error = $"HTTP {(int)resp.StatusCode}" });
+            var json = await resp.Content.ReadAsStringAsync();
+            var doc  = System.Text.Json.JsonDocument.Parse(json);
+            var models = new List<string>();
+            if (doc.RootElement.TryGetProperty("models", out var arr))
+                foreach (var m in arr.EnumerateArray())
+                    if (m.TryGetProperty("name", out var nm)) models.Add(nm.GetString() ?? "");
+            if (models.Count == 0)
+                return new JsonResult(new { ok = false, error = "No models installed. Run: ollama pull phi3.5:latest" });
+            return new JsonResult(new { ok = true, models });
+        }
+        catch (Exception ex)
+        {
+            return new JsonResult(new { ok = false, error = ex.Message });
+        }
+    }
+
     public async Task<IActionResult> OnPostSaveAiSettingsAsync()
     {
         await _settings.SetAsync("ai:enabled",       AiEnabled ? "true" : "false", "AI Extraction Engine enabled");
