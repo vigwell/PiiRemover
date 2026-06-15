@@ -144,6 +144,20 @@ builder.Services.Configure<IISServerOptions>(o => o.MaxRequestBodySize = null);
 
 var app = builder.Build();
 
+#if DEBUG
+{
+    var aiRepo    = app.Services.GetRequiredService<ISettingsRepository>();
+    var aiUrl     = await aiRepo.GetAsync("ai:baseUrl")        ?? cfg["Ollama:BaseUrl"]        ?? "http://localhost";
+    var aiModel   = await aiRepo.GetAsync("ai:model")          ?? cfg["Ollama:Model"]          ?? "mistral:latest";
+    var aiTimeout = await aiRepo.GetAsync("ai:timeoutSeconds") ?? cfg["Ollama:TimeoutSeconds"] ?? "10";
+    var aiEnabled = await aiRepo.GetAsync("ai:enabled")        ?? "false";
+    Console.WriteLine($"AI Engine URL    : {aiUrl}");
+    Console.WriteLine($"AI Engine model  : {aiModel}");
+    Console.WriteLine($"AI Engine timeout: {aiTimeout}s");
+    Console.WriteLine($"AI Engine enabled: {aiEnabled}");
+}
+#endif
+
 // Support running under IIS sub-application path (e.g. /PiiRemover)
 // Has no effect when running as root site or via Kestrel directly
 app.UsePathBase(new Microsoft.AspNetCore.Http.PathString(
