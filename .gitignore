@@ -1,0 +1,92 @@
+## .NET / C#
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userprefs
+
+## Build output
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!**/packages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Test results
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+## Publish
+publish/
+PublishProfiles/
+
+## SQLite databases — never commit, recreated automatically on startup
+*.db
+*.db-wal
+*.db-shm
+
+## License private key — NEVER commit
+private.pem
+
+## License files — uncomment when leaving POC mode
+# *.lic
+
+
+## OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/
+
+## BatchLoader — ignore folder contents but keep the folders via .gitkeep
+PiiRemover.BatchLoader/ocr-input/*
+PiiRemover.BatchLoader/ocr-output/*
+PiiRemover.BatchLoader/redact-input/*
+PiiRemover.BatchLoader/redact-output/*
+!PiiRemover.BatchLoader/ocr-input/.gitkeep
+!PiiRemover.BatchLoader/ocr-output/.gitkeep
+!PiiRemover.BatchLoader/redact-input/.gitkeep
+!PiiRemover.BatchLoader/redact-output/.gitkeep
+
+## Publish profiles — commit .pubxml but never .pubxml.user (contains saved passwords)
+*.pubxml.user
+
+## Publish output folder
+publish/
+
+## Env / secrets
+.env
+.env.*
+appsettings.*.json
+!appsettings.json
+
+## Large installer binaries — too big for GitHub (>100 MB)
+Installs/*.exe
+Installs/*.msi
+
+## Claude Code session memory — local only
+.claude/

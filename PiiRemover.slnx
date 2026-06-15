@@ -1,0 +1,73 @@
+<Solution>
+  <Folder Name="/Engine/">
+    <Project Path="PiiRemover.Api/PiiRemover.Api.csproj" />
+    <Project Path="PiiRemover.Core/PiiRemover.Core.csproj" />
+    <Project Path="PiiRemover.Data/PiiRemover.Data.csproj" />
+  </Folder>
+  <Folder Name="/Deploy/">
+    <File Path="Deploy/Install-Prerequisites.ps1" />
+    <File Path="Deploy/Install-DotNet10.ps1" />
+    <File Path="Deploy/Install-WebDeploy.ps1" />
+    <File Path="Deploy/Fix-WebDeploy.ps1" />
+    <File Path="Deploy/Deploy-PiiRemover.ps1" />
+  </Folder>
+  <Folder Name="/Installs/">
+    <File Path="Installs/DB.Browser.for.SQLite-v3.13.1-win64.msi" />
+    <File Path="Installs/dotnet-hosting-10.0.8-win.exe" />
+    <File Path="Installs/Install-HebrewOcr.ps1" />
+    <File Path="Installs/Register-EventLogSource.ps1" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="PiiRemover.Tests/PiiRemover.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Tools/">
+    <Project Path="PiiRemover.LicenseTool/PiiRemover.LicenseTool.csproj" />
+  </Folder>
+  <Folder Name="/ZZTasks/">
+    <File Path="todo.txt" />
+  </Folder>
+  <Folder Name="/ZZTestDocs/">
+    <File Path="PiiTestDocs/1.pdf" />
+    <File Path="PiiTestDocs/2 - (1).jpg" />
+    <File Path="PiiTestDocs/2.jpg" />
+    <File Path="PiiTestDocs/3 - (1).jpg" />
+    <File Path="PiiTestDocs/3.jpg" />
+    <File Path="PiiTestDocs/4 - (1).jpg" />
+    <File Path="PiiTestDocs/4 - (2).jpg" />
+    <File Path="PiiTestDocs/4.jpg" />
+    <File Path="PiiTestDocs/5 - (1).jpg" />
+    <File Path="PiiTestDocs/5 - (2).jpg" />
+    <File Path="PiiTestDocs/5.jpg" />
+    <File Path="PiiTestDocs/6 - (1).jpg" />
+    <File Path="PiiTestDocs/6.jpg" />
+    <File Path="PiiTestDocs/7 - (1).jpg" />
+    <File Path="PiiTestDocs/7.jpg" />
+    <File Path="PiiTestDocs/8 - (1).jpg" />
+    <File Path="PiiTestDocs/8 - (2).jpg" />
+    <File Path="PiiTestDocs/8.jpg" />
+    <File Path="PiiTestDocs/9 - (1).jpg" />
+    <File Path="PiiTestDocs/9 - (2).jpg" />
+    <File Path="PiiTestDocs/9.jpg" />
+    <File Path="PiiTestDocs/RS1006622.jpg" />
+    <File Path="PiiTestDocs/RS920998 - (1).jpg" />
+    <File Path="PiiTestDocs/RS920998.jpg" />
+    <File Path="PiiTestDocs/RS940242.jpg" />
+    <File Path="PiiTestDocs/RS957586 - (1).jpg" />
+    <File Path="PiiTestDocs/RS957586.jpg" />
+    <File Path="PiiTestDocs/RS961000.jpg" />
+    <File Path="PiiTestDocs/RS961752.jpg" />
+    <File Path="PiiTestDocs/RS962544 - (1).jpg" />
+    <File Path="PiiTestDocs/RS962544.jpg" />
+    <File Path="PiiTestDocs/RS985283.jpg" />
+    <File Path="PiiTestDocs/RS988940.jpg" />
+    <File Path="PiiTestDocs/RS995548 - (1).jpg" />
+    <File Path="PiiTestDocs/RS995548.jpg" />
+    <File Path="PiiTestDocs/RS997882 - (1).jpg" />
+    <File Path="PiiTestDocs/RS997882 - (2).jpg" />
+    <File Path="PiiTestDocs/RS997882.jpg" />
+    <File Path="PiiTestDocs/Z20.jpg" />
+    <File Path="PiiTestDocs/צילום מסך 2026-06-05 175535.jpg" />
+  </Folder>
+  <Project Path="PiiRemover.BatchLoader/PiiRemover.BatchLoader.csproj" />
+  <Project Path="PiiRemover.Web/PiiRemover.Web.csproj" />
+</Solution>

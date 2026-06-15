@@ -1,0 +1,1537 @@
+@page
+@model IndexModel
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PiiRemover — On-Premises PII Redaction Platform</title>
+<meta name="description" content="Enterprise-grade PII redaction for healthcare. Pixel-level image redaction, 500k-term matching, smart dark-background OCR, Preserve Fields. 100% on-premises, air-gapped, HIPAA-ready."/>
+<style>
+/* ── Reset & base ─────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:    #0a0f1e;
+  --navy2:   #0e1628;
+  --navy3:   #111e35;
+  --blue:    #1a6ff0;
+  --blue2:   #0d4fc4;
+  --cyan:    #00c8ff;
+  --green:   #00e5a0;
+  --red:     #ff4560;
+  --purple:  #8b5cf6;
+  --orange:  #ff9500;
+  --text:    #e8edf5;
+  --text2:   #8b9bbf;
+  --text3:   #5a6a8a;
+  --border:  rgba(255,255,255,.08);
+  --card:    rgba(255,255,255,.04);
+  --glow:    0 0 40px rgba(26,111,240,.25);
+  --font:    -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--navy);color:var(--text);font-size:16px;line-height:1.6;overflow-x:hidden}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── Utility ──────────────────────────────────────────────────────────── */
+.container{max-width:1160px;margin:0 auto;padding:0 24px}
+.section{padding:96px 0}
+.section-alt{background:var(--navy2)}
+.tag{display:inline-block;background:rgba(26,111,240,.15);color:var(--cyan);border:1px solid rgba(0,200,255,.2);padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px}
+.tag-new{background:rgba(0,229,160,.12);color:var(--green);border-color:rgba(0,229,160,.3)}
+.section-title{font-size:clamp(28px,4vw,42px);font-weight:800;line-height:1.2;margin-bottom:16px}
+.section-sub{color:var(--text2);font-size:18px;max-width:640px;margin-bottom:48px}
+.text-center{text-align:center}
+.text-center .section-sub{margin-left:auto;margin-right:auto}
+.gradient-text{background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.gradient-text-green{background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;border:none;text-decoration:none}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;box-shadow:0 4px 20px rgba(26,111,240,.4)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(26,111,240,.5);text-decoration:none;color:#fff}
+.btn-outline{background:transparent;color:var(--cyan);border:1.5px solid var(--cyan)}
+.btn-outline:hover{background:rgba(0,200,255,.08);transform:translateY(-2px);text-decoration:none}
+.btn-green{background:linear-gradient(135deg,#00b37a,#00e5a0);color:#0a0f1e}
+.btn-green:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,229,160,.35);text-decoration:none;color:#0a0f1e}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+@@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}.grid-4{grid-template-columns:1fr 1fr}}
+@@media(max-width:560px){.grid-4{grid-template-columns:1fr}}
+
+/* ── Nav ──────────────────────────────────────────────────────────────── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;background:rgba(10,15,30,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.nav-brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;color:#fff}
+.nav-brand .shield{width:32px;height:32px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{color:var(--text2);font-size:14px;font-weight:500;transition:color .15s}
+.nav-links a:hover{color:#fff;text-decoration:none}
+.nav-cta{background:var(--blue);color:#fff !important;padding:8px 20px;border-radius:6px;font-size:13px;font-weight:700}
+.nav-cta:hover{background:var(--blue2);color:#fff;text-decoration:none}
+@@media(max-width:768px){.nav-links{display:none}}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.hero{min-height:100vh;display:flex;align-items:center;padding-top:64px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 60% 40%,rgba(26,111,240,.12) 0%,transparent 70%)}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+@@media(max-width:900px){.hero-grid{grid-template-columns:1fr}}
+.hero-badge{display:flex;align-items:center;gap:8px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);color:var(--green);padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;width:fit-content;margin-bottom:24px}
+.hero-badge .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+@@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-size:clamp(36px,5vw,58px);font-weight:900;line-height:1.1;margin-bottom:24px}
+.hero-sub{font-size:18px;color:var(--text2);margin-bottom:40px;max-width:520px}
+.hero-actions{display:flex;gap:16px;flex-wrap:wrap}
+.hero-stats{display:flex;gap:32px;margin-top:48px;padding-top:32px;border-top:1px solid var(--border)}
+.hero-stat .val{font-size:28px;font-weight:800;color:#fff}
+.hero-stat .lbl{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px}
+
+/* Terminal */
+.terminal{background:#070c19;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--glow)}
+.terminal-bar{background:rgba(255,255,255,.05);padding:10px 16px;display:flex;align-items:center;gap:6px}
+.dot-r{width:10px;height:10px;border-radius:50%;background:#ff5f56;display:inline-block}
+.dot-y{width:10px;height:10px;border-radius:50%;background:#febc2e;display:inline-block}
+.dot-g{width:10px;height:10px;border-radius:50%;background:#27c93f;display:inline-block}
+.terminal-body{padding:20px 24px;font-family:'Courier New',monospace;font-size:13px;line-height:1.8}
+.t-comment{color:var(--text3)}
+.t-key{color:var(--cyan)}
+.t-val{color:var(--green)}
+.t-str{color:#ffb347}
+.t-red{color:var(--red)}
+.t-dim{color:var(--text3)}
+.t-purple{color:#c4b5fd}
+
+/* ── "What's New" banner ──────────────────────────────────────────────── */
+.whats-new-banner{
+  background:linear-gradient(135deg,rgba(0,229,160,.07) 0%,rgba(26,111,240,.1) 50%,rgba(139,92,246,.07) 100%);
+  border:1px solid rgba(0,229,160,.2);border-radius:20px;
+  padding:48px 56px;position:relative;overflow:hidden;
+}
+.whats-new-banner::before{
+  content:'';position:absolute;top:-60px;right:-60px;
+  width:240px;height:240px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,229,160,.12),transparent 70%);
+}
+.new-feature-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:36px}
+@@media(max-width:768px){.new-feature-grid{grid-template-columns:1fr}}
+.new-feature-item{
+  display:flex;gap:14px;align-items:flex-start;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+  border-radius:12px;padding:18px 20px;transition:border-color .2s;
+}
+.new-feature-item:hover{border-color:rgba(0,229,160,.25)}
+.new-feature-item .nf-icon{
+  width:40px;height:40px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+}
+.new-feature-item h4{font-size:15px;font-weight:700;margin-bottom:4px}
+.new-feature-item p{font-size:13px;color:var(--text2);line-height:1.5}
+.nf-bg-green{background:rgba(0,229,160,.12)}
+.nf-bg-blue{background:rgba(26,111,240,.15)}
+.nf-bg-purple{background:rgba(139,92,246,.12)}
+.nf-bg-orange{background:rgba(255,149,0,.12)}
+.nf-bg-cyan{background:rgba(0,200,255,.12)}
+
+/* ── Problem / Solution ───────────────────────────────────────────────── */
+.problem-card{background:rgba(255,69,96,.06);border:1px solid rgba(255,69,96,.2);border-radius:12px;padding:24px}
+.problem-card .icon{font-size:28px;margin-bottom:12px}
+.problem-card h4{font-size:15px;font-weight:700;margin-bottom:8px;color:var(--red)}
+.problem-card p{font-size:14px;color:var(--text2)}
+.solution-card{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.15);border-radius:12px;padding:24px}
+.solution-card .icon{font-size:28px;margin-bottom:12px}
+.solution-card h4{font-size:15px;font-weight:700;margin-bottom:8px;color:var(--green)}
+.solution-card p{font-size:14px;color:var(--text2)}
+
+/* ── Feature cards ────────────────────────────────────────────────────── */
+.feature-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;transition:all .25s}
+.feature-card:hover{border-color:rgba(0,200,255,.3);box-shadow:0 8px 32px rgba(26,111,240,.15);transform:translateY(-4px)}
+.feature-card.highlight{border-color:rgba(0,229,160,.25);background:rgba(0,229,160,.03)}
+.feature-card.highlight:hover{border-color:rgba(0,229,160,.5);box-shadow:0 8px 32px rgba(0,229,160,.12)}
+.feature-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px}
+.feature-card h3{font-size:17px;font-weight:700;margin-bottom:8px}
+.feature-card p{font-size:14px;color:var(--text2);line-height:1.6}
+.new-pill{display:inline-block;background:linear-gradient(135deg,rgba(0,229,160,.2),rgba(0,229,160,.1));color:var(--green);border:1px solid rgba(0,229,160,.3);font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;letter-spacing:.6px;text-transform:uppercase;margin-left:8px;vertical-align:middle}
+.fi-blue{background:rgba(26,111,240,.15)}
+.fi-cyan{background:rgba(0,200,255,.12)}
+.fi-green{background:rgba(0,229,160,.12)}
+.fi-purple{background:rgba(139,92,246,.12)}
+.fi-orange{background:rgba(255,149,0,.12)}
+.fi-red{background:rgba(255,69,96,.12)}
+
+/* ── Image redaction demo ─────────────────────────────────────────────── */
+.dicom-demo{
+  background:#070c19;border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  box-shadow:0 0 40px rgba(0,229,160,.12);
+}
+.dicom-bar{
+  background:rgba(255,255,255,.04);padding:8px 16px;
+  display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);
+}
+.dicom-split{display:grid;grid-template-columns:1fr 1fr}
+.dicom-pane{padding:16px;position:relative}
+.dicom-pane:first-child{border-right:1px solid var(--border)}
+.dicom-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+             color:var(--text3);margin-bottom:10px}
+.dicom-img{
+  background:#000;border-radius:6px;padding:12px;
+  font-family:'Courier New',monospace;font-size:11px;line-height:1.9;color:#ddd;
+}
+.dicom-redacted{background:#1a1a2e;border:2px solid rgba(0,229,160,.2);border-radius:6px;padding:12px;
+  font-family:'Courier New',monospace;font-size:11px;line-height:1.9;color:#ddd;}
+.blk{display:inline-block;background:#000;color:transparent;border-radius:2px;
+     min-width:60px;height:14px;vertical-align:middle;margin:0 2px}
+.blk-sm{min-width:40px}
+.blk-lg{min-width:90px}
+
+/* ── Flow ─────────────────────────────────────────────────────────────── */
+.flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;justify-content:center;margin-top:48px}
+.flow-step{text-align:center;flex:1;min-width:140px;max-width:180px;padding:0 8px}
+.flow-circle{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:2px solid var(--blue);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 0 20px rgba(26,111,240,.2)}
+.flow-step h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.flow-step p{font-size:12px;color:var(--text3)}
+.flow-arrow{font-size:20px;color:var(--text3);padding:0 4px;margin-bottom:28px}
+@@media(max-width:768px){.flow-arrow{display:none}}
+
+/* ── Code block ───────────────────────────────────────────────────────── */
+.code-block{background:#070c19;border:1px solid var(--border);border-radius:10px;padding:20px 24px;font-family:'Courier New',monospace;font-size:13px;line-height:1.8;overflow-x:auto}
+.code-block .cb{color:var(--text3)}
+.code-block .ck{color:var(--cyan)}
+.code-block .cv{color:var(--green)}
+.code-block .cs{color:#ffb347}
+
+/* ── Pricing ──────────────────────────────────────────────────────────── */
+.pricing-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px;text-align:center;transition:all .25s}
+.pricing-card.featured{border-color:var(--blue);box-shadow:0 0 40px rgba(26,111,240,.2)}
+.pricing-card .plan{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:8px}
+.pricing-card .price{font-size:42px;font-weight:900;margin:12px 0;color:#fff}
+.pricing-card .price span{font-size:16px;color:var(--text2);font-weight:400}
+.pricing-card .desc{font-size:14px;color:var(--text2);margin-bottom:28px}
+.pricing-card ul{list-style:none;text-align:left;margin-bottom:32px}
+.pricing-card ul li{font-size:14px;color:var(--text2);padding:6px 0;display:flex;gap:10px}
+.pricing-card ul li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
+.pricing-card ul li.new-li::before{content:'★';color:var(--cyan)}
+.badge-featured{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;display:inline-block;margin-bottom:16px}
+
+/* ── Stats bar ────────────────────────────────────────────────────────── */
+.stats-bar{background:linear-gradient(135deg,var(--navy3),#0d1a35);border:1px solid var(--border);border-radius:16px;padding:40px;display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
+@@media(max-width:768px){.stats-bar{grid-template-columns:1fr 1fr}}
+.stat-item .num{font-size:36px;font-weight:900;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-item .label{font-size:13px;color:var(--text3);margin-top:4px}
+
+/* ── Compliance badges ────────────────────────────────────────────────── */
+.compliance-grid{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-top:40px}
+.compliance-badge{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 28px;font-size:13px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:10px}
+.compliance-badge .icon{font-size:20px}
+
+/* ── Quote ────────────────────────────────────────────────────────────── */
+.quote-card{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:0 12px 12px 0;padding:28px 32px;margin-bottom:24px}
+.quote-card p{font-size:16px;color:var(--text);font-style:italic;margin-bottom:16px}
+.quote-card .author{font-size:13px;color:var(--text3);font-weight:600}
+
+/* ── Contact ──────────────────────────────────────────────────────────── */
+.contact-card{background:linear-gradient(135deg,var(--navy3),#0d1a35);border:1px solid var(--border);border-radius:20px;padding:56px;text-align:center}
+.contact-card h2{font-size:36px;font-weight:800;margin-bottom:16px}
+.contact-card p{font-size:18px;color:var(--text2);margin-bottom:36px}
+.contact-email{display:inline-flex;align-items:center;gap:12px;background:rgba(26,111,240,.12);border:1px solid rgba(26,111,240,.3);color:var(--cyan);padding:16px 32px;border-radius:10px;font-size:18px;font-weight:600;margin-bottom:32px;transition:all .2s}
+.contact-email:hover{background:rgba(26,111,240,.2);text-decoration:none;transform:translateY(-2px)}
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+footer{background:var(--navy);border-top:1px solid var(--border);padding:48px 0 32px}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
+@@media(max-width:768px){.footer-grid{grid-template-columns:1fr 1fr}}
+.footer-brand p{font-size:14px;color:var(--text3);margin-top:12px;max-width:280px;line-height:1.6}
+.footer-col h5{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:16px}
+.footer-col ul{list-style:none}
+.footer-col ul li{margin-bottom:10px}
+.footer-col ul li a{color:var(--text2);font-size:14px;transition:color .15s}
+.footer-col ul li a:hover{color:#fff;text-decoration:none}
+.footer-bottom{border-top:1px solid var(--border);padding-top:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ───────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="shield">&#x1F512;</div>
+    PiiRemover
+  </div>
+  <div class="nav-links">
+    <a href="#whats-new">What's New</a>
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#api">API</a>
+    <a href="#security">Security</a>
+    <a href="#pricing">Licensing</a>
+    <a href="/PiiRemover-Flyer.html" download="PiiRemover-Commercial-Flyer.html"
+       style="background:linear-gradient(135deg,#00b37a,#00e5a0);color:#0a0f1e !important;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:5px">
+      ⬇ Flyer
+    </a>
+    <a href="#live-tester">Tester</a>
+    <a href="#pii-fields">Fields</a>
+    <a href="#getting-started">Guide</a>
+    <a href="#contact" class="nav-cta">Contact Sales</a>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-badge">
+          <span class="dot"></span>
+          100% On-Premises &mdash; Your Data Never Leaves
+        </div>
+        <h1>
+          Enterprise PII Redaction<br/>
+          <span class="gradient-text">Built for Healthcare</span>
+        </h1>
+        <p class="hero-sub">
+          Automatically detect and redact patient identifiers from scanned documents,
+          PDFs, DICOM images, and clinical screenshots &mdash; in Hebrew and English &mdash;
+          without sending a single byte to the cloud.
+        </p>
+        <div class="hero-actions">
+          <a href="#contact" class="btn btn-primary">Request a Demo</a>
+          <a href="#whats-new" class="btn btn-green">&#x2728; What's New</a>
+          <a href="#how-it-works" class="btn btn-outline">See How It Works</a>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="val">100%</div><div class="lbl">On-Premises</div></div>
+          <div class="hero-stat"><div class="val">500k+</div><div class="lbl">Terms/Field</div></div>
+          <div class="hero-stat"><div class="val">&#x05D4;&#x05E2;</div><div class="lbl">Hebrew + English</div></div>
+          <div class="hero-stat"><div class="val">🖼+📄</div><div class="lbl">Image + Text</div></div>
+        </div>
+      </div>
+      <div>
+        <!-- Tab between text redaction and image redaction demo -->
+        <div style="display:flex;gap:0;margin-bottom:-1px;position:relative;z-index:1">
+          <button id="tab-text" onclick="switchDemo('text')"
+            style="background:#070c19;border:1px solid rgba(26,111,240,.4);border-bottom:none;
+                   color:var(--cyan);padding:7px 18px;font-size:12px;font-weight:700;
+                   border-radius:8px 8px 0 0;cursor:pointer;letter-spacing:.5px">
+            📄 TEXT REDACT
+          </button>
+          <button id="tab-image" onclick="switchDemo('image')"
+            style="background:var(--navy3);border:1px solid var(--border);border-bottom:none;
+                   color:var(--text3);padding:7px 18px;font-size:12px;font-weight:700;
+                   border-radius:8px 8px 0 0;cursor:pointer;letter-spacing:.5px;margin-left:4px">
+            🖼 IMAGE REDACT
+          </button>
+        </div>
+
+        <!-- Text redaction terminal -->
+        <div id="demo-text" class="terminal">
+          <div class="terminal-bar">
+            <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+            <span style="font-size:12px;color:var(--text3);margin-left:8px">POST /api/v1/redact/redact</span>
+          </div>
+          <div class="terminal-body">
+<span class="t-comment">// Input document text</span><br/>
+<span class="t-key">Patient:</span> <span class="t-str">&#x05DB;&#x05D4;&#x05DF; &#x05E9;&#x05D0;&#x05D5;&#x05DC;</span><br/>
+<span class="t-key">ID:</span>      <span class="t-val">205447709</span><br/>
+<span class="t-key">DOB:</span>     <span class="t-val">30/11/1994</span><br/>
+<span class="t-key">Phone:</span>   <span class="t-val">058-3245670</span><br/>
+<span class="t-key">Referral:</span> <span class="t-val">Sheba Medical Center</span><br/>
+&nbsp;<br/>
+<span class="t-comment">// Redacted response</span><br/>
+<span class="t-key">"redactedText":</span><br/>
+<span class="t-str">&nbsp;Patient: <span class="t-red">&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;</span></span><br/>
+<span class="t-str">&nbsp;ID:      <span class="t-red">&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;</span></span><br/>
+<span class="t-str">&nbsp;DOB:     <span class="t-red">&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;</span></span><br/>
+<span class="t-str">&nbsp;Referral: <span style="color:var(--green)">Sheba Medical Center</span> <span class="t-purple">← preserved ✓</span></span><br/>
+<span class="t-key">"matchCount":</span> <span class="t-val">4</span><span class="t-dim">, </span>
+<span class="t-key">"durationMs":</span> <span class="t-val">138</span>
+          </div>
+        </div>
+
+        <!-- Image redaction demo -->
+        <div id="demo-image" class="dicom-demo" style="display:none">
+          <div class="dicom-bar">
+            <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+            <span style="font-size:12px;color:var(--text3);margin-left:8px">POST /api/v1/redact/redact-image → image/jpeg</span>
+          </div>
+          <div class="dicom-split">
+            <div class="dicom-pane">
+              <div class="dicom-label">📷 Original (DICOM viewer screenshot)</div>
+              <div class="dicom-img">
+                <span style="color:#aaa">20527</span><br/>
+                <span style="color:#aaa">888 x 1595</span><br/>
+                <br/>
+                <span style="color:#fff">Patient:&nbsp;&nbsp;&nbsp;Friedman Noa</span><br/>
+                <span style="color:#fff">ID:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;052748391</span><br/>
+                <span style="color:#fff">DOB:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;14/03/1988</span><br/>
+                <br/>
+                <span style="color:#aaa">Z: 0.20 &nbsp; W: 500 L:50</span><br/>
+                <span style="color:#aaa">2015-12-07 07:31:53</span>
+              </div>
+            </div>
+            <div class="dicom-pane">
+              <div class="dicom-label" style="color:var(--green)">🔒 Redacted — PII pixels painted</div>
+              <div class="dicom-redacted">
+                <span style="color:#aaa">20527</span><br/>
+                <span style="color:#aaa">888 x 1595</span><br/>
+                <br/>
+                <span>Patient:&nbsp;&nbsp;&nbsp;<span class="blk blk-lg"></span></span><br/>
+                <span>ID:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="blk"></span></span><br/>
+                <span>DOB:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="blk"></span></span><br/>
+                <br/>
+                <span style="color:#aaa">Z: 0.20 &nbsp; W: 500 L:50</span><br/>
+                <span style="color:#aaa">2015-12-07 07:31:53</span>
+              </div>
+              <div style="margin-top:10px;font-size:11px;color:var(--green)">
+                ✓ Dark background auto-detected &rarr; inverted for OCR<br/>
+                ✓ 3 PII words painted &mdash; metadata intact
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── What's New ─────────────────────────────────────────────────────── -->
+<section class="section section-alt" id="whats-new">
+  <div class="container">
+    <div class="whats-new-banner">
+      <div class="tag tag-new">&#x2728; New in This Release</div>
+      <h2 class="section-title" style="max-width:700px">
+        Five Major Capabilities.<br/>
+        <span class="gradient-text-green">Built for Real Clinical Environments.</span>
+      </h2>
+      <p style="color:var(--text2);font-size:16px;max-width:680px">
+        This release brings pixel-level image redaction, intelligent dark-background OCR,
+        allow-list Preserve Fields, a half-million-term performance engine, and a built-in
+        debug console — everything a healthcare IT team actually needs.
+      </p>
+
+      <div class="new-feature-grid">
+
+        <div class="new-feature-item">
+          <div class="nf-icon nf-bg-green">🖼</div>
+          <div>
+            <h4>Pixel-Level Image Redaction</h4>
+            <p>Upload a DICOM screenshot, PACS image, or scanned document.
+               PiiRemover OCRs the image, runs your PII rules, and paints
+               <strong>black rectangles</strong> over only the matched words &mdash;
+               leaving all other image content pixel-perfect and intact.</p>
+          </div>
+        </div>
+
+        <div class="new-feature-item">
+          <div class="nf-icon nf-bg-blue">🌑</div>
+          <div>
+            <h4>Smart Dark-Background OCR</h4>
+            <p>Clinical workstations and PACS viewers render white text on black.
+               PiiRemover automatically detects dark-background images,
+               <strong>inverts colours before OCR</strong>, and picks the best
+               pass &mdash; dramatically improving recognition on medical imaging systems.</p>
+          </div>
+        </div>
+
+        <div class="new-feature-item">
+          <div class="nf-icon nf-bg-purple">🛡</div>
+          <div>
+            <h4>Preserve Fields — Intelligent Allow-List</h4>
+            <p>Define terms that must <em>never</em> be redacted: hospital names,
+               clinic brands, equipment identifiers. The <strong>Preserve engine runs before
+               redaction</strong> and protects approved terms even when they match a PII
+               pattern &mdash; zero false positives on your own brand.</p>
+          </div>
+        </div>
+
+        <div class="new-feature-item">
+          <div class="nf-icon nf-bg-orange">⚡</div>
+          <div>
+            <h4>500,000-Term HashSet Engine</h4>
+            <p>The redesigned pattern engine replaces regex alternation with a
+               <strong>HashSet word-tokenizer</strong>: O(text&nbsp;length) matching regardless
+               of term count. A 480,000-name list runs at the same speed as 100 terms.
+               Multi-word names and Unicode/Hebrew supported.</p>
+          </div>
+        </div>
+
+        <div class="new-feature-item">
+          <div class="nf-icon nf-bg-cyan">🔍</div>
+          <div>
+            <h4>Live Tester &amp; Debug Console</h4>
+            <p>Browser-based testing tool built into the admin panel. Upload files
+               or paste text directly. See <strong>OCR output side-by-side with the redacted
+               result</strong>. Right-click any un-redacted word to instantly add it as a
+               Redact or Preserve rule &mdash; without leaving the page.</p>
+          </div>
+        </div>
+
+        <div class="new-feature-item">
+          <div class="nf-icon nf-bg-green" style="font-size:16px">✏️</div>
+          <div>
+            <h4>Inline Pattern Editor</h4>
+            <p>Edit keyword lists directly in the admin panel &mdash; no more CSV
+               uploads for small changes. Add or remove individual terms with a
+               <strong>chip editor</strong>, or bulk-paste a pipe-separated list.
+               Changes invalidate the cache and take effect on the next request.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Problem / Solution ─────────────────────────────────────────── -->
+<section class="section">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">The Challenge</div>
+      <h2 class="section-title">Healthcare Data Is the #1 Target</h2>
+      <p class="section-sub">Medical records contain the most sensitive personal data. Existing cloud solutions create unacceptable compliance risk.</p>
+    </div>
+    <div class="grid-3" style="margin-bottom:48px">
+      <div class="problem-card">
+        <div class="icon">&#x2601;&#xFE0F;</div>
+        <h4>Cloud Exposure</h4>
+        <p>Cloud-based redaction services require uploading patient records to third-party servers &mdash; a HIPAA and GDPR violation risk.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">&#x1F513;</div>
+        <h4>Data Breach Risk</h4>
+        <p>Every external API call is a potential breach vector. Healthcare organisations cannot afford to trust third-party data processors with PHI.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">&#x1F310;</div>
+        <h4>Internet Dependency</h4>
+        <p>Air-gapped hospital networks, secure clinical environments, and offline deployments are incompatible with cloud-only solutions.</p>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="solution-card">
+        <div class="icon">&#x1F3E5;</div>
+        <h4>Fully On-Premises</h4>
+        <p>PiiRemover runs entirely on your infrastructure. Zero internet calls. Zero cloud dependencies. Patient data stays inside your perimeter.</p>
+      </div>
+      <div class="solution-card">
+        <div class="icon">&#x26A1;</div>
+        <h4>Real-Time Processing</h4>
+        <p>Integrated OCR engine (Windows.Media.Ocr + Tesseract) processes scanned documents and images in milliseconds &mdash; no external service round-trips.</p>
+      </div>
+      <div class="solution-card">
+        <div class="icon">&#x1F6E1;&#xFE0F;</div>
+        <h4>Compliance-First Design</h4>
+        <p>Built from the ground up for HIPAA, GDPR, and Israeli privacy law (PPPA). Every architectural decision prioritises data isolation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ──────────────────────────────────────────────────────── -->
+<section class="section section-alt" id="features">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">Capabilities</div>
+      <h2 class="section-title">Everything You Need. Nothing More.</h2>
+      <p class="section-sub">Purpose-built for healthcare document workflows. No bloat, no cloud hooks, no telemetry.</p>
+    </div>
+    <div class="grid-3">
+
+      <div class="feature-card highlight">
+        <div class="feature-icon fi-green">🖼</div>
+        <h3>Image Redaction<span class="new-pill">NEW</span></h3>
+        <p>Pixel-level selective redaction. OCR identifies each word's exact bounding box. PII-matched words get painted black. Everything else stays untouched — including DICOM metadata and imaging measurements.</p>
+      </div>
+
+      <div class="feature-card highlight">
+        <div class="feature-icon fi-blue">🌑</div>
+        <h3>Dark-Background OCR<span class="new-pill">NEW</span></h3>
+        <p>Automatically detects black-background medical images. Luminance sampling across 2,000 pixel grid points. White-on-black PACS overlays are colour-inverted before OCR — the right engine pass is selected automatically.</p>
+      </div>
+
+      <div class="feature-card highlight">
+        <div class="feature-icon fi-purple">🛡</div>
+        <h3>Preserve Fields<span class="new-pill">NEW</span></h3>
+        <p>Allow-list engine that runs before redaction. Define hospital names, clinic brands, drug names, or any approved term. The Preserve pass overrides all redaction patterns — zero false positives on protected terms.</p>
+      </div>
+
+      <div class="feature-card highlight">
+        <div class="feature-icon fi-orange">⚡</div>
+        <h3>500k-Term Engine<span class="new-pill">NEW</span></h3>
+        <p>HashSet word-tokenizer replaces regex alternation. O(text length) regardless of term count. 480,000-name lists run at the same speed as 100 terms. Greedy longest-match with Unicode and Hebrew support.</p>
+      </div>
+
+      <div class="feature-card highlight">
+        <div class="feature-icon fi-cyan">🔍</div>
+        <h3>Live Tester &amp; Debug<span class="new-pill">NEW</span></h3>
+        <p>Built-in browser console. Upload files or type text directly. OCR result and redacted output shown side-by-side. Right-click any selection to instantly add a Redact or Preserve rule without leaving the page.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">&#x1F50D;</div>
+        <h3>Multi-Language OCR</h3>
+        <p>Dual-engine OCR pipeline &mdash; Windows.Media.Ocr (built-in, zero install) with Tesseract fallback. Recognises Hebrew and English in the same document. Smart language-pass selection picks the best result.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon fi-cyan">&#x1F4C4;</div>
+        <h3>PDF &amp; Image Support</h3>
+        <p>Native PDFs (PdfPig), scanned PDFs (rasterisation + OCR), JPEG, PNG, TIFF, BMP, and WebP out of the box. MIME-type-based extractor dispatch handles mixed document queues automatically.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon fi-green">&#x1F3AF;</div>
+        <h3>Configurable PII Fields</h3>
+        <p>14 pre-seeded PII types (Israeli ID, DOB, phone, email, IBAN, passport, name&hellip;). Add custom Regex, keyword-list, context-aware, or LLM patterns per client. Inline chip editor for fast updates.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon fi-purple">&#x1F517;</div>
+        <h3>REST API</h3>
+        <p>Clean versioned REST endpoints for text redaction, image redaction, and OCR extraction. API-key auth. OpenAPI/Swagger docs included. Integrates with any HIS, PACS, or document management system.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon fi-orange">&#x2699;&#xFE0F;</div>
+        <h3>Admin Console</h3>
+        <p>Web-based backoffice to manage clients, API keys, PII patterns, preserve allow-lists, view request logs, and monitor system health &mdash; all behind secure login.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon fi-red">&#x1F9F5;</div>
+        <h3>Thread-Safe &amp; Concurrent</h3>
+        <p>SemaphoreSlim-gated OCR engine. Per-call Tesseract instances. ConcurrentDictionary term-index cache. Handles high-throughput parallel API calls without race conditions or memory spikes.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon fi-green">&#x1F511;</div>
+        <h3>RSA-Signed Licensing</h3>
+        <p>Tamper-proof RSA-2048 license files. Offline validation &mdash; no license server calls. Enforces organisation name, expiry, and quota limits. Deployable to air-gapped networks.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Stats ─────────────────────────────────────────────────────────── -->
+<section style="padding:64px 0">
+  <div class="container">
+    <div class="stats-bar">
+      <div class="stat-item"><div class="num">500k+</div><div class="label">Terms per field (HashSet engine)</div></div>
+      <div class="stat-item"><div class="num">&lt;200ms</div><div class="label">Avg. text redaction time</div></div>
+      <div class="stat-item"><div class="num">4</div><div class="label">API endpoints (text + image + OCR + health)</div></div>
+      <div class="stat-item"><div class="num">&infin;</div><div class="label">Documents/day &mdash; no cloud limits</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How It Works ──────────────────────────────────────────────────── -->
+<section class="section section-alt" id="how-it-works">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">Workflow</div>
+      <h2 class="section-title">How PiiRemover Works</h2>
+      <p class="section-sub">Three processing paths for every scenario — REST API, Image Redaction, and Batch Loader.</p>
+    </div>
+
+    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--cyan)">📄 Text &amp; Document API Flow</h3>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:0">Real-time document redaction via HTTP POST</p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F4E4;</div>
+        <h4>Upload</h4><p>POST file via REST API with API key</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F50D;</div>
+        <h4>Extract</h4><p>OCR or text extraction by MIME type</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F3AF;</div>
+        <h4>Detect</h4><p>Preserve pass then PII pattern matching</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x2702;&#xFE0F;</div>
+        <h4>Redact</h4><p>Right-to-left safe text replacement</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle">&#x1F4CB;</div>
+        <h4>Return</h4><p>JSON with redacted text + match stats</p>
+      </div>
+    </div>
+
+    <div style="height:56px"></div>
+    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--green)">🖼 Image Redaction Flow <span class="new-pill" style="font-size:11px;padding:3px 10px">NEW</span></h3>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:0">Pixel-level selective redaction for DICOM, PACS screenshots, and scanned images</p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">🖼</div>
+        <h4>Upload Image</h4><p>JPEG, PNG, TIFF, BMP, WebP</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">🌑</div>
+        <h4>Dark Detection</h4><p>Auto-invert for DICOM / PACS</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">📐</div>
+        <h4>OCR + Bounds</h4><p>Per-word pixel rectangles</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">🎯</div>
+        <h4>Match &amp; Map</h4><p>PII positions → pixel regions</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green)">🔒</div>
+        <h4>Paint &amp; Return</h4><p>JPEG with black boxes over PII only</p>
+      </div>
+    </div>
+
+    <div style="height:56px"></div>
+    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--orange)">📦 Batch Loader Flow</h3>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:0">Unattended bulk processing via BatchLoader CLI</p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--orange)">&#x1F4C1;</div>
+        <h4>Input Folder</h4><p>Drop files into configured folder</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--orange)">&#x2699;&#xFE0F;</div>
+        <h4>BatchLoader</h4><p>Runs on schedule or on demand</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--orange)">&#x1F517;</div>
+        <h4>API Call</h4><p>Sends each file to redact endpoint</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--orange)">&#x1F4DD;</div>
+        <h4>Output</h4><p>UTF-8 .txt saved to output folder</p>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--orange)">&#x2705;</div>
+        <h4>Done</h4><p>Originals moved to done/ folder</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── API Section ───────────────────────────────────────────────────── -->
+<section class="section" id="api">
+  <div class="container">
+    <div class="grid-2" style="align-items:start;gap:64px">
+      <div>
+        <div class="tag">Integration</div>
+        <h2 class="section-title">Drop-In REST API</h2>
+        <p style="color:var(--text2);margin-bottom:24px">Four endpoints. Any language. Any platform. Integrates with your HIS, PACS, or document management system in hours, not weeks.</p>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:14px">
+          <li style="display:flex;gap:12px;align-items:flex-start">
+            <span style="color:var(--green);font-weight:700;flex-shrink:0">POST</span>
+            <span>
+              <code style="color:var(--cyan)">/api/v1/redact/redact</code><br/>
+              <span style="color:var(--text2);font-size:13px">Upload any document &rarr; receive redacted text + match statistics</span>
+            </span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start">
+            <span style="background:rgba(0,229,160,.15);color:var(--green);font-weight:700;flex-shrink:0;border-radius:4px;padding:0 6px;font-size:11px">POST ★</span>
+            <span>
+              <code style="color:var(--cyan)">/api/v1/redact/redact-image</code>
+              <span class="new-pill">NEW</span><br/>
+              <span style="color:var(--text2);font-size:13px">Upload image &rarr; returns JPEG with PII words painted black. Headers: <code style="color:var(--text3);font-size:11px">X-Match-Count</code>, <code style="color:var(--text3);font-size:11px">X-Fields-Hit</code></span>
+            </span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start">
+            <span style="color:var(--green);font-weight:700;flex-shrink:0">POST</span>
+            <span>
+              <code style="color:var(--cyan)">/api/v1/ocr/extract</code><br/>
+              <span style="color:var(--text2);font-size:13px">OCR extraction only &mdash; returns raw text from scanned documents and images</span>
+            </span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start">
+            <span style="color:var(--blue);font-weight:700;flex-shrink:0">GET&nbsp;</span>
+            <span>
+              <code style="color:var(--cyan)">/api/v1/health</code><br/>
+              <span style="color:var(--text2);font-size:13px">Health probe &mdash; status, uptime, DB, OCR chain, license validity</span>
+            </span>
+          </li>
+        </ul>
+        <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap">
+          <span style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.2);color:var(--green);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700">OpenAPI / Swagger</span>
+          <span style="background:rgba(26,111,240,.1);border:1px solid rgba(26,111,240,.2);color:var(--cyan);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700">API Key Auth</span>
+          <span style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700">Multipart Upload</span>
+          <span style="background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.2);color:var(--orange);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700">image/jpeg Response</span>
+        </div>
+      </div>
+      <div>
+        <div class="code-block" style="margin-bottom:16px">
+<span class="cb"># Redact a medical document (text)</span><br/>
+curl -X POST https://your-server/api/v1/redact/redact \<br/>
+&nbsp; -H <span class="cs">"X-Api-Key: your-api-key"</span> \<br/>
+&nbsp; -F <span class="cs">"file=@@patient_record.pdf"</span><br/>
+&nbsp;<br/>
+<span class="cb"># Response</span><br/>
+{ <span class="ck">"redactedText"</span>: <span class="cs">"Patient: ████ ID: █████████"</span>,<br/>
+&nbsp; <span class="ck">"matchCount"</span>: <span class="cv">5</span>, <span class="ck">"durationMs"</span>: <span class="cv">142</span> }
+        </div>
+        <div class="code-block">
+<span class="cb"># Redact a DICOM / PACS image ★ NEW</span><br/>
+curl -X POST https://your-server/api/v1/redact/redact-image \<br/>
+&nbsp; -H <span class="cs">"X-Api-Key: your-api-key"</span> \<br/>
+&nbsp; -F <span class="cs">"file=@@pacs_screenshot.png"</span> \<br/>
+&nbsp; --output redacted.jpg<br/>
+&nbsp;<br/>
+<span class="cb"># HTTP 200 image/jpeg — redacted image file</span><br/>
+<span class="cb"># X-Match-Count: 3</span><br/>
+<span class="cb"># X-Fields-Hit: Israeli ID, Patient Name, DOB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Admin Console ─────────────────────────────────────────────────── -->
+<section class="section section-alt" id="admin">
+  <div class="container">
+    <div class="grid-2" style="align-items:center;gap:64px">
+      <div>
+        <div class="terminal" style="box-shadow:none">
+          <div class="terminal-bar">
+            <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+            <span style="font-size:12px;color:var(--text3);margin-left:8px">PiiRemover Admin &mdash; Live Tester &amp; Debug</span>
+          </div>
+          <div class="terminal-body" style="font-size:12px">
+<span style="color:var(--text3)">[📂 File] &nbsp; [📝 Text]</span><br/>
+<span style="color:var(--text3)">────────────────────────────────</span><br/>
+<span style="color:var(--cyan)">Drag file or paste text here…</span><br/>
+<span style="color:var(--text3)">Mode: </span><span style="color:#fff">● OCR + Redact &nbsp; ○ OCR only</span><br/>
+<span style="color:var(--text3)">[</span><span style="color:var(--blue)"> Analyze File </span><span style="color:var(--text3)">]</span><br/>
+&nbsp;<br/>
+<span style="color:var(--text3)">──────────── Result ─────────────</span><br/>
+<span style="color:#888">📄 mri_referral.jpg &nbsp; 1.3 MB</span><br/>
+<span style="color:var(--cyan)">OCR &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ </span><span style="color:var(--green)">Redacted</span><br/>
+<span style="color:#ddd">כהן שאול  │ </span><span style="color:var(--red)">████████</span><br/>
+<span style="color:#ddd">ID: 052748│ </span><span style="color:var(--red)">████████</span><br/>
+<span style="color:#888">Sheba Med │ </span><span style="color:var(--green)">Sheba Med <span style="color:var(--purple)">← preserved</span></span><br/>
+&nbsp;<br/>
+<span style="color:var(--text3)">✦ Right-click any text to add rule</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="tag">Admin Console</div>
+        <h2 class="section-title">Full Visibility &amp; Control</h2>
+        <p style="color:var(--text2);margin-bottom:32px">A built-in web-based administration console gives your IT team complete control without needing database access.</p>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">🔍</span>
+            <span><strong>Live Tester &amp; Debug</strong> <span class="new-pill">NEW</span> &mdash; file + text input, side-by-side OCR/redacted panes, right-click to add rules instantly</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">🖼</span>
+            <span><strong>Image Redactor</strong> <span class="new-pill">NEW</span> &mdash; upload DICOM/PACS images, see original vs. redacted side-by-side with word-level match list</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">🛡</span>
+            <span><strong>Preserve Fields</strong> <span class="new-pill">NEW</span> &mdash; inline chip editor for allow-list terms, filter bar to separate Preserve from Redact fields</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">&#x1F465;</span>
+            <span><strong>Client Management</strong> &mdash; create API clients, issue keys, set quotas, enable/disable access</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">&#x1F4CA;</span>
+            <span><strong>Request Logs &amp; Audit Trail</strong> &mdash; every document logged with timing, match count, fields hit, and client identity</span>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <span style="font-size:20px;flex-shrink:0">&#x2764;&#xFE0F;</span>
+            <span><strong>Health Monitor</strong> &mdash; live API health check showing DB status, OCR engine chain, uptime, and license validity</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ REAL UI PANELS ══════════ -->
+<style>
+/* ── Shared app-window chrome ── */
+.app-window{border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 32px 80px rgba(0,0,0,.7)}
+.app-chrome{height:36px;background:#090d13;display:flex;align-items:center;padding:0 14px;gap:6px;border-bottom:1px solid rgba(255,255,255,.07)}
+.app-dot{width:11px;height:11px;border-radius:50%}
+.app-dot-r{background:#ff5f57}.app-dot-y{background:#febc2e}.app-dot-g{background:#28c840}
+.app-url-bar{flex:1;margin:0 12px;height:22px;background:rgba(255,255,255,.06);border-radius:5px;display:flex;align-items:center;padding:0 10px;font-size:10px;color:#636e7b;font-family:monospace}
+.r-nav{background:#090d13;padding:0 18px;display:flex;align-items:center;height:46px;gap:18px;border-bottom:1px solid rgba(255,255,255,.07);flex-wrap:wrap}
+.r-nav .brand{color:#fff;font-size:14px;font-weight:600;letter-spacing:.4px}
+.r-nav a{color:#adbac7;font-size:11px;text-decoration:none;padding:3px 0;white-space:nowrap}
+.r-nav a.ra{color:#e6edf3;font-weight:600}
+.r-nav .rsp{flex:1}
+.r-ver{color:#636e7b;font-size:10px;font-weight:600;border:1px solid #444c56;border-radius:8px;padding:1px 7px}
+/* ── Tester pane styles ── */
+.te-drop{border:2px dashed #444c56;border-radius:8px;padding:18px 16px;text-align:center;background:#1c2128;font-size:12px;color:#636e7b}
+.te-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.te-chip{display:inline-flex;align-items:center;gap:4px;background:#161b22;border:1px solid #444c56;border-radius:14px;padding:2px 9px;font-size:11px;color:#adbac7}
+.te-ext{background:rgba(22,119,255,.18);color:#4a90d9;border-radius:2px;padding:1px 4px;font-size:9px;font-weight:700;text-transform:uppercase}
+.te-run-btn{background:#1677ff;color:#fff;border:none;padding:6px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer}
+.te-toolbar{display:flex;align-items:center;gap:5px;padding:6px 12px;border-bottom:1px solid #30363d;background:#1c2128;flex-wrap:wrap}
+.te-tb{background:#161b22;border:1px solid #444c56;color:#adbac7;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer}
+.te-tb.pos-on{background:rgba(250,140,22,.15);border-color:#fa8c16;color:#fa8c16;font-weight:700}
+.te-tb.grid-on{background:rgba(22,119,255,.15);border-color:#1677ff;color:#60a5fa;font-weight:700}
+.te-hint{font-size:11px;font-family:monospace;color:#60a5fa;font-weight:700;padding:0 4px}
+.te-sep{width:1px;height:16px;background:#444c56;flex-shrink:0}
+.te-split{display:grid;grid-template-columns:1fr 1fr}
+@@media(max-width:700px){.te-split{grid-template-columns:1fr}}
+.te-pane{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid #30363d}
+.te-pane:last-child{border-right:none}
+.te-pane-hdr{padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.3px;border-bottom:1px solid #30363d}
+.te-pane-hdr.ph-o{background:rgba(22,119,255,.08);color:#4a90d9}
+.te-pane-hdr.ph-r{background:rgba(82,196,26,.07);color:#52c41a}
+.te-pane-body{padding:8px 10px;font-family:'Cascadia Code','Consolas',monospace;font-size:10.5px;line-height:1.8;color:#adbac7;background:#1c2128;white-space:pre-wrap}
+.hi-a{background:rgba(250,173,20,.22);color:#faad14;border-radius:2px;padding:0 1px}
+.hi-g{background:rgba(82,196,26,.2);color:#52c41a;border-radius:2px;padding:0 1px;font-weight:700}
+.gl-n{display:inline-block;width:40px;text-align:right;font-size:9px;color:rgba(96,165,250,.8);background:rgba(96,165,250,.07);padding-right:5px;margin-right:7px;border-right:2px solid rgba(96,165,250,.25);font-weight:700}
+.te-flds{padding:5px 12px 8px;display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid #30363d;background:#161b22}
+.te-fchip{background:rgba(22,119,255,.14);color:#4a90d9;border:1px solid rgba(22,119,255,.22);border-radius:3px;padding:1px 7px;font-size:10px;font-weight:600}
+/* ── Fields page styles ── */
+.fe-page{background:#0d1117;padding:14px 16px}
+.fe-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@@media(max-width:700px){.fe-grid2{grid-template-columns:1fr}}
+.fe-card{background:#161b22;border:1px solid #30363d;border-radius:7px;padding:12px 14px}
+.fe-card.preserve{border-color:rgba(82,196,26,.3);background:rgba(82,196,26,.03)}
+.fe-card-title{font-size:12px;font-weight:700;color:#e6edf3;margin-bottom:8px;padding-bottom:7px;border-bottom:1px solid #30363d}
+.fe-input{background:#0d1117;color:#e6edf3;border:1px solid #444c56;border-radius:4px;padding:5px 8px;font-size:11px;width:100%}
+.fe-label{font-size:10px;color:#636e7b;display:block;margin-bottom:3px}
+.fe-presets{display:flex;gap:3px}
+.fe-preset{width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-family:monospace;border:1px solid #444c56;border-radius:4px;background:#0d1117;color:#e6edf3;cursor:pointer}
+.fe-preset.sel{border-color:#fa8c16;color:#fa8c16;background:rgba(250,140,22,.1);font-weight:700}
+.fe-btn{padding:5px 12px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer}
+.fe-btn-blue{background:#1677ff;color:#fff}
+.fe-btn-green{background:#52c41a;color:#fff}
+.fe-field-list{background:#161b22;border:1px solid #30363d;border-radius:7px;overflow:hidden;margin-bottom:10px}
+.fe-fhdr{background:#1c2128;padding:7px 12px;display:grid;grid-template-columns:2fr 50px 100px 70px 80px;gap:8px;font-size:10px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #30363d}
+.fe-frow{padding:8px 12px;display:grid;grid-template-columns:2fr 50px 100px 70px 80px;gap:8px;align-items:center;border-bottom:1px solid #30363d;font-size:11px;color:#adbac7}
+.fe-frow:last-child{border-bottom:none}
+.fe-fname{font-weight:600;color:#e6edf3}
+.fe-frepl{font-family:monospace;font-size:15px;font-weight:700;color:#faad14}
+.fe-pbadge{background:rgba(22,119,255,.15);color:#4a90d9;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700}
+.fe-pvbadge{background:rgba(82,196,26,.15);color:#52c41a;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700}
+.fe-editbtn{padding:2px 8px;border-radius:3px;font-size:10px;background:#1c2128;border:1px solid #444c56;color:#adbac7;cursor:pointer}
+.fe-action-btns{display:flex;gap:6px;margin-left:auto}
+.fe-action-btn{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;background:#161b22;border:1px solid #444c56;border-radius:6px;font-size:11px;color:#e6edf3;cursor:pointer}
+/* pattern rows */
+.pt-wrap{background:#161b22;border:1px solid #30363d;border-radius:7px;overflow:hidden}
+.pt-hdr{background:#1c2128;padding:8px 14px;font-size:10px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #30363d;display:grid;grid-template-columns:1.2fr 1.6fr 1.4fr 80px;gap:10px}
+.pt-row{padding:9px 14px;display:grid;grid-template-columns:1.2fr 1.6fr 1.4fr 80px;gap:10px;align-items:center;border-bottom:1px solid #30363d;font-size:11px}
+.pt-row:last-child{border-bottom:none}
+.pt-type{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.pt-regex{background:rgba(22,119,255,.15);color:#4a90d9}
+.pt-filelist{background:rgba(114,46,209,.15);color:#a78bfa}
+.pt-afterlabel{background:rgba(250,173,20,.15);color:#faad14}
+.pt-constlist{background:rgba(82,196,26,.15);color:#52c41a}
+.pt-scope{display:inline-flex;align-items:center;font-size:10px;color:#fa8c16;background:rgba(250,140,22,.1);border-radius:10px;padding:1px 7px;border:1px solid rgba(250,140,22,.25)}
+.pt-code{font-family:monospace;font-size:10px;color:#adbac7;background:#0d1117;padding:2px 6px;border-radius:3px}
+.pt-match{font-size:11px;color:#52c41a;font-weight:700}
+/* ── Getting Started styles ── */
+.gs-embed{background:#0d1117;padding:16px 18px}
+.gs-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px}
+.gs-pill{font-size:10px;padding:3px 10px;border:1px solid #444c56;border-radius:14px;color:#adbac7;background:#161b22}
+.gs-step-row{display:flex;gap:14px;margin-bottom:16px;align-items:flex-start}
+.gs-num{flex-shrink:0;width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1677ff,#0958d9);color:#fff;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(22,119,255,.4)}
+.gs-body{flex:1;background:#161b22;border:1px solid #30363d;border-radius:7px;padding:12px 14px}
+.gs-step-title{font-size:13px;font-weight:700;color:#e6edf3;margin-bottom:7px}
+.gs-step-desc{font-size:11.5px;color:#adbac7;line-height:1.65;margin-bottom:10px}
+.gs-ba{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:10px}
+@@media(max-width:600px){.gs-ba{grid-template-columns:1fr}}
+.gs-ba-arrow{font-size:18px;color:#1677ff;text-align:center}
+.gs-doc{background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:10px 12px;font-family:'Cascadia Code','Consolas',monospace;font-size:10px;line-height:1.9;color:#adbac7;white-space:pre}
+.gs-doc .orig-hi{background:rgba(255,77,79,.2);border-radius:2px;padding:0 2px}
+.gs-doc .rdc-hi{background:rgba(82,196,26,.15);color:#52c41a;border-radius:2px;padding:0 2px}
+.gs-doclabel{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#636e7b;margin-bottom:4px}
+.gs-tip{display:flex;gap:8px;padding:8px 10px;background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2);border-radius:5px;font-size:11px;color:#adbac7;margin-top:8px}
+.gs-tip-good{background:rgba(82,196,26,.05);border-color:rgba(82,196,26,.25)}
+.gs-pt-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.gs-pchip{background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:7px 10px;font-size:10px;min-width:110px}
+.gs-pchip .pcn{font-weight:700;color:#e6edf3}
+.gs-pchip .pce{font-family:monospace;color:#1677ff;font-size:9px}
+.gs-pchip .pcu{color:#636e7b;font-size:9px}
+.gs-pchip.rec{border-color:#1677ff;background:rgba(22,119,255,.05)}
+.gs-connector{width:2px;height:14px;background:linear-gradient(to bottom,rgba(22,119,255,.3),transparent);margin:3px 0 3px 17px}
+.gs-api-box{background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:10px 12px;font-family:monospace;font-size:10px;line-height:1.75;overflow-x:auto;white-space:pre}
+.gs-api-box .kw{color:#faad14}.gs-api-box .str{color:#6ab04c}.gs-api-box .cmt{color:#636e7b}
+.gs-qr{background:#0d1117;border:1px solid #30363d;border-radius:5px;overflow:hidden}
+.gs-qr-hdr{background:#1c2128;padding:7px 12px;font-size:10px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;display:grid;grid-template-columns:1.5fr 1fr 80px 1.5fr 50px;gap:8px;border-bottom:1px solid #30363d}
+.gs-qr-row{padding:7px 12px;display:grid;grid-template-columns:1.5fr 1fr 80px 1.5fr 50px;gap:8px;align-items:center;border-bottom:1px solid #30363d;font-size:10px;color:#adbac7}
+.gs-qr-row:last-child{border-bottom:none}
+.gs-qr-row:hover{background:#1c2128}
+.gs-badge-b{display:inline-block;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:700;background:rgba(22,119,255,.15);color:#4a90d9;border:1px solid rgba(22,119,255,.2)}
+.gs-badge-g{display:inline-block;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:700;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.2)}
+.gs-mono{font-family:monospace;font-size:9px;color:#adbac7;background:#1c2128;padding:1px 5px;border-radius:3px}
+.gs-repl{font-family:monospace;font-size:13px;font-weight:700;color:#faad14}
+@@keyframes float2{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.ui-float{animation:float2 5s ease-in-out infinite}
+</style>
+
+<!-- ══════════ LIVE TESTER SECTION ══════════ -->
+<section class="section" id="live-tester" style="padding-top:0">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag tag-new">Live Tester &amp; Debug Console</div>
+      <h2 class="section-title">See Every Redaction Decision.</h2>
+      <p class="section-sub">The built-in Live Tester runs the exact same engine as the API. Upload real documents, inspect OCR and redacted output side-by-side, and use the ⊞ Grid mode to navigate character offsets like a professional forensics tool.</p>
+    </div>
+    <div class="app-window ui-float" style="max-width:920px;margin:0 auto">
+      <div class="app-chrome">
+        <div class="app-dot app-dot-r"></div><div class="app-dot app-dot-y"></div><div class="app-dot app-dot-g"></div>
+        <div class="app-url-bar">🔒 your-server/admin/tester</div>
+      </div>
+      <div class="r-nav">
+        <span class="brand">🔒 PiiRemover</span>
+        <a href="#">Dashboard</a>
+        <a href="#" class="ra">🔍 Tester &amp; Debug</a>
+        <a href="#">Clients</a>
+        <a href="#">PII Fields</a>
+        <a href="#">Logs</a>
+        <a href="#">⚙ Settings</a>
+        <span class="rsp"></span>
+        <span class="r-ver">v3.0.11</span>
+      </div>
+      <div style="padding:12px 14px;background:#0d1117">
+        <div class="te-drop">
+          <div style="font-size:15px;margin-bottom:2px">📂 Drop files here or click to select</div>
+          <div>PDF · Image · TXT · DOCX — up to 50 MB each</div>
+          <div class="te-chips">
+            <span class="te-chip"><span class="te-ext">PDF</span> patient_record.pdf</span>
+            <span class="te-chip"><span class="te-ext">PDF</span> discharge_summary.pdf</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+          <button class="te-run-btn">▶ Analyze All (2 files)</button>
+          <span style="font-size:11px;color:#636e7b">OCR + Redact pipeline — same engine as the API</span>
+        </div>
+      </div>
+      <!-- Result card -->
+      <div style="margin:0 14px 14px;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #30363d;background:#1c2128">
+          <span style="width:8px;height:8px;border-radius:50%;background:#52c41a"></span>
+          <span style="font-size:10px;color:#4a90d9;font-weight:700">PDF</span>
+          <span style="font-size:11px;font-weight:700;color:#e6edf3">patient_record.pdf</span>
+          <span style="font-size:10px;color:#636e7b">128 KB</span>
+          <span style="margin-left:auto;font-size:10px;color:#636e7b">📍OCR: 312ms · ✓ 5 matches</span>
+        </div>
+        <div style="display:flex;gap:0;padding:5px 12px;border-bottom:1px solid #30363d;font-size:10px;color:#adbac7;background:#161b22">
+          <span style="padding-right:10px;margin-right:10px;border-right:1px solid #30363d">📝 OCR <strong style="color:#1677ff">312ms</strong></span>
+          <span style="padding-right:10px;margin-right:10px;border-right:1px solid #30363d">🔍 <strong style="color:#faad14">5 matches</strong></span>
+          <span style="padding-right:10px;margin-right:10px;border-right:1px solid #30363d">🏷 <strong style="color:#52c41a">3 fields</strong></span>
+          <span>⚡ Total <strong style="color:#e6edf3">448ms</strong></span>
+        </div>
+        <div class="te-flds">
+          <span class="te-fchip">Patient Name</span>
+          <span class="te-fchip">Israeli ID</span>
+          <span class="te-fchip">Phone</span>
+        </div>
+        <div class="te-toolbar">
+          <span class="te-tb">← RTL</span>
+          <span class="te-sep"></span>
+          <span class="te-tb">A−</span>
+          <span style="font-size:10px;color:#636e7b;font-family:monospace;min-width:28px;text-align:center">11.5px</span>
+          <span class="te-tb">A+</span>
+          <span class="te-sep"></span>
+          <span class="te-tb pos-on">📍 Pos</span>
+          <span class="te-tb grid-on">⊞ Grid</span>
+          <span class="te-hint">Ln 2, Col 4 · Pos 22</span>
+          <span class="te-sep"></span>
+          <span class="te-tb" style="margin-left:auto">🔍 Search…</span>
+          <span class="te-tb">⬇ Redacted</span>
+        </div>
+        <div class="te-split">
+          <div class="te-pane">
+            <div class="te-pane-hdr ph-o">📝 Original — PII highlighted</div>
+            <div class="te-pane-body"><span class="gl-n">00000</span>Patient: <span class="hi-a">David Cohen</span>
+<span class="gl-n">00022</span>ID: <span class="hi-a">IL-1234567</span>
+<span class="gl-n">00035</span>DOB: <span class="hi-a">1985-03-14</span>
+<span class="gl-n">00049</span>Phone: <span class="hi-a">050-123-4567</span>
+<span class="gl-n">00065</span>Diagnosis: Hypertension
+<span class="gl-n">00087</span>Attending: <span class="hi-a">Dr. Sarah Levy</span></div>
+          </div>
+          <div class="te-pane">
+            <div class="te-pane-hdr ph-r">🔒 Redacted Output <span style="margin-left:auto;font-weight:400;font-size:9px;color:#636e7b">⏱ 136ms</span></div>
+            <div class="te-pane-body"><span class="gl-n">00000</span>Patient: <span class="hi-g">XXXXXXXXXXX</span>
+<span class="gl-n">00022</span>ID: <span class="hi-g">XXXXXXXXXX</span>
+<span class="gl-n">00035</span>DOB: <span class="hi-g">XXXXXXXXXX</span>
+<span class="gl-n">00049</span>Phone: <span class="hi-g">XXXXXXXXXXXX</span>
+<span class="gl-n">00065</span>Diagnosis: Hypertension
+<span class="gl-n">00087</span>Attending: <span class="hi-g">XXXXXXXXXXXXXX</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="text-align:center;color:var(--text3);font-size:13px;margin-top:20px">
+      ⊞ <strong style="color:var(--text2)">Grid mode</strong> — character offset gutter per line for precise position debugging &nbsp;·&nbsp;
+      📍 <strong style="color:var(--text2)">Pos mode</strong> — hover to see exact char position &nbsp;·&nbsp;
+      Right-click → instantly add Redact or Preserve rule
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ PII FIELDS PAGE ══════════ -->
+<section class="section section-alt" id="pii-fields" style="padding-top:0">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">PII Fields Configuration</div>
+      <h2 class="section-title">Define What Gets Redacted. <span class="gradient-text">In Full Detail.</span></h2>
+      <p class="section-sub">Stack multiple detection engines per field — Regex, file lists of 500k names, label-based capture, constant lists, and more. The real admin interface, exactly as it looks.</p>
+    </div>
+    <div class="app-window" style="max-width:960px;margin:0 auto">
+      <div class="app-chrome">
+        <div class="app-dot app-dot-r"></div><div class="app-dot app-dot-y"></div><div class="app-dot app-dot-g"></div>
+        <div class="app-url-bar">🔒 your-server/admin/fields</div>
+      </div>
+      <div class="r-nav">
+        <span class="brand">🔒 PiiRemover</span>
+        <a href="#">Dashboard</a>
+        <a href="#">🔍 Tester</a>
+        <a href="#" class="ra">PII Fields</a>
+        <a href="#">Logs</a>
+        <a href="#">⚙ Settings</a>
+        <span class="rsp"></span>
+        <span class="r-ver">v3.0.11</span>
+      </div>
+      <div class="fe-page">
+        <div style="display:flex;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <span style="font-size:14px;font-weight:700;color:#e6edf3">PII Fields &amp; Patterns</span>
+          <span style="font-size:11px;color:#1677ff;margin-left:4px">📖 Pattern Help</span>
+          <div class="fe-action-btns">
+            <div class="fe-action-btn">💾 <span style="display:flex;flex-direction:column;line-height:1.3"><span style="font-size:11px;font-weight:600">Save Backup</span><span style="font-size:9px;color:#636e7b">Download fields as JSON</span></span></div>
+            <div class="fe-action-btn">📂 <span style="display:flex;flex-direction:column;line-height:1.3"><span style="font-size:11px;font-weight:600">Load Backup</span><span style="font-size:9px;color:#636e7b">Restore from JSON file</span></span></div>
+          </div>
+        </div>
+        <div class="fe-grid2">
+          <div class="fe-card">
+            <div class="fe-card-title">Add PII Field <span style="font-size:9px;font-weight:400;color:#636e7b">(redact matches)</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+              <div style="flex:1;min-width:130px"><div class="fe-label">Field name</div><input class="fe-input" value="Patient Name" style="max-width:180px" readonly></div>
+              <div><div class="fe-label">Replacement char</div>
+                <div style="display:flex;gap:5px;align-items:center">
+                  <input class="fe-input" value="█" style="width:40px;font-size:18px;text-align:center;font-family:monospace;padding:2px" readonly>
+                  <div class="fe-presets">
+                    <div class="fe-preset sel">█</div>
+                    <div class="fe-preset">*</div>
+                    <div class="fe-preset">-</div>
+                    <div class="fe-preset">#</div>
+                    <div class="fe-preset">•</div>
+                    <div class="fe-preset">×</div>
+                  </div>
+                </div>
+              </div>
+              <button class="fe-btn fe-btn-blue">Add Field</button>
+            </div>
+          </div>
+          <div class="fe-card preserve">
+            <div class="fe-card-title">🛡 Add Preserve Field <span style="font-size:9px;font-weight:400;color:#636e7b">(never redacted)</span></div>
+            <p style="font-size:11px;color:#636e7b;margin-bottom:8px">Terms here <strong style="color:#52c41a">override all rules</strong> — institution names, drug names, etc.</p>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end">
+              <div style="flex:1;min-width:120px"><div class="fe-label">Field name</div><input class="fe-input" value="Medical Terms" readonly></div>
+              <div style="flex:2;min-width:180px"><div class="fe-label">Terms (pipe-separated)</div><input class="fe-input" value="Ibuprofen|Metformin|Aspirin|MRI" readonly></div>
+              <button class="fe-btn fe-btn-green">🛡 Create</button>
+            </div>
+          </div>
+        </div>
+        <div class="fe-field-list">
+          <div class="fe-fhdr"><span>Field Name</span><span>Replace</span><span>Patterns</span><span>Priority</span><span>Actions</span></div>
+          <div class="fe-frow"><span><span class="fe-fname">Patient Name</span></span><span class="fe-frepl">█</span><span><span class="fe-pbadge">3 patterns</span></span><span style="font-size:10px;color:#636e7b">10</span><span><button class="fe-editbtn">✏ Edit</button></span></div>
+          <div class="fe-frow"><span><span class="fe-fname">Israeli ID</span></span><span class="fe-frepl">█</span><span><span class="fe-pbadge">2 patterns</span></span><span style="font-size:10px;color:#636e7b">20</span><span><button class="fe-editbtn">✏ Edit</button></span></div>
+          <div class="fe-frow"><span><span class="fe-fname">Phone Number</span></span><span class="fe-frepl">*</span><span><span class="fe-pbadge">1 pattern</span></span><span style="font-size:10px;color:#636e7b">30</span><span><button class="fe-editbtn">✏ Edit</button></span></div>
+          <div class="fe-frow"><span><span class="fe-fname">🛡 Medical Terms</span></span><span>—</span><span><span class="fe-pvbadge">Preserve</span></span><span style="font-size:10px;color:#636e7b">1</span><span><button class="fe-editbtn">✏ Edit</button></span></div>
+          <div class="fe-frow"><span><span class="fe-fname">Names Dictionary</span></span><span class="fe-frepl">█</span><span><span class="fe-pbadge">FileList</span></span><span style="font-size:10px;color:#636e7b">5</span><span><button class="fe-editbtn">✏ Edit</button></span></div>
+        </div>
+        <div style="background:#161b22;border:1px solid rgba(22,119,255,.3);border-radius:7px;padding:10px 12px">
+          <div style="font-size:11px;font-weight:700;color:#4a90d9;margin-bottom:8px">▾ Patterns for: Patient Name</div>
+          <div class="pt-wrap">
+            <div class="pt-hdr"><span>Type</span><span>Pattern</span><span>Notes</span><span>Scope / Hits</span></div>
+            <div class="pt-row"><span><span class="pt-type pt-afterlabel">AfterLabel</span></span><span class="pt-code">Patient:|שם מלא:</span><span style="font-size:10px;color:#636e7b">Value after label</span><span class="pt-match">✓ 1 hit</span></div>
+            <div class="pt-row"><span><span class="pt-type pt-filelist">FileList</span></span><span class="pt-code">names_il.dat (84,320)</span><span><span class="pt-scope">🎯 Scope: pos 0–500</span></span><span class="pt-match">✓ 2 hits</span></div>
+            <div class="pt-row"><span><span class="pt-type pt-constlist">ConstList</span></span><span class="pt-code">Dr. Cohen|Dr. Levy</span><span style="font-size:10px;color:#636e7b">Known doctors</span><span class="pt-match">✓ 1 hit</span></div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="fe-btn fe-btn-blue" style="font-size:10px">+ Add Pattern</button>
+            <button class="fe-btn" style="background:#1c2128;border:1px solid #444c56;color:#adbac7;font-size:10px">📁 Import File List</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ GETTING STARTED ══════════ -->
+<section class="section" id="getting-started">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag tag-new">Getting Started Guide</div>
+      <h2 class="section-title">Zero to First Redaction in <span class="gradient-text-green">5 Minutes.</span></h2>
+      <p class="section-sub">The built-in interactive guide — available right in your admin panel — walks every step with real before/after examples and direct links.</p>
+    </div>
+    <div class="app-window" style="max-width:960px;margin:0 auto">
+      <div class="app-chrome">
+        <div class="app-dot app-dot-r"></div><div class="app-dot app-dot-y"></div><div class="app-dot app-dot-g"></div>
+        <div class="app-url-bar">🔒 your-server/admin/getting-started</div>
+      </div>
+      <div class="r-nav">
+        <span class="brand">🔒 PiiRemover</span>
+        <a href="#">Dashboard</a>
+        <a href="#">🔍 Tester</a>
+        <a href="#">PII Fields</a>
+        <a href="#">Logs</a>
+        <a href="#">⚙ Settings</a>
+        <a href="#" class="ra">🚀 Getting Started</a>
+        <span class="rsp"></span>
+        <span class="r-ver">v3.0.11</span>
+      </div>
+      <div class="gs-embed">
+        <div style="padding-bottom:12px;border-bottom:1px solid #30363d;margin-bottom:14px">
+          <div style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:4px">🚀 Getting Started</div>
+          <div style="font-size:11px;color:#636e7b;margin-bottom:10px">From zero to your first redacted document in under 5 minutes.</div>
+          <div class="gs-pills">
+            <span class="gs-pill">① Define a PII Field</span>
+            <span class="gs-pill">② Add a Pattern</span>
+            <span class="gs-pill">③ Test in Live Tester</span>
+            <span class="gs-pill">④ Protect specific terms</span>
+            <span class="gs-pill">⑤ Call the API</span>
+            <span class="gs-pill">⑥ Name Lists &amp; Scope</span>
+          </div>
+        </div>
+        <!-- Step 1 -->
+        <div class="gs-step-row">
+          <div class="gs-num">1</div>
+          <div class="gs-body">
+            <div class="gs-step-title">Define a PII Field — what should be redacted?</div>
+            <div class="gs-step-desc">A <strong>PII Field</strong> is a named category ("Israeli ID", "Phone", "Patient Name"). Each field has a <strong>replacement character</strong> that fills the redacted space, preserving document length.</div>
+            <div class="gs-ba">
+              <div><div class="gs-doclabel">📄 Input</div><div class="gs-doc">Patient: <span class="orig-hi">David Cohen</span>
+ID:      <span class="orig-hi">123456789</span>
+Phone:   <span class="orig-hi">050-1234567</span></div></div>
+              <div class="gs-ba-arrow">→</div>
+              <div><div class="gs-doclabel">✅ Redacted</div><div class="gs-doc">Patient: <span class="rdc-hi">███████████</span>
+ID:      <span class="rdc-hi">█████████</span>
+Phone:   <span class="rdc-hi">███████████</span></div></div>
+            </div>
+            <div class="gs-tip gs-tip-good"><span>💡</span><span>Replacement char repeats to match original text length — positional layout is preserved. Use █, *, -, # or any character.</span></div>
+          </div>
+        </div>
+        <div class="gs-connector"></div>
+        <!-- Step 2 -->
+        <div class="gs-step-row">
+          <div class="gs-num">2</div>
+          <div class="gs-body">
+            <div class="gs-step-title">Add a Pattern — how should the field find its data?</div>
+            <div class="gs-step-desc">Every field needs at least one pattern. Pick the simplest type that works — stack multiple engines per field for maximum recall.</div>
+            <div class="gs-pt-chips">
+              <div class="gs-pchip rec"><span class="pcn">🔤 WholeWord</span><span class="pce">"David Cohen"</span><span class="pcu">Exact names</span></div>
+              <div class="gs-pchip rec"><span class="pcn">📋 ConstList</span><span class="pce">Cohen|Levy|Sharon</span><span class="pcu">Fixed term list</span></div>
+              <div class="gs-pchip rec"><span class="pcn">🔢 NumberSeq</span><span class="pce">length=9</span><span class="pcu">Israeli ID digits</span></div>
+              <div class="gs-pchip"><span class="pcn">🏷 AfterLabel</span><span class="pce">"Patient:"</span><span class="pcu">Value after label</span></div>
+              <div class="gs-pchip"><span class="pcn">🔍 Regex</span><span class="pce">\b\d{9}\b</span><span class="pcu">Complex patterns</span></div>
+              <div class="gs-pchip"><span class="pcn">📁 FileList</span><span class="pce">names.dat</span><span class="pcu">500k dictionaries</span></div>
+              <div class="gs-pchip"><span class="pcn">🎯 BetweenMarkers</span><span class="pce">[START]..[END]</span><span class="pcu">Bracketed values</span></div>
+              <div class="gs-pchip"><span class="pcn">↩ BeginsWith</span><span class="pce">+972</span><span class="pcu">Prefix matching</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="gs-connector"></div>
+        <!-- Step 3 -->
+        <div class="gs-step-row">
+          <div class="gs-num">3</div>
+          <div class="gs-body">
+            <div class="gs-step-title">🛡 Preserve Fields — protect institution names, drug names</div>
+            <div class="gs-ba">
+              <div><div class="gs-doclabel">⚠ Without Preserve</div><div class="gs-doc">Admitted to <span class="rdc-hi">███████ ██████</span>
+Dr. <span class="rdc-hi">████████</span></div></div>
+              <div class="gs-ba-arrow">→</div>
+              <div><div class="gs-doclabel">✅ With Preserve: "Hadassah"</div><div class="gs-doc">Admitted to Hadassah
+Dr. <span class="rdc-hi">████████</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="gs-connector"></div>
+        <!-- Step 4 - API -->
+        <div class="gs-step-row">
+          <div class="gs-num">5</div>
+          <div class="gs-body">
+            <div class="gs-step-title">Call the API from your application</div>
+            <div class="gs-api-box"><span class="cmt"># Upload any file, get redacted text + match positions</span>
+<span class="kw">curl</span> -X POST https://your-server/api/v1/redact/redact \
+  -H <span class="str">"X-Api-Key: YOUR_KEY_HERE"</span> \
+  -F <span class="str">"file=@@patient_record.pdf"</span>
+
+<span class="cmt">// Response</span>
+{ <span class="str">"matchCount"</span>: 5, <span class="str">"fieldsHit"</span>: [<span class="str">"Patient Name"</span>, <span class="str">"Israeli ID"</span>],
+  <span class="str">"matches"</span>: [{ <span class="str">"startIndex"</span>: 9, <span class="str">"length"</span>: 11,
+    <span class="str">"fieldName"</span>: <span class="str">"Patient Name"</span>,
+    <span class="str">"replacement"</span>: <span class="str">"███████████"</span> }] }</div>
+            <div style="margin-top:10px">
+              <div style="font-size:11px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Common Field Configurations</div>
+              <div class="gs-qr">
+                <div class="gs-qr-hdr"><span>What to redact</span><span>Field</span><span>Engine</span><span>Pattern</span><span>Replace</span></div>
+                <div class="gs-qr-row"><span>Israeli ID (9 digits)</span><span>Israeli ID</span><span><span class="gs-badge-b">Regex</span></span><span class="gs-mono">\b[0-9]{9}\b</span><span class="gs-repl">█</span></div>
+                <div class="gs-qr-row"><span>Israeli mobile</span><span>Phone</span><span><span class="gs-badge-b">Regex</span></span><span class="gs-mono">0[5-9]\d[-\s]?\d{7}</span><span class="gs-repl">█</span></div>
+                <div class="gs-qr-row"><span>Email address</span><span>Email</span><span><span class="gs-badge-b">Regex</span></span><span class="gs-mono">[a-z0-9.]+@@[a-z]+\.[a-z]{2,}</span><span class="gs-repl">█</span></div>
+                <div class="gs-qr-row"><span>Patient from label</span><span>Patient Name</span><span><span class="gs-badge-b">AfterLabel</span></span><span class="gs-mono">Patient:|שם:</span><span class="gs-repl">█</span></div>
+                <div class="gs-qr-row"><span>Institution (keep)</span><span>🛡 Institutions</span><span><span class="gs-badge-g">Preserve</span></span><span class="gs-mono">Hadassah|Ichilov</span><span style="font-size:10px;color:#636e7b">never</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Security & Compliance ─────────────────────────────────────────── -->
+<section class="section" id="security">
+  <div class="container text-center">
+    <div class="tag">Security</div>
+    <h2 class="section-title">Built for Regulated Environments</h2>
+    <p class="section-sub">Every design decision was made with security and compliance in mind. Not bolted on &mdash; baked in.</p>
+    <div class="grid-2" style="text-align:left;margin-bottom:40px">
+      <div class="quote-card">
+        <p>"Patient data must never leave the hospital's network perimeter. PiiRemover is the only redaction solution we evaluated that is architecturally capable of running fully air-gapped."</p>
+        <div class="author">&mdash; Hospital IT Director, Design Review</div>
+      </div>
+      <div class="quote-card">
+        <p>"The RSA-signed offline licensing model means we can deploy to isolated clinical environments without any outbound network dependency &mdash; exactly what our compliance team required."</p>
+        <div class="author">&mdash; Healthcare Integration Architect</div>
+      </div>
+    </div>
+    <div class="compliance-grid">
+      <div class="compliance-badge"><span class="icon">&#x1F3E5;</span> HIPAA Ready</div>
+      <div class="compliance-badge"><span class="icon">&#x1F1EA;&#x1F1FA;</span> GDPR Compliant Architecture</div>
+      <div class="compliance-badge"><span class="icon">&#x1F1EE;&#x1F1F1;</span> Israeli Privacy Law (PPPA)</div>
+      <div class="compliance-badge"><span class="icon">&#x1F512;</span> RSA-2048 License Signing</div>
+      <div class="compliance-badge"><span class="icon">&#x1F6E1;&#xFE0F;</span> Zero Cloud Dependencies</div>
+      <div class="compliance-badge"><span class="icon">&#x1F4DD;</span> Full Audit Trail</div>
+      <div class="compliance-badge"><span class="icon">&#x1F511;</span> API Key Authentication</div>
+      <div class="compliance-badge"><span class="icon">&#x1F4BE;</span> Air-Gap Deployable</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Licensing / Pricing ───────────────────────────────────────────── -->
+<section class="section section-alt" id="pricing">
+  <div class="container">
+    <div class="text-center">
+      <div class="tag">Licensing</div>
+      <h2 class="section-title">Simple, Transparent Licensing</h2>
+      <p class="section-sub">Perpetual on-premises licenses. No subscription, no per-document fees, no cloud lock-in.</p>
+    </div>
+    <div class="grid-3">
+      <div class="pricing-card">
+        <div class="plan">Pilot</div>
+        <div class="price">Contact <span>us</span></div>
+        <div class="desc">Evaluate in your environment with real documents</div>
+        <ul>
+          <li>90-day trial license</li>
+          <li>Full feature access</li>
+          <li class="new-li">Image redaction included</li>
+          <li>Up to 2 API clients</li>
+          <li>Email support</li>
+          <li>1,000 requests included</li>
+        </ul>
+        <a href="#contact" class="btn btn-outline" style="width:100%;justify-content:center">Start Pilot</a>
+      </div>
+      <div class="pricing-card featured">
+        <div class="badge-featured">Most Popular</div>
+        <div class="plan">Department</div>
+        <div class="price">Contact <span>us</span></div>
+        <div class="desc">Single department or clinical unit deployment</div>
+        <ul>
+          <li>1-year perpetual license</li>
+          <li>Unlimited documents</li>
+          <li class="new-li">Image + text redaction</li>
+          <li class="new-li">Preserve Fields allow-list</li>
+          <li>Up to 10 API clients</li>
+          <li>Admin console + Live Tester</li>
+          <li>Batch Loader CLI</li>
+          <li>Priority support</li>
+          <li>Installation assistance</li>
+        </ul>
+        <a href="#contact" class="btn btn-primary" style="width:100%;justify-content:center">Request Quote</a>
+      </div>
+      <div class="pricing-card">
+        <div class="plan">Enterprise</div>
+        <div class="price">Contact <span>us</span></div>
+        <div class="desc">Hospital-wide or multi-site deployment</div>
+        <ul>
+          <li>Multi-year perpetual license</li>
+          <li>Unlimited documents &amp; clients</li>
+          <li class="new-li">Custom 500k-term name lists</li>
+          <li class="new-li">DICOM / PACS image redaction</li>
+          <li>Custom PII pattern development</li>
+          <li>HL7 / FHIR integration guidance</li>
+          <li>SLA-backed support</li>
+          <li>On-site installation</li>
+          <li>Source code escrow available</li>
+        </ul>
+        <a href="#contact" class="btn btn-outline" style="width:100%;justify-content:center">Talk to Us</a>
+      </div>
+    </div>
+    <p style="text-align:center;color:var(--text3);font-size:13px;margin-top:24px">
+      All licenses are RSA-2048 signed, offline-validated, and deployable to air-gapped networks.
+      Renewal is optional &mdash; the software continues working after expiry; only new licenses are blocked.
+    </p>
+  </div>
+</section>
+
+<!-- ── Tech Stack ─────────────────────────────────────────────────────── -->
+<section class="section">
+  <div class="container text-center">
+    <div class="tag">Technology</div>
+    <h2 class="section-title">Enterprise-Grade Stack</h2>
+    <p class="section-sub">Built on proven, supported Microsoft and open-source technologies. No exotic dependencies.</p>
+    <div class="grid-4" style="margin-top:40px;text-align:left">
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">&#x26A1;</div>
+        <h3>.NET 10 / ASP.NET Core</h3>
+        <p style="font-size:13px">Latest LTS runtime. High performance, IIS in-process hosting, minimal footprint.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-cyan">&#x1F5C4;&#xFE0F;</div>
+        <h3>SQLite + Dapper</h3>
+        <p style="font-size:13px">Zero-config embedded database. WAL mode. No SQL Server license required.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-green">&#x1F50D;</div>
+        <h3>Windows.Media.Ocr + Tesseract</h3>
+        <p style="font-size:13px">Dual-engine OCR fallback chain. Dark-background auto-detection. OS-native Hebrew support.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-orange">🎨</div>
+        <h3>SkiaSharp</h3>
+        <p style="font-size:13px">Cross-platform 2D graphics engine. Powers pixel-level image redaction — black rect painting over OCR word bounds.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Contact ────────────────────────────────────────────────────────── -->
+<section class="section section-alt" id="contact">
+  <div class="container">
+    <div class="contact-card">
+      <div class="tag tag-new" style="margin-bottom:20px">Get in Touch</div>
+      <h2>Ready to Protect Your Patients' Data?</h2>
+      <p>Contact us for a live demo, pilot license, or enterprise pricing.<br/>We respond within one business day.</p>
+      <div>
+        <a href="mailto:Info@medilis.com" class="contact-email">
+          &#x2709;&#xFE0F;&nbsp; Info@medilis.com
+        </a>
+      </div>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+        <a href="mailto:Info@medilis.com?subject=PiiRemover Demo Request" class="btn btn-primary">Request a Demo</a>
+        <a href="mailto:Info@medilis.com?subject=PiiRemover Pilot License" class="btn btn-outline">Request Pilot License</a>
+      </div>
+      <p style="margin-top:28px;font-size:13px;color:var(--text3)">
+        <strong style="color:var(--text2)">VGS</strong> &mdash; Healthcare Technology Solutions
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div style="display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;color:#fff">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center">&#x1F512;</div>
+          PiiRemover
+        </div>
+        <p>On-premises PII redaction for healthcare. Text + image redaction, 500k-term matching, DICOM/PACS support. Built for hospitals, clinics, and medical research institutions that cannot compromise on data privacy.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Product</h5>
+        <ul>
+          <li><a href="#whats-new">What's New ✨</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#api">REST API</a></li>
+          <li><a href="#admin">Admin Console</a></li>
+          <li><a href="#pricing">Licensing</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Security</h5>
+        <ul>
+          <li><a href="#security">Compliance</a></li>
+          <li><a href="#security">HIPAA</a></li>
+          <li><a href="#security">GDPR</a></li>
+          <li><a href="#security">Air-Gap Deploy</a></li>
+          <li><a href="#security">Audit Logging</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="mailto:Info@medilis.com">Contact Sales</a></li>
+          <li><a href="mailto:Info@medilis.com?subject=Support">Support</a></li>
+          <li><a href="mailto:Info@medilis.com?subject=Partnership">Partnerships</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p style="font-size:13px;color:var(--text3)">&copy; 2026 VGS &mdash; All rights reserved. PiiRemover is proprietary software licensed under commercial terms.</p>
+      <p style="font-size:13px;color:var(--text3)">
+        <a href="mailto:Info@medilis.com" style="color:var(--text3)">Info@medilis.com</a>
+      </p>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ── Demo tab switcher ────────────────────────────────────────────────
+function switchDemo(tab) {
+  const textDemo  = document.getElementById('demo-text');
+  const imageDemo = document.getElementById('demo-image');
+  const tabText   = document.getElementById('tab-text');
+  const tabImage  = document.getElementById('tab-image');
+  if (tab === 'text') {
+    textDemo.style.display  = '';
+    imageDemo.style.display = 'none';
+    tabText.style.background  = '#070c19';
+    tabText.style.color       = 'var(--cyan)';
+    tabText.style.borderColor = 'rgba(26,111,240,.4)';
+    tabImage.style.background = 'var(--navy3)';
+    tabImage.style.color      = 'var(--text3)';
+    tabImage.style.borderColor = 'var(--border)';
+  } else {
+    textDemo.style.display  = 'none';
+    imageDemo.style.display = '';
+    tabImage.style.background  = '#070c19';
+    tabImage.style.color       = 'var(--green)';
+    tabImage.style.borderColor = 'rgba(0,229,160,.4)';
+    tabText.style.background   = 'var(--navy3)';
+    tabText.style.color        = 'var(--text3)';
+    tabText.style.borderColor  = 'var(--border)';
+  }
+}
+
+// ── Active nav highlight on scroll ──────────────────────────────────
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-links a[href^="#"]');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  navLinks.forEach(a => {
+    a.style.color = a.getAttribute('href') === '#' + cur ? '#fff' : '';
+  });
+});
+</script>
+
+</body>
+</html>

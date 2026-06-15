@@ -1,0 +1,1095 @@
+﻿@page "/admin/fields"
+@model PiiRemover.Api.Pages.Admin.FieldsModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "PII Fields";
+    ViewData["Nav"] = "fields";
+}
+<style>
+.rchar-presets { display:flex;gap:4px;flex-wrap:wrap;align-items:center; }
+.rchar-preset {
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;font-size:15px;font-family:monospace;
+  border:1px solid var(--border2);border-radius:5px;cursor:pointer;
+  background:var(--surface);color:var(--text);transition:all .12s;
+  user-select:none;
+}
+.rchar-preset:hover { border-color:#1677ff;color:#1677ff;background:rgba(22,119,255,.08); }
+.rchar-preset.selected { border-color:#fa8c16;color:#fa8c16;background:rgba(250,140,22,.12);font-weight:700; }
+</style>
+
+@if (TempData["Success"] is string ok)
+{
+    <div class="alert alert-success">✅ @ok</div>
+}
+@if (TempData["Error"] is string err)
+{
+    <div class="alert alert-danger">❌ @err</div>
+}
+
+<h1 class="page-title">PII Fields &amp; Patterns
+  <a href="/admin/pattern-help" style="font-size:13px;font-weight:400;margin-left:12px;color:#1677ff">
+    📖 Pattern Help
+  </a>
+  <span style="margin-left:auto;display:inline-flex;gap:8px;float:right;align-items:center">
+    <a href="/admin/fields?handler=Export"
+       style="display:inline-flex;align-items:center;gap:9px;padding:7px 14px;background:var(--surface);border:1px solid var(--border2);border-radius:7px;text-decoration:none;color:var(--text);transition:border-color .15s,background .15s"
+       onmouseover="this.style.borderColor='#1677ff';this.style.background='rgba(22,119,255,.05)'"
+       onmouseout="this.style.borderColor='var(--border2)';this.style.background='var(--surface)'">
+      <span style="font-size:20px;line-height:1">💾</span>
+      <span style="display:flex;flex-direction:column;line-height:1.3">
+        <span style="font-size:12px;font-weight:600">Save Backup</span>
+        <span style="font-size:10px;color:var(--text3)">Download fields as JSON</span>
+      </span>
+    </a>
+    <button type="button"
+       onclick="document.getElementById('importConfigModal').style.display='flex'"
+       style="display:inline-flex;align-items:center;gap:9px;padding:7px 14px;background:var(--surface);border:1px solid var(--border2);border-radius:7px;cursor:pointer;color:var(--text);transition:border-color .15s,background .15s"
+       onmouseover="this.style.borderColor='#1677ff';this.style.background='rgba(22,119,255,.05)'"
+       onmouseout="this.style.borderColor='var(--border2)';this.style.background='var(--surface)'">
+      <span style="font-size:20px;line-height:1">📂</span>
+      <span style="display:flex;flex-direction:column;line-height:1.3;text-align:left">
+        <span style="font-size:12px;font-weight:600">Load Backup</span>
+        <span style="font-size:10px;color:var(--text3)">Restore from JSON file</span>
+      </span>
+    </button>
+  </span>
+</h1>
+
+<!-- Import Config Modal -->
+<div id="importConfigModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:460px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+    <h3 style="margin-bottom:14px">📂 Load Field Configuration Backup</h3>
+    <form method="post" action="/admin/fields?handler=ImportConfig" enctype="multipart/form-data">
+      @Html.AntiForgeryToken()
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Select JSON config file</label>
+        <input type="file" name="file" accept=".json" required style="width:100%" />
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Import mode</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="radio" name="mode" value="append" checked /> Append (keep existing fields, add new ones)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:6px">
+          <input type="radio" name="mode" value="replace" /> Replace all (delete existing, import from file)
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="btn btn-default" onclick="document.getElementById('importConfigModal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="grid-2">
+<div class="card">
+    <h3>Add PII Field <span style="font-size:11px;font-weight:400;color:var(--text3)">(redact matches)</span></h3>
+    <form method="post" asp-page-handler="CreateField" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Field name</label>
+            <input type="text" asp-for="NewFieldName" placeholder="e.g. Israeli ID" required style="max-width:240px" />
+        </div>
+        <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Replacement char <span style="opacity:.6">× match length</span></label>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <input type="text" asp-for="NewReplaceWith" id="newReplaceWithInput" placeholder="█" maxlength="1"
+                       title="Single replacement character — repeated to match the length of the matched text"
+                       style="width:48px;font-size:22px;text-align:center;font-family:monospace;padding:2px 6px"
+                       oninput="syncPresets('newReplaceWithInput','newReplaceWithPresets')" />
+                <div class="rchar-presets" id="newReplaceWithPresets">
+                    @foreach (var c in new[]{"█","*","-","#","?","•","_","×"}) {
+                        <span class="rchar-preset @(c=="█"?"selected":"")"
+                              title="Use '@c'"
+                              onclick="pickReplaceChar(this,'newReplaceWithInput','newReplaceWithPresets')">@c</span>
+                    }
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-primary" type="submit">Add Field</button>
+    </form>
+</div>
+
+<div class="card" style="border:1px solid rgba(82,196,26,.35);background:rgba(82,196,26,.04)">
+    <h3>🛡 Add Preserve Field <span style="font-size:11px;font-weight:400;color:var(--text3)">(do not touch / leave as is)</span></h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px">
+        Words listed here are <strong style="color:#52c41a">never redacted</strong> — they override every other rule.
+        Useful for institution names, medicine names, or any terms that look like PII but must be preserved.
+    </p>
+    <form method="post" asp-page-handler="CreatePreserveField" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px">
+            <label style="font-size:11px;color:var(--text3)">Field name</label>
+            <input type="text" name="preserveFieldName" placeholder="e.g. Medical Terms" required style="max-width:240px" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:2;min-width:220px">
+            <label style="font-size:11px;color:var(--text3)">Initial terms (pipe-separated, can add more later)</label>
+            <input type="text" name="preserveTerms" placeholder="e.g. Medilis|Ibuprofen|MRI" style="max-width:100%" />
+        </div>
+        <div style="align-self:flex-end">
+            <button class="btn btn-primary" type="submit" style="background:#52c41a;border-color:#52c41a">🛡 Create</button>
+        </div>
+    </form>
+</div>
+</div>
+
+<div class="card">
+    <h3>📂 Import File List (FileList pattern)</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
+        Upload a <code>.txt</code>, <code>.dat</code>, or <code>.csv</code> file with terms to redact — one per line, pipe-separated, or dual-column fixed-width (Hebrew/English).
+        Both columns are extracted automatically. The content is stored in the database; no file is kept on disk.
+    </p>
+    <form method="post" action="/admin/fields?handler=UploadFileList" enctype="multipart/form-data"
+          style="display:flex;gap:8px;flex-wrap:wrap;align-items:center" id="uploadFileListForm">
+        @Html.AntiForgeryToken()
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">Target field (leave blank to create new)</label>
+            <select name="fieldId" style="width:220px">
+                <option value="0">— Create new field from file name —</option>
+                @foreach (var f in Model.Fields)
+                {
+                    <option value="@f.Id">@f.FieldName</option>
+                }
+            </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">New field name (if creating new)</label>
+            <input type="text" name="fieldName" placeholder="e.g. Names List" style="width:200px" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">File to upload</label>
+            <input type="file" name="file" accept=".txt,.dat,.csv" required
+                   style="width:auto;border:1px solid var(--border2);border-radius:4px;padding:5px 8px;background:var(--surface);color:var(--text)" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--text3)">Mode</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;
+                          border:1px solid var(--border2);border-radius:4px;padding:5px 10px;
+                          background:var(--surface);white-space:nowrap">
+                <input type="checkbox" name="append" value="true" id="appendChk" />
+                Append to existing list
+            </label>
+        </div>
+        <div style="align-self:flex-end">
+            <button type="submit" class="btn btn-primary">📤 Import</button>
+        </div>
+    </form>
+</div>
+
+<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
+@{
+    var redactCount  = Model.Fields.Count(f => !f.IsPreserve);
+    var preserveCount = Model.Fields.Count(f => f.IsPreserve);
+}
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+  <span style="font-size:12px;font-weight:600;color:var(--text3);margin-right:4px">Show:</span>
+  <button id="filter-all" onclick="setFilter('all')"
+          class="filter-tab active-filter"
+          style="padding:5px 16px;border-radius:20px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s">
+    All <span class="ftab-count">@Model.Fields.Count()</span>
+  </button>
+  <button id="filter-redact" onclick="setFilter('redact')"
+          class="filter-tab"
+          style="padding:5px 16px;border-radius:20px;border:1px solid var(--border2);background:var(--surface);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text2)">
+    🔒 Redact <span class="ftab-count">@redactCount</span>
+  </button>
+  <button id="filter-preserve" onclick="setFilter('preserve')"
+          class="filter-tab"
+          style="padding:5px 16px;border-radius:20px;border:1px solid var(--border2);background:var(--surface);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text2)">
+    🛡 Preserve <span class="ftab-count">@preserveCount</span>
+  </button>
+  <span style="flex:1"></span>
+  <span id="filter-status" style="font-size:11px;color:var(--text3)"></span>
+</div>
+
+@foreach (var f in Model.Fields)
+{
+    var cardBorder = f.IsPreserve ? "border:1px solid rgba(82,196,26,.4);background:rgba(82,196,26,.03)" : "";
+    <div class="card field-card" data-kind="@(f.IsPreserve ? "preserve" : "redact")"
+         style="@(f.IsActive ? "" : "opacity:.65") @cardBorder">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+            @if (f.IsPreserve)
+            { <span title="Preserve / Do-not-touch field" style="font-size:16px">🛡</span> }
+            <span style="font-size:15px;font-weight:600">@f.FieldName</span>
+            @{
+                var maxPatPri = f.Patterns.Count > 0 ? f.Patterns.Max(p => p.Priority) : 0;
+                var effectivePri = Math.Max(f.Priority, maxPatPri);
+            }
+            <button type="button"
+                    onclick="togglePriEditor(@f.Id)"
+                    title="Field priority @f.Priority (effective: @effectivePri) — click to edit"
+                    style="background:@(f.Priority > 0 ? "rgba(250,173,20,.15)" : "var(--surface2)");
+                           border:1px solid @(f.Priority > 0 ? "rgba(250,173,20,.5)" : "var(--border2)");
+                           color:@(f.Priority > 0 ? "#d48806" : "var(--text3)");
+                           border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;cursor:pointer;
+                           white-space:nowrap">
+                ⬆ @effectivePri
+            </button>
+            @* clickable badge toggles preserve mode *@
+            @if (f.IsPreserve)
+            {
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <button asp-page-handler="TogglePreserve" type="submit"
+                            class="badge"
+                            style="background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);cursor:pointer;font-family:inherit;font-size:inherit"
+                            title="Click to turn OFF preserve mode"
+                            onclick="return confirm('Turn OFF Preserve mode for &quot;@f.FieldName&quot;?\nIt will become a regular Redact field.')">🛡 Preserve ●</button>
+                </form>
+            }
+            else if (f.IsActive)
+            {
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <button asp-page-handler="ToggleField" type="submit"
+                            class="badge badge-green"
+                            style="cursor:pointer;font-family:inherit;font-size:inherit"
+                            title="Click to disable this field"
+                            onclick="return confirm('Disable field &quot;@f.FieldName&quot;?')">Active ●</button>
+                </form>
+            }
+            else
+            {
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <button asp-page-handler="ToggleField" type="submit"
+                            class="badge badge-red"
+                            style="cursor:pointer;font-family:inherit;font-size:inherit"
+                            title="Click to enable this field"
+                            onclick="return confirm('Enable field &quot;@f.FieldName&quot;?')">Inactive ●</button>
+                </form>
+            }
+            @if (!f.IsPreserve)
+            {
+                <span style="color:var(--text3);font-size:12px">replaces with
+                    <button type="button" class="btn btn-link btn-sm"
+                            onclick="toggleRwEditor(@f.Id)"
+                            style="color:#1677ff;padding:0 4px;font-size:16px;font-family:monospace;vertical-align:middle"
+                            title="Click to change replacement character">@f.ReplaceWith</button>
+                    <span style="font-size:10px;color:var(--text3)">× length ✏</span>
+                </span>
+            }
+            <span style="flex:1"></span>
+            @if (f.Patterns.Any(p =>
+                     p.PatternType == PiiRemover.Core.Models.PatternType.WholeWord ||
+                     p.PatternType == PiiRemover.Core.Models.PatternType.ConstList))
+            {
+                var wholeWordCount = f.Patterns.Count(p => p.PatternType == PiiRemover.Core.Models.PatternType.WholeWord);
+                var constListCount = f.Patterns.Count(p => p.PatternType == PiiRemover.Core.Models.PatternType.ConstList);
+                var totalTerms     = f.Patterns
+                    .Where(p => p.PatternType == PiiRemover.Core.Models.PatternType.WholeWord)
+                    .Select(p => p.Pattern.Trim())
+                    .Concat(f.Patterns
+                        .Where(p => p.PatternType == PiiRemover.Core.Models.PatternType.ConstList)
+                        .SelectMany(p => p.Pattern.Split('|', System.StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim())))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <button asp-page-handler="GroupAll" class="btn btn-sm"
+                            style="@(f.IsPreserve ? "background:rgba(82,196,26,.1);border:1px solid rgba(82,196,26,.4);color:#52c41a" : "background:rgba(22,119,255,.1);border:1px solid rgba(22,119,255,.35);color:#1677ff");white-space:nowrap"
+                            title="Merge all WholeWord + ConstList patterns into one ConstList with @totalTerms distinct terms"
+                            onclick="return confirm('Consolidate @(wholeWordCount) WholeWord + @(constListCount) ConstList pattern(s) into one unified ConstList?\n\nThis will remove the individual patterns and create a single ConstList with @totalTerms distinct term(s).')">
+                        ⊕ Group All (@totalTerms terms)
+                    </button>
+                </form>
+            }
+            <form method="post" style="display:inline">
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <button asp-page-handler="DeleteField" class="btn btn-danger btn-sm"
+                        onclick="return confirm('Delete field &quot;@f.FieldName&quot; and all its patterns?')">
+                    Delete
+                </button>
+            </form>
+        </div>
+
+        @* ── Field priority inline editor ── *@
+        <div id="pri-editor-@f.Id" style="display:none;margin-bottom:8px;padding:10px 12px;background:rgba(250,173,20,.06);border-radius:6px;border:1px solid rgba(250,173,20,.3)">
+            <form method="post" asp-page-handler="UpdateFieldPriority" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <label style="font-size:12px;color:var(--text3)">Field priority:</label>
+                <input type="number" name="priority" value="@f.Priority" min="0" max="9999"
+                       style="width:90px;padding:4px 8px;font-size:13px;border:1px solid rgba(250,173,20,.5);border-radius:4px;background:var(--surface);color:var(--text);text-align:center" />
+                <span style="font-size:11px;color:var(--text3)">
+                    (effective: @(Math.Max(f.Priority, f.Patterns.Count > 0 ? f.Patterns.Max(p => p.Priority) : 0)) — higher = first in list &amp; processed first)
+                </span>
+                <button type="submit" class="btn btn-primary btn-sm">💾 Save</button>
+                <button type="button" class="btn btn-default btn-sm" onclick="togglePriEditor(@f.Id)">Cancel</button>
+            </form>
+        </div>
+
+        @* ── ReplaceWith inline editor ── *@
+        @if (!f.IsPreserve)
+        {
+            <div id="rw-editor-@f.Id" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border2)">
+                <form method="post" asp-page-handler="UpdateFieldReplaceWith" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="fieldId" value="@f.Id" />
+                    <label style="font-size:12px;color:var(--text3)">Replacement char:</label>
+                    <input type="text" name="replaceWith" value="@f.ReplaceWith" maxlength="1"
+                           id="rwInput-@f.Id"
+                           title="Single character — will be repeated to match the length of each matched text"
+                           style="width:48px;font-size:22px;text-align:center;font-family:monospace;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)"
+                           oninput="syncPresets('rwInput-@f.Id','rwPresets-@f.Id')" />
+                    <div class="rchar-presets" id="rwPresets-@f.Id">
+                        @foreach (var c in new[]{"█","*","-","#","?","•","_","×"}) {
+                            <span class="rchar-preset @(c==f.ReplaceWith?"selected":"")"
+                                  title="Use '@c'"
+                                  onclick="pickReplaceChar(this,'rwInput-@f.Id','rwPresets-@f.Id')">@c</span>
+                        }
+                    </div>
+                    <span style="font-size:11px;color:var(--text3)">× match length</span>
+                    <button type="submit" class="btn btn-primary btn-sm">💾 Save</button>
+                    <button type="button" class="btn btn-default btn-sm" onclick="toggleRwEditor(@f.Id)">Cancel</button>
+                </form>
+            </div>
+        }
+
+        @if (f.Patterns.Count > 0)
+        {
+            <!-- Bulk delete bar (hidden until Select mode) -->
+            <div id="bulk-bar-@f.Id" style="display:none;align-items:center;gap:8px;padding:6px 0 8px;margin-bottom:6px">
+                <button type="button" class="btn btn-default btn-sm" onclick="selectAllPats(@f.Id, true)">☑ All</button>
+                <button type="button" class="btn btn-default btn-sm" onclick="selectAllPats(@f.Id, false)">☐ None</button>
+                <span id="bulk-count-@f.Id" style="font-size:12px;color:var(--text3)">0 selected</span>
+                <button type="button" class="btn btn-danger btn-sm" id="bulk-del-@f.Id" disabled
+                        onclick="bulkDeletePatterns(@f.Id)">🗑 Delete selected</button>
+                <button type="button" class="btn btn-default btn-sm" onclick="toggleSelectMode(@f.Id)">Done</button>
+            </div>
+            <table style="margin-bottom:14px">
+                <tr>
+                    <th style="width:120px">Type</th>
+                    <th>Pattern</th>
+                    <th style="width:80px">Priority</th>
+                    <th style="width:110px">
+                        <button type="button" class="btn btn-link btn-sm" onclick="toggleSelectMode(@f.Id)"
+                                style="font-size:11px;color:var(--text3);float:right;padding:0">☑ Select</button>
+                    </th>
+                </tr>
+                @foreach (var p in f.Patterns.OrderByDescending(x => x.Priority))
+                {
+                    var isCL = p.PatternType == PiiRemover.Core.Models.PatternType.ConstList;
+                    var isFL = p.PatternType == PiiRemover.Core.Models.PatternType.FileList;
+                    <tr>
+                        <td><span class="badge badge-blue">@p.PatternType</span></td>
+                        <td>
+                            @if (isFL)
+                            {
+                                var count = p.Pattern.Split('\n', System.StringSplitOptions.RemoveEmptyEntries).Length;
+                                <span class="mono" id="fl-count-@p.Id" title="@count terms stored in DB">@count terms</span>
+                                <button type="button" onclick="openFlPanel(@p.Id)"
+                                        style="margin-left:8px;padding:1px 8px;font-size:11px;background:rgba(22,119,255,.1);color:#1677ff;border:1px solid rgba(22,119,255,.3);border-radius:4px;cursor:pointer">
+                                    🔍 Browse
+                                </button>
+                            }
+                            else if (isCL)
+                            {
+                                var terms = p.Pattern.Split('|', System.StringSplitOptions.RemoveEmptyEntries);
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+                                    @foreach (var t in terms.Take(6))
+                                    {
+                                        <span style="background:rgba(22,119,255,.1);color:#1677ff;border:1px solid rgba(22,119,255,.25);border-radius:4px;padding:1px 7px;font-size:11px;white-space:nowrap">@t</span>
+                                    }
+                                    @if (terms.Length > 6)
+                                    {
+                                        <span style="font-size:11px;color:var(--text3)">+@(terms.Length - 6) more</span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="mono">@p.Pattern</span>
+                            }
+                        </td>
+                        <td>@p.Priority</td>
+                        <td style="white-space:nowrap">
+                            @if (isCL || (!isFL))
+                            {
+                                <button type="button" class="btn btn-link btn-sm"
+                                        onclick="toggleEditor(@p.Id)"
+                                        style="color:#1677ff;padding:0 6px 0 0">✏ Edit</button>
+                            }
+                            @if (!isFL)
+                            {
+                                <button type="button" class="btn btn-link btn-sm"
+                                        onclick="togglePatternTest(@p.Id)"
+                                        style="color:#52c41a;padding:0 6px 0 0">🧪 Test</button>
+                            }
+                            @if (isFL)
+                            {
+                                <button type="button" class="btn btn-link btn-sm"
+                                        onclick="toggleScopePanel(@p.Id)"
+                                        style="color:#fa8c16;padding:0 6px 0 0">🎯 Scope
+                                    @if (!string.IsNullOrWhiteSpace(p.ScopeEnd) || !string.IsNullOrWhiteSpace(p.ScopeStart) || p.ScopeEndPosition > 0)
+                                    {
+                                        <span style="background:rgba(250,140,22,.2);color:#fa8c16;border:1px solid rgba(250,140,22,.5);border-radius:3px;padding:0 4px;font-size:10px;vertical-align:middle">ON</span>
+                                    }
+                                </button>
+                            }
+                            <span id="pat-sel-@p.Id" style="display:none">
+                              <input type="checkbox" class="pat-checkbox" data-fid="@f.Id" data-pid="@p.Id"
+                                     onchange="updateBulkBar(@f.Id)" style="cursor:pointer;width:15px;height:15px" />
+                            </span>
+                            <form method="post" style="display:inline">
+                                <input type="hidden" name="patternId" value="@p.Id" />
+                                <button asp-page-handler="DeletePattern" class="btn btn-link btn-sm"
+                                        onclick="return confirm('Delete this pattern?')">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    @if (isFL)
+                    {
+                        <!-- ── Scope panel — toggled directly from the pattern row ── -->
+                        <tr id="scope-panel-@p.Id" style="display:none">
+                            <td colspan="4" style="padding:0">
+                                <div style="padding:14px 16px;background:rgba(250,140,22,.04);border-top:2px solid rgba(250,140,22,.35)">
+                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                                        <span style="font-size:13px;font-weight:700;color:#fa8c16">🎯 Scope — limit where this list fires in the document</span>
+                                        <button type="button" onclick="toggleScopePanel(@p.Id)"
+                                                style="margin-left:auto;font-size:18px;background:none;border:none;cursor:pointer;color:var(--text3);line-height:1">×</button>
+                                    </div>
+                                    <p style="font-size:11px;color:var(--text3);margin:0 0 12px;line-height:1.6">
+                                        This list only matches inside the document region defined below.<br/>
+                                        <strong>Scope End markers</strong> — tried first; whichever appears earliest wins.<br/>
+                                        <strong>Scope End Position</strong> — mandatory fallback in characters from document start.
+                                        Used when no marker is found, or when no markers are defined at all. Acts as a safety cap.
+                                        Use <strong>📍 Pos</strong> in the Live Tester to find the right number.
+                                    </p>
+                                    <form method="post" action="/admin/fields?handler=UpdatePatternScope">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="patternId" value="@p.Id" />
+                                        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+                                            <div style="flex:1;min-width:180px">
+                                                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">
+                                                    🔼 Scope Start
+                                                    <span style="opacity:.6">— one marker per line; blank = top of document</span>
+                                                </label>
+                                                <textarea name="scopeStart" rows="3"
+                                                          placeholder="e.g. Patient:"
+                                                          style="width:100%;padding:5px 8px;font-size:12px;font-family:monospace;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);resize:vertical">@p.ScopeStart</textarea>
+                                            </div>
+                                            <div style="flex:1;min-width:180px">
+                                                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">
+                                                    🔽 Scope End markers
+                                                    <span style="opacity:.6">— one per line; earliest match wins; if none found → uses Position</span>
+                                                </label>
+                                                <textarea name="scopeEnd" rows="3"
+                                                          placeholder="e.g. אבחנות פעילות:&#10;תלונה עיקרית:&#10;BLURRED&#10;UNSPECIFIED"
+                                                          style="width:100%;padding:5px 8px;font-size:12px;font-family:monospace;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);resize:vertical">@p.ScopeEnd</textarea>
+                                            </div>
+                                            <div style="min-width:150px;max-width:180px">
+                                                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">
+                                                    📍 Scope End Position <span style="color:#ff4d4f" title="Required">*</span>
+                                                    <span style="opacity:.6">— chars from doc start; fallback when no marker found</span>
+                                                </label>
+                                                <input type="number" name="scopeEndPosition"
+                                                       value="@p.ScopeEndPosition" min="0" max="999999" required
+                                                       style="width:100%;padding:6px 8px;font-size:15px;font-weight:700;border:2px solid rgba(250,140,22,.5);border-radius:4px;background:var(--surface);color:#fa8c16;text-align:center"
+                                                       title="Fallback position (characters from doc start). Used when no Scope End marker matches." />
+                                                <div style="font-size:10px;color:var(--text3);margin-top:3px;text-align:center">
+                                                    500 ≈ ~10 header lines &nbsp;·&nbsp; 0 = no position cap
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style="display:flex;gap:8px;align-items:center">
+                                            <button type="submit" class="btn btn-primary btn-sm">💾 Save Scope</button>
+                                            @if (!string.IsNullOrWhiteSpace(p.ScopeEnd) || !string.IsNullOrWhiteSpace(p.ScopeStart))
+                                            {
+                                                <button type="button" class="btn btn-default btn-sm"
+                                                        onclick="this.closest('form').querySelector('[name=scopeStart]').value='';this.closest('form').querySelector('[name=scopeEnd]').value=''"
+                                                        style="color:#ff4d4f">✕ Clear Markers</button>
+                                            }
+                                        </div>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- FileList browse panel — opened via JS -->
+                        <tr id="fl-panel-@p.Id" style="display:none">
+                            <td colspan="4" style="padding:0">
+                                <div style="padding:14px 16px;background:var(--surface2);border-top:1px solid var(--border)">
+                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+                                        <span style="font-size:13px;font-weight:600;color:var(--text)">📂 FileList</span>
+                                        <input type="text" id="fl-search-@p.Id" placeholder="Search terms…"
+                                               oninput="filterFl(@p.Id)"
+                                               style="flex:1;min-width:160px;max-width:320px;padding:4px 10px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)" />
+                                        <span id="fl-showing-@p.Id" style="font-size:11px;color:var(--text3)"></span>
+                                        <button type="button" onclick="closeFlPanel(@p.Id)"
+                                                style="margin-left:auto;font-size:18px;background:none;border:none;cursor:pointer;color:var(--text3);line-height:1">×</button>
+                                    </div>
+                                    <div id="fl-chips-@p.Id"
+                                         style="display:flex;flex-wrap:wrap;gap:4px;max-height:220px;overflow-y:auto;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--surface);min-height:40px">
+                                        <span style="color:var(--text3);font-size:12px;padding:8px">Loading…</span>
+                                    </div>
+                                    <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
+                                        <input type="text" id="fl-new-@p.Id" placeholder="Add a term…"
+                                               style="flex:1;max-width:280px;padding:5px 8px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();addFlTerm(@p.Id)}" />
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="addFlTerm(@p.Id)">+ Add</button>
+                                        <span id="fl-msg-@p.Id" style="font-size:11px;color:var(--text3)"></span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+
+                    }
+                    @if (!isFL)
+                    {
+                        <tr id="test-row-@p.Id" style="display:none">
+                            <td colspan="4" style="padding:0">
+                                <div style="padding:10px 14px;background:rgba(82,196,26,.04);border-top:1px solid rgba(82,196,26,.25)">
+                                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                                        <span style="font-size:12px;font-weight:600;color:#52c41a">🧪 Test</span>
+                                        <input type="text" id="test-input-@p.Id" placeholder="Type text to test this pattern…"
+                                               data-pid="@p.Id" data-ptype="@p.PatternType" data-pattern="@System.Text.Encodings.Web.HtmlEncoder.Default.Encode(p.Pattern)"
+                                               style="flex:1;max-width:500px;padding:5px 8px;font-size:13px;font-family:monospace;border:1px solid rgba(82,196,26,.35);border-radius:4px;background:var(--surface);color:var(--text)"
+                                               oninput="debounceTest(@p.Id)" />
+                                        <span id="test-result-@p.Id" style="font-size:12px;font-weight:600;min-width:80px"></span>
+                                        <button type="button" onclick="togglePatternTest(@p.Id)"
+                                                style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;line-height:1">×</button>
+                                    </div>
+                                    <div id="test-matches-@p.Id" style="font-size:11px;color:var(--text3);margin-top:6px;font-family:monospace"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr id="editor-@p.Id" style="display:none">
+                            <td colspan="4" style="padding:0">
+                                <div style="padding:12px 14px;background:var(--surface2);border-top:1px solid var(--border)">
+                                @if (isCL)
+                                {
+                                    <!-- chip list (rendered from current terms) -->
+                                    <div id="chips-@p.Id" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;min-height:28px"></div>
+
+                                    <!-- add single term -->
+                                    <div style="display:flex;gap:6px;margin-bottom:10px">
+                                        <input type="text" id="newtm-@p.Id"
+                                               placeholder="Add term…"
+                                               style="flex:1;max-width:260px;padding:4px 8px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();addTerm(@p.Id)}" />
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="addTerm(@p.Id)">+ Add</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <!-- plain text editor for Regex / WholeWord / etc. -->
+                                    <div style="margin-bottom:10px">
+                                        <input type="text" id="ptxt-@p.Id" value="@p.Pattern"
+                                               style="width:100%;max-width:600px;padding:5px 8px;font-size:13px;font-family:monospace;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text)"
+                                               oninput="document.getElementById('patval-@p.Id').value=this.value" />
+                                    </div>
+                                }
+                                    <!-- priority + save / cancel -->
+                                    <form method="post" action="/admin/fields?handler=UpdatePattern" id="saveform-@p.Id"
+                                          style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="patternId" value="@p.Id" />
+                                        <input type="hidden" name="patternValue" id="patval-@p.Id" value="@p.Pattern" />
+                                        <label style="font-size:11px;color:var(--text3);white-space:nowrap">Priority:</label>
+                                        <input type="number" name="priority" value="@p.Priority" min="0" max="9999"
+                                               style="width:72px;padding:3px 6px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);text-align:center"
+                                               title="Higher priority patterns are applied first" />
+                                        <button type="submit" class="btn btn-primary btn-sm">💾 Save</button>
+                                        <button type="button" class="btn btn-default btn-sm" onclick="toggleEditor(@p.Id)">Cancel</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </table>
+        }
+        else
+        {
+            <p style="color:#aaa;font-size:12px;margin-bottom:12px">No patterns yet — add one below.</p>
+        }
+
+        <details>
+            <summary style="cursor:pointer;color:#1677ff;font-size:13px">+ Add Pattern</summary>
+            <form method="post" asp-page-handler="CreatePattern"
+                  style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+                <input type="hidden" name="fieldId" value="@f.Id" />
+                <select name="patternType" class="ctrl" style="width:200px">
+                    <optgroup label="Simple">
+                        <option value="WholeWord">Whole Word</option>
+                        <option value="Like">Like (wildcards * ?)</option>
+                        <option value="BeginsWith">Begins With</option>
+                        <option value="EndsWith">Ends With</option>
+                        <option value="ConstList">Keyword List (| separated)</option>
+                    </optgroup>
+                    <optgroup label="Context-aware">
+                        <option value="AfterLabel">After Label</option>
+                        <option value="BetweenMarkers">Between Markers</option>
+                        <option value="NumberSequence">Number Sequence</option>
+                        <option value="WholeLine">Whole Line (remove line containing pattern)</option>
+                    </optgroup>
+                    <optgroup label="Advanced">
+                        <option value="Regex">Regex (full .NET)</option>
+                        <option value="LlmPrompt">🤖 AI Extraction (describe in plain language)</option>
+                    </optgroup>
+                </select>
+                <input name="pattern" id="patternInput-@f.Id" placeholder="Pattern or keywords" required style="width:320px"
+                       oninput="" />
+                <div id="ai-hint-@f.Id" style="display:none;width:100%;margin-top:8px;padding:10px 14px;
+                     background:rgba(22,119,255,.05);border:1px solid rgba(22,119,255,.2);border-radius:6px;font-size:12px;color:var(--text2)">
+                  <strong style="color:#1677ff">🤖 AI Extraction — describe what to redact in plain English or Hebrew</strong><br/>
+                  <span style="color:var(--text3)">The AI reads the document and extracts all matching values automatically.</span>
+                  <div style="margin-top:8px">
+                    <strong>Examples:</strong>
+                    <ul style="margin:4px 0 0 16px;padding:0;line-height:1.9">
+                      <li>patient full name</li>
+                      <li>Israeli national ID (9-digit number)</li>
+                      <li>doctor name after "Dr." or "ד"ר"</li>
+                      <li>phone number starting with 05 or +972</li>
+                      <li>date of birth in any format</li>
+                    </ul>
+                  </div>
+                  <div style="margin-top:8px;color:var(--text3)">
+                    ℹ️ Be specific. Enable the AI engine in
+                    <a href="/admin/settings?tab=ai" style="color:#1677ff">Settings → AI Extraction Engine</a>.
+                  </div>
+                </div>
+                <input name="priority" type="number" value="100" style="width:80px" title="Priority (higher = first)" />
+                <button type="submit" class="btn btn-primary btn-sm">Add</button>
+            </form>
+        </details>
+    </div>
+}
+
+<script>
+// ── AI pattern type hint ───────────────────────────────────────────────────
+document.querySelectorAll('select[name=patternType]').forEach(function(sel) {
+  sel.addEventListener('change', function() {
+    const form = sel.closest('form');
+    if (!form) return;
+    // find the ai-hint div inside this form by looking for a div starting with 'ai-hint-'
+    const hint = form.querySelector('[id^="ai-hint-"]');
+    if (hint) hint.style.display = sel.value === 'LlmPrompt' ? 'block' : 'none';
+    const inp = form.querySelector('[id^="patternInput-"]');
+    if (inp) inp.placeholder = sel.value === 'LlmPrompt' ? 'e.g. patient full name' : 'Pattern or keywords';
+  });
+});
+
+// ── Field priority inline editor ───────────────────────────────────────────
+function togglePriEditor(fieldId) {
+  const el = document.getElementById('pri-editor-' + fieldId);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el.style.display !== 'none') el.querySelector('input[name=priority]').focus();
+}
+
+// ── ReplaceWith inline editor ──────────────────────────────────────────────
+function toggleRwEditor(fieldId) {
+  const el = document.getElementById('rw-editor-' + fieldId);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el.style.display !== 'none') el.querySelector('input[name=replaceWith]').focus();
+}
+
+// ── ConstList inline editor ────────────────────────────────────────────────
+
+// terms[patternId] = string[]
+const editorTerms = {};
+
+function toggleEditor(id) {
+  const row = document.getElementById('editor-' + id);
+  if (!row) return;
+  const opening = row.style.display === 'none';
+  row.style.display = opening ? '' : 'none';
+  if (opening) initEditor(id);
+}
+
+function initEditor(id) {
+  const hidden = document.getElementById('patval-' + id);
+  const raw    = hidden ? hidden.value : '';
+
+  // ConstList editor (chip-based)
+  const chipsEl = document.getElementById('chips-' + id);
+  if (chipsEl) {
+    editorTerms[id] = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
+    renderChips(id);
+    const inp = document.getElementById('newtm-' + id);
+    if (inp) setTimeout(() => inp.focus(), 50);
+  } else {
+    // Plain-text editor (Regex / WholeWord / etc.)
+    const ptxt = document.getElementById('ptxt-' + id);
+    if (ptxt) {
+      ptxt.value = raw;
+      setTimeout(() => { ptxt.focus(); ptxt.select(); }, 50);
+    }
+  }
+}
+
+function renderChips(id) {
+  const container = document.getElementById('chips-' + id);
+  if (!container) return;
+  const terms = editorTerms[id] || [];
+  container.innerHTML = terms.length === 0
+    ? '<span style="font-size:12px;color:var(--text3);font-style:italic">No terms yet</span>'
+    : terms.map((t, i) => `
+        <span style="display:inline-flex;align-items:center;gap:4px;
+                     background:rgba(22,119,255,.1);color:#1677ff;
+                     border:1px solid rgba(22,119,255,.3);border-radius:4px;
+                     padding:2px 6px 2px 8px;font-size:12px">
+          ${esc(t)}
+          <button type="button"
+                  onclick="removeTerm(${id},${i})"
+                  style="background:none;border:none;cursor:pointer;color:#ff4d4f;
+                         font-size:13px;padding:0;line-height:1;margin-left:2px"
+                  title="Remove">×</button>
+        </span>`).join('');
+  syncHidden(id);
+}
+
+function addTerm(id) {
+  const inp  = document.getElementById('newtm-' + id);
+  const term = inp ? inp.value.trim() : '';
+  if (!term) return;
+  if (!editorTerms[id]) editorTerms[id] = [];
+  // support pasting pipe-separated bulk terms
+  const added = term.split('|').map(t => t.trim()).filter(t => t.length > 0);
+  for (const t of added)
+    if (!editorTerms[id].includes(t)) editorTerms[id].push(t);
+  inp.value = '';
+  renderChips(id);
+}
+
+function removeTerm(id, idx) {
+  if (editorTerms[id]) {
+    editorTerms[id].splice(idx, 1);
+    renderChips(id);
+  }
+}
+
+function syncHidden(id) {
+  const hidden = document.getElementById('patval-' + id);
+  if (hidden) hidden.value = (editorTerms[id] || []).join('|');
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escAttr(s) {
+  // Safe for embedding in a double-quoted HTML attribute
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+// ── FileList browser ──────────────────────────────────────────────────────
+const flData     = {};   // patternId → full sorted string[]
+const FL_PAGE    = 1000; // max chips shown at once
+
+function afToken() {
+  return document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+}
+
+async function openFlPanel(pid) {
+  const row = document.getElementById('fl-panel-' + pid);
+  if (!row) return;
+  row.style.display = '';
+
+  if (!flData[pid]) {
+    // Lazy-load terms
+    try {
+      const r = await fetch('/admin/fields?handler=FileListTerms&patternId=' + pid);
+      flData[pid] = await r.json();
+    } catch (e) {
+      document.getElementById('fl-chips-' + pid).innerHTML =
+        '<span style="color:#ff4d4f;font-size:12px;padding:8px">Failed to load terms.</span>';
+      return;
+    }
+  }
+  renderFlChips(pid, document.getElementById('fl-search-' + pid)?.value ?? '');
+}
+
+function closeFlPanel(pid) {
+  const row = document.getElementById('fl-panel-' + pid);
+  if (row) row.style.display = 'none';
+}
+
+function toggleScopePanel(pid) {
+  const row = document.getElementById('scope-panel-' + pid);
+  if (!row) return;
+  row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
+// ── Replacement char presets ────────────────────────────────────────
+function pickReplaceChar(presetEl, inputId, presetsId) {
+  const inp = document.getElementById(inputId);
+  if (inp) inp.value = presetEl.textContent.trim();
+  syncPresets(inputId, presetsId);
+}
+
+function syncPresets(inputId, presetsId) {
+  const val = (document.getElementById(inputId)?.value || '').trim();
+  document.querySelectorAll('#' + presetsId + ' .rchar-preset').forEach(el => {
+    el.classList.toggle('selected', el.textContent.trim() === val);
+  });
+}
+
+function filterFl(pid) {
+  const q = (document.getElementById('fl-search-' + pid)?.value ?? '').trim().toLowerCase();
+  renderFlChips(pid, q);
+}
+
+function renderFlChips(pid, query) {
+  const all = flData[pid] || [];
+  const filtered = query
+    ? all.filter(t => t.toLowerCase().includes(query))
+    : all;
+
+  const shown  = filtered.slice(0, FL_PAGE);
+  const container = document.getElementById('fl-chips-' + pid);
+  const showing   = document.getElementById('fl-showing-' + pid);
+
+  if (showing) {
+    showing.textContent = filtered.length === 0
+      ? 'No matches'
+      : filtered.length > FL_PAGE
+        ? `Showing ${FL_PAGE} of ${filtered.length} matches`
+        : `${filtered.length} term${filtered.length !== 1 ? 's' : ''}`;
+  }
+
+  if (shown.length === 0) {
+    container.innerHTML = '<span style="color:var(--text3);font-size:12px;padding:8px">No terms found.</span>';
+    return;
+  }
+
+  container.innerHTML = shown.map(t =>
+    `<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(22,119,255,.09);color:#1677ff;
+      border:1px solid rgba(22,119,255,.25);border-radius:4px;padding:2px 6px;font-size:11px;white-space:nowrap">
+      ${esc(t)}
+      <button type="button" title="Delete this term"
+              data-pid="${pid}" data-term="${escAttr(t)}"
+              onclick="deleteFlTerm(+this.dataset.pid, this.dataset.term)"
+              style="background:none;border:none;cursor:pointer;color:#ff4d4f;font-size:12px;line-height:1;padding:0 0 0 3px">×</button>
+    </span>`
+  ).join('');
+}
+
+async function addFlTerm(pid) {
+  const inp = document.getElementById('fl-new-' + pid);
+  const msg = document.getElementById('fl-msg-' + pid);
+  const term = (inp?.value ?? '').trim();
+  if (!term) return;
+
+  const fd = new FormData();
+  fd.append('patternId', pid);
+  fd.append('term', term);
+  fd.append('__RequestVerificationToken', afToken());
+
+  try {
+    const r  = await fetch('/admin/fields?handler=AddFileListTerm', { method:'POST', body: fd });
+    const js = await r.json();
+    if (js.ok) {
+      if (js.added) {
+        // Insert into local data array (keep sorted)
+        if (!flData[pid]) flData[pid] = [];
+        flData[pid].push(term);
+        flData[pid].sort((a, b) => a.localeCompare(b, undefined, { sensitivity:'base' }));
+        updateFlCount(pid, js.count);
+        if (msg) { msg.textContent = '✓ Added'; setTimeout(() => msg.textContent='', 2000); }
+      } else {
+        if (msg) { msg.textContent = 'Already exists'; setTimeout(() => msg.textContent='', 2000); }
+      }
+      if (inp) inp.value = '';
+      renderFlChips(pid, document.getElementById('fl-search-' + pid)?.value ?? '');
+    }
+  } catch (e) {
+    if (msg) msg.textContent = 'Error — try again';
+  }
+}
+
+async function deleteFlTerm(pid, term) {
+  const fd = new FormData();
+  fd.append('patternId', pid);
+  fd.append('term', term);
+  fd.append('__RequestVerificationToken', afToken());
+
+  try {
+    const r  = await fetch('/admin/fields?handler=DeleteFileListTerm', { method:'POST', body: fd });
+    const js = await r.json();
+    if (js.ok) {
+      // Remove from local array
+      if (flData[pid]) {
+        const i = flData[pid].findIndex(t => t.toLowerCase() === term.toLowerCase());
+        if (i !== -1) flData[pid].splice(i, 1);
+      }
+      updateFlCount(pid, js.count);
+      renderFlChips(pid, document.getElementById('fl-search-' + pid)?.value ?? '');
+    }
+  } catch (e) { /* silent */ }
+}
+
+function updateFlCount(pid, count) {
+  const el = document.getElementById('fl-count-' + pid);
+  if (el) el.textContent = count + ' terms';
+}
+
+// ── Field filter tabs ──────────────────────────────────────────────────────
+let currentFilter = 'all';
+
+function setFilter(kind) {
+  currentFilter = kind;
+
+  // style buttons
+  document.querySelectorAll('.filter-tab').forEach(b => {
+    const isActive = b.id === 'filter-' + kind;
+    b.style.background    = isActive ? (kind === 'preserve' ? 'rgba(82,196,26,.12)' : kind === 'redact' ? 'rgba(22,119,255,.1)' : 'var(--surface2)') : 'var(--surface)';
+    b.style.borderColor   = isActive ? (kind === 'preserve' ? '#52c41a' : kind === 'redact' ? '#1677ff' : 'var(--border2)') : 'var(--border2)';
+    b.style.color         = isActive ? (kind === 'preserve' ? '#52c41a' : kind === 'redact' ? '#1677ff' : 'var(--text)') : 'var(--text2)';
+  });
+
+  // show/hide cards
+  let visible = 0;
+  document.querySelectorAll('.field-card').forEach(card => {
+    const show = kind === 'all' || card.dataset.kind === kind;
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  // status label
+  const status = document.getElementById('filter-status');
+  if (status) status.textContent = kind === 'all' ? '' : `Showing ${visible} field${visible !== 1 ? 's' : ''}`;
+}
+
+// keep filter active after page reload (TempData redirects)
+(function() {
+  const saved = sessionStorage.getItem('fields-filter');
+  if (saved && saved !== 'all') setFilter(saved);
+})();
+// save on click
+document.querySelectorAll('.filter-tab').forEach(b =>
+  b.addEventListener('click', () => sessionStorage.setItem('fields-filter', b.id.replace('filter-', '')))
+);
+
+// ── Inline Pattern Test ───────────────────────────────────────────────────
+const testTimers = {};
+
+function togglePatternTest(pid) {
+  const row = document.getElementById('test-row-' + pid);
+  if (!row) return;
+  const opening = row.style.display === 'none';
+  row.style.display = opening ? '' : 'none';
+  if (opening) {
+    const inp = document.getElementById('test-input-' + pid);
+    if (inp) setTimeout(() => inp.focus(), 50);
+    clearTestResult(pid);
+  }
+}
+
+function debounceTest(pid) {
+  clearTimeout(testTimers[pid]);
+  testTimers[pid] = setTimeout(() => runPatternTest(pid), 280);
+}
+
+async function runPatternTest(pid) {
+  const inp = document.getElementById('test-input-' + pid);
+  if (!inp) return;
+  const text = inp.value;
+  const resEl = document.getElementById('test-result-' + pid);
+  const matchEl = document.getElementById('test-matches-' + pid);
+  if (!text.trim()) { clearTestResult(pid); return; }
+
+  const body = JSON.stringify({
+    patternType: inp.dataset.ptype,
+    pattern: inp.dataset.pattern,
+    testInput: text
+  });
+  try {
+    const r = await fetch('/admin/fields?handler=TestPattern', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'RequestVerificationToken': afToken() },
+      body
+    });
+    const js = await r.json();
+    if (resEl) {
+      if (js.matched) {
+        resEl.textContent = '✓ Match (' + js.matchCount + ')';
+        resEl.style.color = '#52c41a';
+      } else {
+        resEl.textContent = '✗ No match';
+        resEl.style.color = '#ff4d4f';
+      }
+    }
+    if (matchEl) {
+      matchEl.textContent = js.matchedText
+        ? 'Matched: ' + js.matchedText.slice(0, 120)
+        : '';
+    }
+  } catch (e) {
+    if (resEl) { resEl.textContent = 'Error'; resEl.style.color = '#faad14'; }
+  }
+}
+
+function clearTestResult(pid) {
+  const r = document.getElementById('test-result-' + pid);
+  const m = document.getElementById('test-matches-' + pid);
+  if (r) { r.textContent = ''; }
+  if (m) { m.textContent = ''; }
+}
+
+// ── Bulk Delete Patterns ──────────────────────────────────────────────────
+function toggleSelectMode(fid) {
+  const bar = document.getElementById('bulk-bar-' + fid);
+  const isSelecting = bar.style.display === 'none';
+  bar.style.display = isSelecting ? 'flex' : 'none';
+  // Show/hide the checkbox wrapper spans (they have class pat-checkbox siblings inside)
+  document.querySelectorAll('.pat-checkbox[data-fid="' + fid + '"]').forEach(cb => {
+    cb.parentElement.style.display = isSelecting ? 'inline' : 'none';
+    cb.checked = false;
+  });
+  updateBulkBar(fid);
+}
+
+function updateBulkBar(fid) {
+  const checked = document.querySelectorAll('.pat-checkbox[data-fid="' + fid + '"]:checked');
+  const countEl = document.getElementById('bulk-count-' + fid);
+  const delBtn  = document.getElementById('bulk-del-' + fid);
+  if (countEl) countEl.textContent = checked.length + ' selected';
+  if (delBtn)  delBtn.disabled = checked.length === 0;
+}
+
+function selectAllPats(fid, select) {
+  document.querySelectorAll('.pat-checkbox[data-fid="' + fid + '"]').forEach(cb => cb.checked = select);
+  updateBulkBar(fid);
+}
+
+async function bulkDeletePatterns(fid) {
+  const checked = [...document.querySelectorAll('.pat-checkbox[data-fid="' + fid + '"]:checked')];
+  if (checked.length === 0) return;
+  if (!confirm('Delete ' + checked.length + ' pattern(s)?')) return;
+  const ids = checked.map(cb => parseInt(cb.dataset.pid));
+  try {
+    const r = await fetch('/admin/fields?handler=DeletePatterns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'RequestVerificationToken': afToken() },
+      body: JSON.stringify(ids)
+    });
+    const js = await r.json();
+    if (js.ok) location.reload();
+    else alert('Delete failed: ' + (js.error || 'unknown'));
+  } catch (e) { alert('Request failed'); }
+}
+
+// ── Scroll-position restore after form submit ─────────────────────────────
+// Save scroll Y before any form submission, restore it on page load.
+(function () {
+  const KEY = 'fields-scroll';
+
+  // Restore on load (runs after filter is applied so layout is stable)
+  const saved = sessionStorage.getItem(KEY);
+  if (saved !== null) {
+    sessionStorage.removeItem(KEY);
+    requestAnimationFrame(() => window.scrollTo({ top: +saved, behavior: 'instant' }));
+  }
+
+  // Save before every form submit on this page
+  document.addEventListener('submit', () => {
+    sessionStorage.setItem(KEY, String(window.scrollY));
+  });
+})();
+</script>

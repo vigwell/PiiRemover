@@ -1,0 +1,565 @@
+@page "/admin/getting-started"
+@model PiiRemover.Api.Pages.Admin.GettingStartedModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Getting Started";
+    ViewData["Nav"] = "gettingstarted";
+}
+
+<style>
+/* ── Getting Started page styles ─────────────────────────────────────── */
+.gs-step {
+  display:flex; gap:20px; margin-bottom:32px; align-items:flex-start;
+}
+.gs-num {
+  flex-shrink:0; width:42px; height:42px; border-radius:50%;
+  background:linear-gradient(135deg,#1677ff,#0958d9);
+  color:#fff; font-size:18px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 8px rgba(22,119,255,.35);
+}
+.gs-body { flex:1; min-width:0; }
+.gs-title { font-size:17px; font-weight:700; color:var(--title); margin-bottom:6px; }
+.gs-desc  { font-size:13px; color:var(--text2); line-height:1.7; margin-bottom:12px; }
+.gs-connector {
+  width:2px; height:28px; background:linear-gradient(to bottom,#1677ff33,transparent);
+  margin:4px 0 4px 20px;
+}
+
+/* ── Sample document boxes ───────────────────────────────────────────── */
+.doc-sample {
+  background:var(--mono-bg); border:1px solid var(--border); border-radius:6px;
+  padding:14px 16px; font-family:'Consolas','Courier New',monospace;
+  font-size:12px; line-height:2; white-space:pre-wrap;
+}
+.doc-label { font-size:10px; font-weight:700; letter-spacing:1px;
+             text-transform:uppercase; color:var(--text3); margin-bottom:6px; }
+
+/* ── Before/After comparison ─────────────────────────────────────────── */
+.ba-wrap { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:center; }
+@@media(max-width:720px){ .ba-wrap { grid-template-columns:1fr; } }
+.ba-arrow { font-size:24px; color:#1677ff; text-align:center; }
+.ba-orig mark  { background:rgba(255,77,79,.2); color:inherit; border-radius:2px; padding:0 2px; }
+.ba-redact mark { background:rgba(82,196,26,.15); color:#52c41a; border-radius:2px;
+                  padding:0 2px; font-family:monospace; }
+
+/* ── Action strip ────────────────────────────────────────────────────── */
+.action-strip {
+  display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+  padding:12px 16px; background:rgba(22,119,255,.04);
+  border:1px solid rgba(22,119,255,.15); border-radius:6px; margin-top:12px;
+}
+.action-strip .lbl { font-size:12px; color:var(--text3); white-space:nowrap; }
+
+/* ── Tip box ─────────────────────────────────────────────────────────── */
+.tip { display:flex; gap:10px; padding:10px 14px;
+       background:rgba(22,119,255,.05); border:1px solid rgba(22,119,255,.2);
+       border-radius:6px; font-size:12px; color:var(--text2); line-height:1.6;
+       margin-top:10px; }
+.tip-icon { font-size:16px; flex-shrink:0; }
+.warn { background:rgba(250,173,20,.07); border-color:rgba(250,173,20,.3); }
+.warn .tip-icon::before { content:"⚠️"; }
+.good { background:rgba(82,196,26,.06); border-color:rgba(82,196,26,.3); }
+
+/* ── Pattern type mini card ──────────────────────────────────────────── */
+.pt-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.pt-chip {
+  display:inline-flex; flex-direction:column; gap:2px;
+  background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:8px 12px; font-size:12px; min-width:130px;
+}
+.pt-chip .pt-name { font-weight:700; color:var(--text); font-size:12px; }
+.pt-chip .pt-eg   { font-family:monospace; color:#1677ff; font-size:11px; }
+.pt-chip .pt-use  { color:var(--text3); font-size:10px; }
+.pt-chip.recommended { border-color:#1677ff; background:rgba(22,119,255,.05); }
+
+/* ── API box ─────────────────────────────────────────────────────────── */
+.api-box { background:var(--mono-bg); border:1px solid var(--border); border-radius:6px;
+           padding:14px 16px; font-family:monospace; font-size:12px;
+           line-height:1.8; overflow-x:auto; white-space:pre; }
+.api-box .kw  { color:#faad14; }
+.api-box .str { color:#6ab04c; }
+.api-box .cmt { color:var(--text3); }
+
+/* ── Progress nav ────────────────────────────────────────────────────── */
+.gs-nav { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:28px; }
+.gs-nav a { font-size:12px; padding:4px 12px; border:1px solid var(--border2);
+            border-radius:20px; color:var(--text2); background:var(--surface);
+            text-decoration:none; transition:all .15s; }
+.gs-nav a:hover { border-color:#1677ff; color:#1677ff; }
+
+.card { margin-bottom:0; }
+</style>
+
+<h1 class="page-title">🚀 Getting Started</h1>
+<p style="color:var(--text2);font-size:13px;margin-bottom:20px;max-width:720px">
+  From zero to your first redacted document in under 5 minutes.
+  Follow the steps below — each one builds on the previous.
+</p>
+
+<!-- Quick-jump nav -->
+<nav class="gs-nav">
+  <a href="#step1">① Define a PII Field</a>
+  <a href="#step2">② Add a Pattern</a>
+  <a href="#step3">③ Test in Live Tester</a>
+  <a href="#step4">④ Protect specific terms</a>
+  <a href="#step5">⑤ Call the API</a>
+  <a href="#step6">⑥ Advanced: Name Lists &amp; Scope</a>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════ STEP 1 -->
+<div id="step1" class="gs-step">
+  <div class="gs-num">1</div>
+  <div class="gs-body">
+    <div class="card">
+      <div class="gs-title">Define a PII Field — what should be redacted?</div>
+      <div class="gs-desc">
+        A <strong>PII Field</strong> is a named category of sensitive data (e.g. "Israeli ID", "Phone Number", "Patient Name").
+        Each field has a <strong>replacement character</strong> — a single char that fills the redacted space so the document length is preserved.
+      </div>
+
+      <div class="ba-wrap" style="margin-bottom:12px">
+        <div>
+          <div class="doc-label">📄 Input document</div>
+          <div class="doc-sample ba-orig">Patient: <mark>David Cohen</mark>
+ID:      <mark>123456789</mark>
+Phone:   <mark>050-1234567</mark>
+Complaint: Chest pain for 2 days</div>
+        </div>
+        <div class="ba-arrow">→</div>
+        <div>
+          <div class="doc-label">✅ After redaction</div>
+          <div class="doc-sample ba-redact">Patient: <mark>███████████</mark>
+ID:      <mark>█████████</mark>
+Phone:   <mark>███████████</mark>
+Complaint: Chest pain for 2 days</div>
+        </div>
+      </div>
+
+      <div class="tip good">
+        <span class="tip-icon">💡</span>
+        <div>
+          The replacement character <strong>█</strong> repeats to match the original text length — positional layout is preserved in fixed-width documents.
+          You can use any single character: <code>*</code>, <code>-</code>, <code>#</code>, etc.
+        </div>
+      </div>
+
+      <div class="action-strip">
+        <span class="lbl">→ Create a field now:</span>
+        <a href="/admin/fields" class="btn btn-primary btn-sm">🔧 Open PII Fields</a>
+        <span class="lbl" style="margin-left:8px">Fill in the field name and click <strong>Add Field</strong>.</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="gs-connector"></div>
+
+<!-- ══════════════════════════════════════════════════════════════ STEP 2 -->
+<div id="step2" class="gs-step">
+  <div class="gs-num">2</div>
+  <div class="gs-body">
+    <div class="card">
+      <div class="gs-title">Add a Pattern — how should the field find its data?</div>
+      <div class="gs-desc">
+        Every field needs at least one <strong>pattern</strong> that tells the engine what to look for.
+        Pick the simplest type that fits your data — you can add multiple patterns to one field.
+      </div>
+
+      <div class="pt-row">
+        <div class="pt-chip recommended">
+          <span class="pt-name">🔤 WholeWord</span>
+          <span class="pt-eg">"David Cohen"</span>
+          <span class="pt-use">Exact names, static values</span>
+        </div>
+        <div class="pt-chip recommended">
+          <span class="pt-name">📋 ConstList</span>
+          <span class="pt-eg">"Cohen|Levy|Sharon"</span>
+          <span class="pt-use">Fixed list of terms (| separated)</span>
+        </div>
+        <div class="pt-chip recommended">
+          <span class="pt-name">🔢 NumberSequence</span>
+          <span class="pt-eg">length=9</span>
+          <span class="pt-use">Israeli ID / phone digits</span>
+        </div>
+        <div class="pt-chip">
+          <span class="pt-name">🏷 AfterLabel</span>
+          <span class="pt-eg">"Patient:"</span>
+          <span class="pt-use">Value following a field label</span>
+        </div>
+        <div class="pt-chip">
+          <span class="pt-name">🔍 Regex</span>
+          <span class="pt-eg">\b\d{9}\b</span>
+          <span class="pt-use">Complex patterns (last resort)</span>
+        </div>
+        <div class="pt-chip">
+          <span class="pt-name">📁 FileList</span>
+          <span class="pt-eg">names.dat</span>
+          <span class="pt-use">Large imported dictionaries</span>
+        </div>
+      </div>
+
+      <!-- Example walkthrough table -->
+      <div style="margin-top:16px;overflow-x:auto">
+        <table>
+          <tr><th>I want to redact…</th><th>Use this pattern type</th><th>Example pattern</th></tr>
+          <tr>
+            <td>Israeli ID number (9 digits)</td>
+            <td><span class="badge badge-blue">Regex</span></td>
+            <td><code>\b[0-9]{9}\b</code></td>
+          </tr>
+          <tr>
+            <td>Phone numbers (Israeli)</td>
+            <td><span class="badge badge-blue">Regex</span></td>
+            <td><code>0[5-9]\d[-\s]?\d{7}</code></td>
+          </tr>
+          <tr>
+            <td>A fixed list of doctor names</td>
+            <td><span class="badge badge-blue">ConstList</span></td>
+            <td><code>Dr. Cohen|Dr. Levi|Dr. Shapiro</code></td>
+          </tr>
+          <tr>
+            <td>Whatever value follows "Patient:"</td>
+            <td><span class="badge badge-blue">AfterLabel</span></td>
+            <td><code>Patient:</code></td>
+          </tr>
+          <tr>
+            <td>Any 4-digit year (e.g. birth year)</td>
+            <td><span class="badge badge-blue">Regex</span></td>
+            <td><code>\b(19|20)\d{2}\b</code></td>
+          </tr>
+          <tr>
+            <td>Lines that say "UNSPECIFIED" or "BLURRED"</td>
+            <td><span class="badge badge-blue">WholeLine</span></td>
+            <td><code>UNSPECIFIED|BLURRED</code></td>
+          </tr>
+          <tr>
+            <td>Thousands of names from a .dat file</td>
+            <td><span class="badge badge-blue">FileList</span></td>
+            <td><em>Upload via Import File List button</em></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">📖</span>
+        <div>See the full pattern reference with examples for all 12 types:
+          <a href="/admin/pattern-help">📖 Pattern Help</a>
+        </div>
+      </div>
+
+      <div class="action-strip">
+        <span class="lbl">→ Add a pattern:</span>
+        <a href="/admin/fields" class="btn btn-primary btn-sm">🔧 PII Fields</a>
+        <span class="lbl">Open your field → click <strong>+ Add Pattern</strong> → choose type → save.</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="gs-connector"></div>
+
+<!-- ══════════════════════════════════════════════════════════════ STEP 3 -->
+<div id="step3" class="gs-step">
+  <div class="gs-num">3</div>
+  <div class="gs-body">
+    <div class="card">
+      <div class="gs-title">Test in the Live Tester — verify before going to production</div>
+      <div class="gs-desc">
+        Upload a real (or sample) document, run the engine, and inspect each match visually before any API call reaches production.
+        The Tester runs the exact same engine as the API — what you see here is what the API returns.
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+        <div>
+          <div class="doc-label">📤 Upload &amp; Analyze</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.9">
+            ① Drag a file onto the drop zone (PDF, image, TXT, DOCX)<br/>
+            ② Click <strong>Analyze All</strong><br/>
+            ③ OCR pane shows raw extracted text<br/>
+            ④ Redact pane shows the result with <span style="background:rgba(255,77,79,.2);padding:0 4px;border-radius:2px">highlights</span> on matches
+          </div>
+        </div>
+        <div>
+          <div class="doc-label">🔍 Debug tools in the toolbar</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.9">
+            <strong>📍 Pos</strong> — shows character position markers (useful for Scope setup)<br/>
+            <strong>← RTL</strong> — switch text direction for Hebrew/Arabic<br/>
+            <strong>A+ / A−</strong> — adjust font size<br/>
+            <strong>🔍 Search</strong> — find text within OCR/redacted pane<br/>
+            <strong>⬇ Redacted</strong> — download redacted text as .txt
+          </div>
+        </div>
+      </div>
+
+      <div class="tip good">
+        <span class="tip-icon">💡</span>
+        <div>
+          <strong>Right-click on any text in the OCR pane</strong> to add it directly to a PII field, or to set a Scope End position for FileList patterns.
+        </div>
+      </div>
+
+      <div class="tip warn">
+        <span></span>
+        <div>
+          If a match fires that it shouldn't (e.g. "Cohen" matching a hospital name), use a
+          <strong>Preserve Field</strong> (Step 4) to whitelist it — preserved terms are never redacted.
+        </div>
+      </div>
+
+      <div class="action-strip">
+        <a href="/admin/tester" class="btn btn-primary btn-sm">🔍 Open Live Tester</a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="gs-connector"></div>
+
+<!-- ══════════════════════════════════════════════════════════════ STEP 4 -->
+<div id="step4" class="gs-step">
+  <div class="gs-num">4</div>
+  <div class="gs-body">
+    <div class="card" style="border-color:rgba(82,196,26,.4);background:rgba(82,196,26,.03)">
+      <div class="gs-title">🛡 Protect specific terms — Preserve Fields</div>
+      <div class="gs-desc">
+        Sometimes a pattern fires on something it shouldn't — a hospital name that looks like a person's name,
+        a medicine that matches your name list, a city that resembles a surname.
+        <strong>Preserve Fields</strong> are a whitelist: any term listed there is <em>never</em> redacted, regardless of other rules.
+      </div>
+
+      <div class="ba-wrap" style="margin-bottom:12px">
+        <div>
+          <div class="doc-label">⚠ Without Preserve</div>
+          <div class="doc-sample ba-redact" style="border-color:rgba(255,77,79,.3)">Admitted to <mark>███████ ███████</mark> Medical Center
+Referring physician: <mark>Dr. Cohen</mark>
+Diagnosis: <mark>████████</mark> Fibrillation</div>
+        </div>
+        <div class="ba-arrow">→</div>
+        <div>
+          <div class="doc-label">✅ With Preserve: "Shaare Zedek", "Atrial"</div>
+          <div class="doc-sample ba-redact">Admitted to Shaare Zedek Medical Center
+Referring physician: <mark>██████████</mark>
+Diagnosis: Atrial Fibrillation</div>
+        </div>
+      </div>
+
+      <div class="tip good">
+        <span class="tip-icon">💡</span>
+        <div>
+          Preserve Fields have <strong>priority over all redaction rules</strong> — they always win.
+          Add medical terms, institution names, drug names, or any text that must survive unchanged.
+        </div>
+      </div>
+
+      <div class="action-strip">
+        <span class="lbl">→ Create a Preserve field:</span>
+        <a href="/admin/fields" class="btn btn-sm" style="background:rgba(82,196,26,.12);border:1px solid #52c41a;color:#52c41a">🛡 PII Fields → Add Preserve Field</a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="gs-connector"></div>
+
+<!-- ══════════════════════════════════════════════════════════════ STEP 5 -->
+<div id="step5" class="gs-step">
+  <div class="gs-num">5</div>
+  <div class="gs-body">
+    <div class="card">
+      <div class="gs-title">Call the API from your application</div>
+      <div class="gs-desc">
+        Once your fields are configured and tested, integrate via the REST API.
+        Every client gets a unique API key — create one in the Clients page.
+      </div>
+
+      <div class="doc-label">🔑 Get your API key</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.8">
+        <strong>1.</strong> Open <a href="/admin/clients">Clients</a> → <strong>Create Client</strong><br/>
+        <strong>2.</strong> Copy the key shown once (click 📋 Copy) — it won't be shown again<br/>
+        <strong>3.</strong> Pass it as the <code>X-Api-Key</code> header on every request
+      </div>
+
+      <div class="doc-label">🌐 POST /api/v1/redact/redact</div>
+      <div class="api-box"><span class="cmt"># Upload a file and get redacted text back</span>
+<span class="kw">curl</span> -X POST https://your-server/api/v1/redact/redact \
+  -H <span class="str">"X-Api-Key: YOUR_KEY_HERE"</span> \
+  -F <span class="str">"file=@@/path/to/document.pdf"</span>
+</div>
+
+      <div class="doc-label" style="margin-top:12px">📦 Response</div>
+      <div class="api-box">{
+  <span class="str">"redactedText"</span>: <span class="str">"Patient: ███████████\nID: █████████\n..."</span>,
+  <span class="str">"matchCount"</span>: 7,
+  <span class="str">"fieldsHit"</span>: [<span class="str">"Patient Name"</span>, <span class="str">"Israeli ID"</span>, <span class="str">"Phone"</span>],
+  <span class="str">"durationMs"</span>: 312,
+  <span class="str">"matches"</span>: [
+    { <span class="str">"startIndex"</span>: 9, <span class="str">"length"</span>: 11, <span class="str">"fieldName"</span>: <span class="str">"Patient Name"</span>,
+      <span class="str">"matchedText"</span>: <span class="str">"David Cohen"</span>, <span class="str">"replacement"</span>: <span class="str">"███████████"</span> },
+    ...
+  ]
+}
+</div>
+
+      <div class="tip">
+        <span class="tip-icon">📖</span>
+        <div>Full API documentation (all endpoints, parameters, auth) is available at
+          <a href="/swagger" target="_blank">/swagger</a>.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="gs-connector"></div>
+
+<!-- ══════════════════════════════════════════════════════════════ STEP 6 -->
+<div id="step6" class="gs-step">
+  <div class="gs-num">6</div>
+  <div class="gs-body">
+    <div class="card">
+      <div class="gs-title">Advanced — Name Dictionaries with Scope</div>
+      <div class="gs-desc">
+        When your document contains thousands of names (e.g. patient records), use a <strong>FileList</strong> pattern
+        to import a large names dictionary. Combine it with <strong>Scope</strong> to restrict matching to only
+        the document header — preventing false positives in the body of clinical notes.
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+        <div>
+          <div class="doc-label">📄 Medical record structure</div>
+          <div class="doc-sample" style="font-size:11px;line-height:1.9">
+<span style="color:#fa8c16;font-weight:700">◀── Scope region (header)</span>
+Patient:    David Cohen
+ID:         123456789
+DOB:        15/03/1980
+Phone:      050-1234567
+<span style="color:#1677ff;font-weight:700">▶── Below scope (body — names list won't fire here)</span>
+The patient presented with...
+Cohen syndrome was ruled out.
+The attending, Dr. Levy, noted...</div>
+        </div>
+        <div>
+          <div class="doc-label">🎯 Scope configuration</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.9">
+            <strong>Scope End Position</strong><br/>
+            Character count from start where the header ends.
+            Use <strong>📍 Pos</strong> in the Tester to find the right number,
+            then right-click → <em>Set Scope End here</em>.<br/><br/>
+            <strong>Scope End markers</strong> (optional)<br/>
+            Text patterns that, when found, mark the end of the header:
+            <code>אבחנות פעילות:</code>, <code>BLURRED</code>, etc.
+          </div>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto;margin-bottom:12px">
+        <table>
+          <tr><th>Setup step</th><th>How</th></tr>
+          <tr>
+            <td><strong>1.</strong> Import names file</td>
+            <td>PII Fields → <em>Import File List</em> → upload .txt/.dat file (Hebrew + English supported)</td>
+          </tr>
+          <tr>
+            <td><strong>2.</strong> Find the scope boundary</td>
+            <td>Tester → upload a sample doc → enable <strong>📍 Pos</strong> → hover to find the position where header ends</td>
+          </tr>
+          <tr>
+            <td><strong>3.</strong> Set scope end</td>
+            <td>Right-click in OCR pane at the boundary → <em>Set Scope End here</em> → pick the FileList pattern → Save</td>
+          </tr>
+          <tr>
+            <td><strong>4.</strong> Add end markers (optional)</td>
+            <td>PII Fields → expand the FileList pattern → click <strong>🎯 Scope</strong> → fill in <em>Scope End markers</em></td>
+          </tr>
+          <tr>
+            <td><strong>5.</strong> Test again</td>
+            <td>Re-upload in Tester — the amber dashed line shows the scope boundary; names below it are skipped</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="tip warn">
+        <span></span>
+        <div>
+          Without Scope, a names dictionary will match <em>anywhere</em> in the document — including "Cohen" in
+          "Cohen syndrome" or "Levine" in "Levine's criteria". Scope limits matching to the header region only.
+        </div>
+      </div>
+
+      <div class="action-strip">
+        <a href="/admin/fields" class="btn btn-primary btn-sm">🔧 Configure FileList &amp; Scope</a>
+        <a href="/admin/tester" class="btn btn-default btn-sm">🔍 Tester — find scope position</a>
+        <a href="/admin/pattern-help#filelist" class="btn btn-default btn-sm">📖 FileList docs</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ Quick reference card at bottom -->
+<div class="card" style="margin-top:8px">
+  <h3>📋 Quick Reference — Common Field Configurations</h3>
+  <table>
+    <tr><th>What to redact</th><th>Field name</th><th>Pattern type</th><th>Pattern</th><th>Replace</th></tr>
+    <tr>
+      <td>Israeli ID (Teudat Zehut)</td>
+      <td>Israeli ID</td>
+      <td><span class="badge badge-blue">Regex</span></td>
+      <td><code>\b[0-9]{9}\b</code></td>
+      <td><code>█</code></td>
+    </tr>
+    <tr>
+      <td>Israeli mobile</td>
+      <td>Phone</td>
+      <td><span class="badge badge-blue">Regex</span></td>
+      <td><code>0[5-9]\d[-\s]?\d{7}</code></td>
+      <td><code>█</code></td>
+    </tr>
+    <tr>
+      <td>Email address</td>
+      <td>Email</td>
+      <td><span class="badge badge-blue">Regex</span></td>
+      <td><code>[a-zA-Z0-9._%+\-]+@@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}</code></td>
+      <td><code>█</code></td>
+    </tr>
+    <tr>
+      <td>Date of birth (DD/MM/YYYY)</td>
+      <td>Date of Birth</td>
+      <td><span class="badge badge-blue">Regex</span></td>
+      <td><code>\b\d{1,2}[/\-.]\d{1,2}[/\-.](19|20)\d{2}\b</code></td>
+      <td><code>█</code></td>
+    </tr>
+    <tr>
+      <td>Patient name from label</td>
+      <td>Patient Name</td>
+      <td><span class="badge badge-blue">AfterLabel</span></td>
+      <td><code>Patient:|שם:</code></td>
+      <td><code>█</code></td>
+    </tr>
+    <tr>
+      <td>Known patient names (dictionary)</td>
+      <td>Names Dictionary</td>
+      <td><span class="badge badge-blue">FileList</span></td>
+      <td><em>Upload .dat file</em> + set Scope</td>
+      <td><code>█</code></td>
+    </tr>
+    <tr>
+      <td>Hospital / institution name</td>
+      <td>Institution Names 🛡</td>
+      <td><span class="badge badge-green">Preserve</span></td>
+      <td><code>Shaare Zedek|Ichilov|Hadassah</code></td>
+      <td><em>never redacted</em></td>
+    </tr>
+    <tr>
+      <td>Medicine names (don't redact)</td>
+      <td>Medical Terms 🛡</td>
+      <td><span class="badge badge-green">Preserve</span></td>
+      <td><code>Metformin|Aspirin|Warfarin|Ibuprofen</code></td>
+      <td><em>never redacted</em></td>
+    </tr>
+  </table>
+</div>
+
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;padding:16px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+  <span style="font-size:13px;color:var(--text2);align-self:center">Next steps:</span>
+  <a href="/admin/fields" class="btn btn-primary btn-sm">🔧 Configure PII Fields</a>
+  <a href="/admin/tester" class="btn btn-default btn-sm">🔍 Live Tester</a>
+  <a href="/admin/pattern-help" class="btn btn-default btn-sm">📖 Pattern Reference</a>
+  <a href="/admin/clients" class="btn btn-default btn-sm">🔑 Manage API Keys</a>
+  <a href="/swagger" class="btn btn-default btn-sm" target="_blank">🌐 API Docs</a>
+</div>

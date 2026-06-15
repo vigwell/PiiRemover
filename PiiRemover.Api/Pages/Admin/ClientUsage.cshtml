@@ -1,0 +1,90 @@
+@page "/admin/client-usage/{clientId:int}"
+@model PiiRemover.Api.Pages.Admin.ClientUsageModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = $"Usage — {Model.ClientName}";
+    ViewData["Nav"] = "clients";
+}
+
+<h1 class="page-title">
+    📈 Usage — <span style="color:#1677ff">@Model.ClientName</span>
+    <a href="/admin/clients" class="btn btn-default btn-sm" style="font-size:12px;margin-left:12px;vertical-align:middle">← Back</a>
+</h1>
+
+<div class="grid-3">
+    <div class="card"><div class="stat">
+        <div class="val">@Model.TotalCalls.ToString("N0")</div>
+        <div class="lbl">Total Calls (30 days)</div>
+    </div></div>
+    <div class="card"><div class="stat">
+        <div class="val" style="color:@(Model.ErrorCount > 0 ? "#ff4d4f" : "#52c41a")">@Model.ErrorCount.ToString("N0")</div>
+        <div class="lbl">Errors</div>
+    </div></div>
+    <div class="card"><div class="stat">
+        <div class="val">@(Model.AvgDurationMs > 0 ? Model.AvgDurationMs.ToString("N0") + " ms" : "—")</div>
+        <div class="lbl">Avg Duration</div>
+    </div></div>
+</div>
+
+<div class="grid-2">
+<div class="card">
+    <h3>API Calls — Last 30 Days</h3>
+    @{
+        var maxCalls = Model.DailyCalls.Count > 0 ? Math.Max(1, Model.DailyCalls.Max(d => d.Count)) : 1;
+        const int chartH = 80;
+        const int barW   = 14;
+        const int gap    = 3;
+        var totalW = Model.DailyCalls.Count * (barW + gap) - gap;
+    }
+    @if (!Model.DailyCalls.Any())
+    {
+        <p style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">No activity in the last 30 days.</p>
+    }
+    else
+    {
+        <svg width="100%" viewBox="0 0 @totalW @(chartH + 22)" preserveAspectRatio="xMidYMid meet"
+             style="overflow:visible;display:block;margin:0 auto">
+            @for (int i = 0; i < Model.DailyCalls.Count; i++)
+            {
+                var d = Model.DailyCalls[i];
+                var h = (int)Math.Max(2, Math.Round((double)d.Count / maxCalls * chartH));
+                var x = i * (barW + gap);
+                var y = chartH - h;
+                // Show day label every 5th bar
+                <rect x="@x" y="@y" width="@barW" height="@h"
+                      fill="#1677ff" fill-opacity="@(d.Count == 0 ? "0.1" : "0.7")" rx="2">
+                    <title>@d.Day: @d.Count calls</title>
+                </rect>
+                @if (i % 5 == 0 && d.Day.Length >= 5)
+                {
+                    @Html.Raw($"<text x=\"{x + barW / 2}\" y=\"{chartH + 14}\" text-anchor=\"middle\" font-size=\"8\" fill=\"currentColor\" opacity=\".5\">{d.Day[5..]}</text>")
+                }
+            }
+        </svg>
+    }
+</div>
+
+<div class="card">
+    <h3>Top Fields Hit — Last 30 Days</h3>
+    @if (!Model.TopFields.Any())
+    {
+        <p style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">No field hits recorded.</p>
+    }
+    else
+    {
+        <table>
+            <tr><th>#</th><th>Field</th><th style="text-align:right">Hits</th></tr>
+            @{ int rank = 1; }
+            @foreach (var f in Model.TopFields)
+            {
+                <tr>
+                    <td style="color:var(--text3);width:28px">@rank</td>
+                    <td>@f.FieldName</td>
+                    <td style="text-align:right;font-weight:600;color:#1677ff">@f.Count.ToString("N0")</td>
+                </tr>
+                rank++;
+            }
+        </table>
+    }
+</div>
+</div>

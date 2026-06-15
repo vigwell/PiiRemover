@@ -1,0 +1,871 @@
+@page "/admin/settings"
+@model PiiRemover.Api.Pages.Admin.SettingsModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Settings";
+    ViewData["Nav"] = "settings";
+    var activeTab = HttpContext.Request.Query["tab"].FirstOrDefault() ?? "general";
+}
+
+<style>
+.tab-strip { display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:24px; }
+.tab-strip button {
+  background:none; border:none; padding:9px 20px; font-size:13px; font-weight:500;
+  color:var(--text2); cursor:pointer; border-bottom:2px solid transparent;
+  margin-bottom:-2px; border-radius:6px 6px 0 0; transition:all .15s;
+}
+.tab-strip button:hover   { color:var(--text); background:var(--surface2); }
+.tab-strip button.active  { color:#1677ff; border-bottom-color:#1677ff; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+</style>
+
+<h1 class="page-title">System Settings</h1>
+
+@{
+    var _tdOk           = TempData["SettingsSuccess"] as string;
+    var _tdErr          = TempData["SettingsError"]   as string;
+    var _dbRestored     = TempData["DbRestored"] as string == "1";
+    var _ok             = Model.SuccessMessage ?? _tdOk;
+    var _err            = Model.ErrorMessage   ?? _tdErr;
+    var _backup_dir_display = Model.BackupDirectory;
+}
+@if (!string.IsNullOrEmpty(_ok))  { <div class="alert alert-success">@_ok</div>  }
+@if (!string.IsNullOrEmpty(_err)) { <div class="alert alert-danger">@_err</div> }
+
+<!-- ── Tab strip ─────────────────────────────────────────────────────── -->
+<div class="tab-strip">
+  <button class="@(activeTab=="general" ?"active":"")" onclick="switchTab('general')">⚙ General</button>
+  <button class="@(activeTab=="ocr"     ?"active":"")" onclick="switchTab('ocr')">🔍 OCR</button>
+  <button class="@(activeTab=="backup"  ?"active":"")" onclick="switchTab('backup')">🗄 Backup</button>
+  <button class="@(activeTab=="health"  ?"active":"")" onclick="switchTab('health')">❤ System Status</button>
+  <button class="@(activeTab=="advanced"?"active":"")" onclick="switchTab('advanced')">🔧 Advanced</button>
+  <button class="@(activeTab=="ai"?"active":"")" onclick="switchTab('ai')">🤖 AI Extraction Engine</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ TAB: GENERAL -->
+<div id="tab-general" class="tab-pane @(activeTab=="general"?"active":"")">
+  <div class="grid-2">
+
+    <!-- License summary -->
+    <div class="card">
+      <h3>License</h3>
+      <table>
+        <tr><td>Organisation</td><td><strong>@Model.License.OrgName</strong></td></tr>
+        <tr><td>License ID</td><td><span class="mono">@Model.License.LicenseId</span></td></tr>
+        <tr><td>Issued</td><td>@Model.License.IssuedDate.ToString("yyyy-MM-dd")</td></tr>
+        <tr><td>Expires</td><td>
+          @if (Model.DaysUntilExpiry <= 7)
+          { <span class="badge badge-red">@Model.License.ExpiryDate.ToString("yyyy-MM-dd")</span> }
+          else if (Model.DaysUntilExpiry <= 30)
+          { <span class="badge badge-blue">@Model.License.ExpiryDate.ToString("yyyy-MM-dd")</span> }
+          else
+          { <span class="badge badge-green">@Model.License.ExpiryDate.ToString("yyyy-MM-dd")</span> }
+        </td></tr>
+        <tr><td>Max Clients</td><td>@Model.License.MaxClients</td></tr>
+        <tr><td>Request Quota</td><td>
+          @if (Model.License.RequestQuota == 0)
+          { <span class="badge badge-green">Unlimited</span> }
+          else
+          { <text>@Model.QuotaUsed.ToString("N0") / @Model.License.RequestQuota.ToString("N0")</text> }
+        </td></tr>
+        <tr><td>Features</td><td>@string.Join(", ", Model.License.Features)</td></tr>
+      </table>
+    </div>
+
+    <!-- Change password -->
+    <div class="card">
+      <h3>Change My Password</h3>
+      <form method="post" asp-page-handler="ChangePassword">
+        <div style="margin-bottom:10px">
+          <label>Current Password</label>
+          <input type="password" asp-for="CurrentPassword" required />
+        </div>
+        <div style="margin-bottom:10px">
+          <label>New Password</label>
+          <input type="password" asp-for="NewPassword" required minlength="4" />
+        </div>
+        <div style="margin-bottom:14px">
+          <label>Confirm New Password</label>
+          <input type="password" asp-for="ConfirmPassword" required minlength="4" />
+        </div>
+        <button type="submit" class="btn btn-primary">Change Password</button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Admin accounts -->
+  <div class="card">
+    <h3>Admin Accounts
+      <span style="margin-left:10px;font-size:11px;font-weight:400;color:var(--text3)">
+        @Model.AdminUsernames.Count / 5 accounts
+      </span>
+    </h3>
+
+    @if (Model.AdminUsernames.Count > 0)
+    {
+      <table style="margin-bottom:16px">
+        <tr><th style="width:40px">#</th><th>Username</th><th style="width:80px"></th></tr>
+        @{ int idx = 1; var currentUser = User.Identity?.Name ?? ""; }
+        @foreach (var u in Model.AdminUsernames)
+        {
+          <tr>
+            <td style="color:var(--text3)">@idx</td>
+            <td>
+              <span class="mono">@u</span>
+              @if (string.Equals(u, currentUser, StringComparison.OrdinalIgnoreCase))
+              { <span style="margin-left:8px;font-size:11px;background:rgba(22,119,255,.1);color:#1677ff;border:1px solid rgba(22,119,255,.2);border-radius:8px;padding:1px 7px">you</span> }
+            </td>
+            <td>
+              @if (!string.Equals(u, currentUser, StringComparison.OrdinalIgnoreCase) && Model.AdminUsernames.Count > 1)
+              {
+                <form method="post" asp-page-handler="RemoveAdmin" style="margin:0" onsubmit="return confirm('Remove admin \'@u\'?')">
+                  <input type="hidden" name="RemoveUsername" value="@u" />
+                  <button type="submit" class="btn btn-sm" style="background:rgba(255,77,79,.08);border:1px solid rgba(255,77,79,.25);color:#ff4d4f;padding:2px 10px">
+                    🗑 Remove
+                  </button>
+                </form>
+              }
+            </td>
+          </tr>
+          idx++;
+        }
+      </table>
+    }
+
+    @if (Model.AdminUsernames.Count < 5)
+    {
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">Add Admin Account</div>
+        <form method="post" asp-page-handler="AddAdmin">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;max-width:680px">
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Username</label>
+              <input asp-for="NewAdminUsername" placeholder="e.g. john" autocomplete="off" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Password</label>
+              <input type="password" asp-for="NewAdminPassword" placeholder="Min. 4 characters" autocomplete="new-password" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Confirm</label>
+              <input type="password" asp-for="NewAdminConfirm" placeholder="Repeat password" autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">+ Add</button>
+          </div>
+        </form>
+      </div>
+    }
+    else
+    {
+      <p style="font-size:12px;color:var(--text3);margin:0">Maximum of 5 admin accounts reached. Remove one to add another.</p>
+    }
+  </div>
+
+  <!-- Log retention -->
+  <div class="card" style="max-width:460px">
+    <h3>Log Retention</h3>
+    <form method="post" asp-page-handler="SaveLogRetention" style="display:flex;gap:10px;align-items:center">
+      <label>Keep logs for</label>
+      <input type="number" asp-for="RetentionMonths" min="1" max="120" style="width:80px" />
+      <span>month(s)</span>
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
+    </form>
+    <p style="color:#888;font-size:12px;margin-top:8px">
+      Logs older than this threshold are deleted daily by the background cleanup job.
+      Currently: <strong>@Model.RetentionMonths month(s)</strong>.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TAB: OCR -->
+<div id="tab-ocr" class="tab-pane @(activeTab=="ocr"?"active":"")">
+  <div class="grid-2">
+
+    <!-- Engine order + language -->
+    <div class="card">
+      <h3>OCR Engine Configuration</h3>
+      <form method="post" asp-page-handler="SaveOcr">
+
+        <div style="margin-bottom:16px">
+          <label style="margin-bottom:6px;display:block">Recognition Engine — Priority Order</label>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:10px">
+            Documents are analysed using these engines in the order shown.
+            If the first engine produces low-confidence output the second is tried automatically.
+          </p>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center;max-width:340px">
+            <span style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.5px;text-transform:uppercase">1st</span>
+            <select asp-for="OcrEngine1" style="padding:5px 10px">
+              @foreach (var kv in SettingsModel.EngineLabels)
+              {
+                @if (Model.OcrEngine1 == kv.Key)
+                { <option value="@kv.Key" selected>@kv.Value</option> }
+                else
+                { <option value="@kv.Key">@kv.Value</option> }
+              }
+            </select>
+            <span style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.5px;text-transform:uppercase">2nd</span>
+            <select asp-for="OcrEngine2" style="padding:5px 10px">
+              @foreach (var kv in SettingsModel.EngineLabels)
+              {
+                @if (Model.OcrEngine2 == kv.Key)
+                { <option value="@kv.Key" selected>@kv.Value</option> }
+                else
+                { <option value="@kv.Key">@kv.Value</option> }
+              }
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <label style="margin-bottom:6px;display:block">Recognition Languages</label>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:10px">
+            Select the language pack used during recognition.
+            Choosing only the languages you need improves speed and accuracy.
+          </p>
+          <select asp-for="OcrLanguages" style="padding:5px 10px;min-width:220px">
+            @foreach (var kv in SettingsModel.LanguageLabels)
+            {
+              @if (Model.OcrLanguages == kv.Key)
+              { <option value="@kv.Key" selected>@kv.Value</option> }
+              else
+              { <option value="@kv.Key">@kv.Value</option> }
+            }
+            @{
+              var isCustom = !SettingsModel.LanguageLabels.ContainsKey(Model.OcrLanguages);
+            }
+            @if (isCustom)
+            { <option value="@Model.OcrLanguages" selected>Custom: @Model.OcrLanguages</option> }
+          </select>
+        </div>
+
+        <div style="margin-bottom:18px">
+          <label style="margin-bottom:6px;display:block">
+            Maximum Parallel Processing Threads
+            <span style="font-size:11px;color:var(--text3);margin-left:6px">(0 = automatic, recommended)</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="number" asp-for="OcrMaxConcurrency" min="0" max="64" style="width:80px" />
+            <span style="font-size:12px;color:var(--text3)">
+              @if (Model.OcrMaxConcurrency == 0)
+              { <text>Auto — uses all available CPU cores</text> }
+              else
+              { <text>Fixed at @Model.OcrMaxConcurrency thread(s)</text> }
+            </span>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm">💾 Save OCR Settings</button>
+      </form>
+    </div>
+
+    <!-- OCR tips -->
+    <div class="card" style="background:var(--surface2);border-style:dashed">
+      <h3>💡 Tips</h3>
+      <ul style="font-size:13px;color:var(--text2);line-height:2.1;padding-left:18px">
+        <li>Set <strong>1st priority</strong> to the fastest engine for most documents.</li>
+        <li>The second engine is used as a fallback for scanned images or low-quality PDFs.</li>
+        <li>Use <strong>Hebrew + English</strong> for mixed-language Israeli documents.</li>
+        <li>Lower thread count reduces CPU usage on shared servers.</li>
+        <li>Changes to engine order or thread count require a <strong>service restart</strong> to take effect.</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="grid-2">
+    <!-- Planned: License Expiry Alerts -->
+    <div class="card" style="opacity:.65">
+      <h3>📧 License Expiry Alerts
+        <span style="margin-left:8px;font-size:11px;font-weight:400;background:rgba(250,140,22,.15);color:#fa8c16;border:1px solid rgba(250,140,22,.3);border-radius:10px;padding:2px 9px">🔒 Planned</span>
+      </h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
+        Automatically notify via webhook or email when the license is about to expire.
+        Will be available in a longer-term future version.
+      </p>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3)">Webhook URL</label>
+        <input type="text" disabled placeholder="https://your-endpoint.example.com/webhook" />
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3)">Email address</label>
+        <input type="text" disabled placeholder="admin@example.com" />
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--text3)">Alert N days before expiry</label>
+        <input type="number" disabled value="30" style="width:80px" />
+      </div>
+      <button class="btn btn-primary btn-sm" disabled>Save Alert Settings</button>
+    </div>
+
+    <!-- Planned: LLM / AI Engine -->
+    <div class="card" style="opacity:.65">
+      <h3>🤖 LLM / AI Pattern Engine
+        <span style="margin-left:8px;font-size:11px;font-weight:400;background:rgba(250,140,22,.15);color:#fa8c16;border:1px solid rgba(250,140,22,.3);border-radius:10px;padding:2px 9px">🔒 Planned</span>
+      </h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
+        Context-aware PII detection powered by a local AI model.
+        Will be available in a longer-term future version.
+      </p>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3)">AI Endpoint URL</label>
+        <input type="text" disabled placeholder="http://localhost:11434" />
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3)">Model</label>
+        <input type="text" disabled placeholder="Select model" />
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--text3)">Request timeout (seconds)</label>
+        <input type="number" disabled value="30" style="width:80px" />
+      </div>
+      <button class="btn btn-primary btn-sm" disabled>Save AI Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ TAB: BACKUP -->
+<div id="tab-backup" class="tab-pane @(activeTab=="backup"?"active":"")">
+
+  <div class="grid-2" style="margin-bottom:16px">
+
+    <!-- Status card -->
+    <div class="card" style="background:var(--surface2);border-style:dashed">
+      <h3>📊 Backup Status</h3>
+      <table>
+        <tr>
+          <td>Auto-backup</td>
+          <td>
+            @if (Model.BackupEnabled)
+            { <span class="badge badge-green">Enabled</span> }
+            else
+            { <span class="badge" style="background:var(--surface);border:1px solid var(--border2);color:var(--text3)">Disabled</span> }
+          </td>
+        </tr>
+        <tr>
+          <td>Interval</td>
+          <td>
+            @if (SettingsModel.BackupIntervalOptions.TryGetValue(Model.BackupIntervalHours, out var lbl))
+            { @lbl }
+            else
+            { <text>Every @Model.BackupIntervalHours hours</text> }
+          </td>
+        </tr>
+        <tr>
+          <td>Last backup</td>
+          <td>
+            @if (string.IsNullOrEmpty(Model.LastBackupAt))
+            { <span style="color:var(--text3)">Never</span> }
+            else
+            { <span>@(DateTime.TryParse(Model.LastBackupAt, out var lb) ? lb.ToString("dd MMM yyyy HH:mm") : Model.LastBackupAt)</span> }
+          </td>
+        </tr>
+        @if (Model.BackupEnabled)
+        {
+          <tr><td>Next backup</td><td style="color:#1677ff;font-weight:600">@Model.NextBackupDue</td></tr>
+        }
+        <tr>
+          <td>Stored backups</td>
+          <td><strong>@Model.ExistingBackups.Count</strong> / @Model.BackupKeepCount kept</td>
+        </tr>
+        <tr>
+          <td>Backup folder</td>
+          <td><span class="mono" style="font-size:11px">@_backup_dir_display</span></td>
+        </tr>
+      </table>
+
+      <div style="margin-top:14px">
+        <form method="post" asp-page-handler="CreateBackupNow" style="display:inline">
+          <button type="submit" class="btn btn-primary btn-sm">💾 Create Backup Now</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Schedule settings -->
+    <div class="card">
+      <h3>⏱ Schedule Configuration</h3>
+      <form method="post" asp-page-handler="SaveBackupSettings">
+        <div style="margin-bottom:14px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px">
+            <input type="checkbox" asp-for="BackupEnabled" style="width:16px;height:16px" />
+            <span>Enable automatic backups</span>
+          </label>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Backup Interval</label>
+          <select asp-for="BackupIntervalHours" style="padding:5px 10px;min-width:220px">
+            @foreach (var kv in SettingsModel.BackupIntervalOptions)
+            {
+              @if (Model.BackupIntervalHours == kv.Key)
+              { <option value="@kv.Key" selected>@kv.Value</option> }
+              else
+              { <option value="@kv.Key">@kv.Value</option> }
+            }
+          </select>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Keep Last N Backups</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="number" asp-for="BackupKeepCount" min="1" max="100" style="width:80px" />
+            <span style="font-size:12px;color:var(--text3)">oldest are deleted automatically</span>
+          </div>
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Backup Folder</label>
+          <input asp-for="BackupDirectory" placeholder="backups" style="max-width:300px" />
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">
+            Relative paths are resolved from the application directory.
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">💾 Save Schedule</button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Existing backups list -->
+  <div class="card" style="padding:0">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0">Existing Backups</h3>
+      <span style="font-size:12px;color:var(--text3)">@Model.ExistingBackups.Count file(s) · keeping last @Model.BackupKeepCount</span>
+    </div>
+
+    @if (!Model.ExistingBackups.Any())
+    {
+      <div style="padding:28px;text-align:center;color:var(--text3);font-size:13px">
+        No backups yet. Click <strong>Create Backup Now</strong> to create the first one.
+      </div>
+    }
+    else
+    {
+      <table style="margin:0">
+        <tr style="font-size:11px">
+          <th style="width:30px">#</th>
+          <th>Filename</th>
+          <th style="width:160px">Created</th>
+          <th style="width:80px">Size</th>
+          <th style="width:60px">Type</th>
+          <th style="width:180px">Actions</th>
+        </tr>
+        @{ int bIdx = 1; }
+        @foreach (var b in Model.ExistingBackups)
+        {
+          var isLatest = bIdx == 1;
+          <tr style="@(isLatest ? "background:rgba(82,196,26,.04)" : "")">
+            <td style="color:var(--text3)">@bIdx</td>
+            <td>
+              <span class="mono" style="font-size:11px">@b.FileName</span>
+              @if (isLatest)
+              { <span style="margin-left:6px;font-size:10px;background:rgba(82,196,26,.12);color:#52c41a;border:1px solid rgba(82,196,26,.25);border-radius:8px;padding:1px 6px">latest</span> }
+            </td>
+            <td style="font-size:12px;white-space:nowrap">@b.CreatedAt.ToString("dd MMM yyyy HH:mm")</td>
+            <td style="font-size:12px">@b.SizeDisplay</td>
+            <td>
+              @if (b.Label == "auto")
+              { <span style="font-size:11px;background:rgba(22,119,255,.08);color:#1677ff;border:1px solid rgba(22,119,255,.2);border-radius:8px;padding:1px 7px">auto</span> }
+              else
+              { <span style="font-size:11px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);border-radius:8px;padding:1px 7px">manual</span> }
+            </td>
+            <td>
+              <div style="display:flex;gap:6px;align-items:center">
+                <a href="/admin/settings?handler=DownloadBackup&f=@Uri.EscapeDataString(b.FileName)"
+                   class="btn btn-sm btn-default" style="font-size:11px;padding:3px 9px">⬇ Download</a>
+                <form method="post" asp-page-handler="RestoreFromBackup" style="margin:0"
+                      onsubmit="return confirmBackupRestore('@b.FileName')">
+                  <input type="hidden" name="RestoreBackupFile" value="@b.FileName" />
+                  <button type="submit" class="btn btn-sm"
+                          style="font-size:11px;padding:3px 9px;background:rgba(255,77,79,.07);border:1px solid rgba(255,77,79,.25);color:#ff4d4f">
+                    ↩ Restore
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          bIdx++;
+        }
+      </table>
+    }
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════ TAB: HEALTH -->
+<div id="tab-health" class="tab-pane @(activeTab=="health"?"active":"")">
+  <div class="card" style="max-width:600px">
+    <h3>API &amp; Service Status</h3>
+
+    <div id="health-result" style="display:none;margin-bottom:16px"></div>
+
+    <button class="btn btn-primary" id="healthCheckBtn" onclick="runHealthCheck()">▶ Run Status Check</button>
+    <span id="health-spinner" style="display:none;margin-left:12px;color:#888;font-size:13px">Checking…</span>
+  </div>
+
+  <div class="card" style="max-width:600px;margin-top:0">
+    <h3>Service Information</h3>
+    <table>
+      <tr><td>Product</td><td><strong>PiiRemover</strong></td></tr>
+      <tr><td>Version</td><td><span class="mono">v3.0.11</span></td></tr>
+      <tr><td>Environment</td><td><span class="mono">@Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")</span></td></tr>
+      <tr><td>Server</td><td><span class="mono">@Environment.MachineName</span></td></tr>
+      <tr><td>OS</td><td><span class="mono">@System.Runtime.InteropServices.RuntimeInformation.OSDescription</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ TAB: ADVANCED -->
+<div id="tab-advanced" class="tab-pane @(activeTab=="advanced"?"active":"")">
+
+  <!-- Database Backup & Restore -->
+  <div class="card" style="margin-bottom:16px">
+    <h3>🗄 Database Backup &amp; Restore</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:20px;max-width:680px">
+      The database contains all PII field definitions, patterns, API clients, request logs, and settings.
+      Create regular backups before major changes, and use Restore to roll back if needed.
+    </p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:780px">
+
+      <!-- Export -->
+      <div style="border:1px solid var(--border);border-radius:8px;padding:18px 20px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:28px">💾</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--title)">Create Backup</div>
+            <div style="font-size:11px;color:var(--text3)">Download the full database as a .db file</div>
+          </div>
+        </div>
+        <ul style="font-size:12px;color:var(--text2);line-height:2;padding-left:16px;margin-bottom:14px">
+          <li>All PII fields &amp; patterns</li>
+          <li>API clients &amp; keys</li>
+          <li>Request logs &amp; statistics</li>
+          <li>All settings &amp; admin accounts</li>
+        </ul>
+        <a href="/admin/settings?handler=ExportDatabase"
+           class="btn btn-primary btn-sm"
+           style="display:inline-flex;align-items:center;gap:6px">
+          <span>💾</span> Download Backup
+        </a>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px">
+          File is named <code>piiremovals_backup_YYYYMMDD_HHMMSS.db</code>
+        </div>
+      </div>
+
+      <!-- Import -->
+      <div style="border:1px solid rgba(255,77,79,.3);border-radius:8px;padding:18px 20px;background:rgba(255,77,79,.02)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:28px">📂</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--title)">Restore from Backup</div>
+            <div style="font-size:11px;color:var(--text3)">Upload a .db file to overwrite current data</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,77,79,.08);border:1px solid rgba(255,77,79,.2);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:12px;color:#ff4d4f">
+          ⚠️ <strong>This replaces all current data.</strong> A <code>.bak</code> safety copy is created automatically before overwriting.
+        </div>
+        <form method="post" asp-page-handler="ImportDatabase" enctype="multipart/form-data"
+              onsubmit="return confirmRestore()">
+          @Html.AntiForgeryToken()
+          <div style="margin-bottom:10px">
+            <input type="file" name="dbFile" accept=".db" required
+                   style="font-size:12px;width:100%" />
+          </div>
+          <button type="submit" class="btn btn-sm"
+                  style="background:rgba(255,77,79,.08);border:1px solid rgba(255,77,79,.4);color:#ff4d4f;display:inline-flex;align-items:center;gap:6px">
+            <span>📂</span> Restore Database
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Raw Settings Store -->
+  <div class="card">
+    <h3>Raw Settings Store</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:14px">
+      All persisted configuration keys. Values marked <code>••••••••</code> are hashed and cannot be recovered.
+    </p>
+    <table>
+      <tr><th>Key</th><th>Value</th><th>Description</th></tr>
+      @foreach (var s in Model.AllSettings)
+      {
+        var display = s.Key == "admin:passwordHash" ? "••••••••" : s.Value;
+        <tr>
+          <td><span class="mono" style="font-size:12px">@s.Key</span></td>
+          <td><span class="mono" style="font-size:12px">@display</span></td>
+          <td style="font-size:12px;color:#888">@s.Description</td>
+        </tr>
+      }
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ TAB: AI EXTRACTION ENGINE -->
+<div id="tab-ai" class="tab-pane @(activeTab=="ai"?"active":"")">
+
+  <form method="post" asp-page-handler="SaveAiSettings">
+    @Html.AntiForgeryToken()
+    <div class="card" style="margin-bottom:16px">
+      <h3>🤖 AI Extraction Engine</h3>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:20px;max-width:680px">
+        The AI Extraction Engine lets you describe what to redact in plain language
+        (e.g. <em>"patient full name"</em>, <em>"Israeli ID number"</em>) instead of writing a regex.
+        Requires a locally-running inference server — all processing stays on-premises.
+      </p>
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <label class="toggle-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" name="AiEnabled" id="aiEnabledToggle" value="true"
+                 @(Model.AiEnabled ? "checked" : "")
+                 onchange="toggleAiFields(this.checked)"
+                 style="width:18px;height:18px;cursor:pointer" />
+          <span style="font-size:14px;font-weight:600">Enable AI Extraction Engine</span>
+        </label>
+        <span id="ai-status-badge" class="badge @(Model.AiEnabled ? "badge-green" : "badge-red")">
+          @(Model.AiEnabled ? "Enabled" : "Disabled")
+        </span>
+      </div>
+
+      <div id="ai-fields" style="@(Model.AiEnabled ? "" : "opacity:.45;pointer-events:none")">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;max-width:780px;margin-bottom:16px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text2)">AI Engine URL</label>
+            <input name="AiBaseUrl" value="@Model.AiBaseUrl" placeholder="http://localhost:11434"
+                   class="ctrl" style="width:100%;margin-top:6px" />
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: http://localhost:11434</div>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text2)">AI Model</label>
+            <input name="AiModel" value="@Model.AiModel" placeholder="phi3.5:latest"
+                   class="ctrl" style="width:100%;margin-top:6px" />
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: phi3.5:latest (~2 GB RAM)</div>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text2)">Timeout (seconds)</label>
+            <input name="AiTimeout" type="number" min="5" max="120" value="@Model.AiTimeout"
+                   class="ctrl" style="width:100%;margin-top:6px" />
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: 15 s per document chunk</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <button type="button" class="btn btn-sm btn-outline-primary"
+                  onclick="testAiConnection()" id="aiTestBtn">
+            🔍 Test AI Connection
+          </button>
+          <span id="ai-test-spinner" style="display:none;font-size:13px;color:var(--text2)">Testing…</span>
+          <span id="ai-test-result" style="display:none;font-size:13px"></span>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-sm">Save AI Settings</button>
+    </div>
+  </form>
+
+  <!-- Install AI Engine (collapsible) -->
+  <div class="card">
+    <details>
+      <summary style="cursor:pointer;font-size:14px;font-weight:600;color:var(--text)">
+        📥 Install AI Engine
+      </summary>
+      <div style="margin-top:16px;font-size:13px;color:var(--text2);max-width:680px">
+        <p style="margin-bottom:12px">
+          The AI Extraction Engine requires a locally-installed inference runtime.
+          Once installed, it runs entirely on-premises — no internet connection needed for processing.
+        </p>
+        <ol style="padding-left:20px;line-height:2.2">
+          <li>
+            <strong>Download the installer</strong> for Windows:<br/>
+            <a href="https://ollama.com/download/windows" target="_blank" rel="noopener"
+               style="color:#1677ff">
+              https://ollama.com/download/windows
+            </a>
+          </li>
+          <li>
+            <strong>Run the installer</strong> — it starts automatically as a background service on port 11434.
+          </li>
+          <li>
+            <strong>Download the AI model</strong> — open a Command Prompt and run:<br/>
+            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull phi3.5:latest</code><br/>
+            <span style="font-size:11px;color:var(--text3)">~2 GB download, ~2 GB RAM at runtime. CPU-only — no GPU required.</span>
+          </li>
+          <li>
+            <strong>Click "Test AI Connection"</strong> above to confirm the engine is running.
+          </li>
+        </ol>
+        <div style="background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2);border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px">
+          💡 <strong>Larger model option:</strong> For higher accuracy on complex documents,
+          use <code>mistral:latest</code> (~8 GB RAM).
+          Change the <em>AI Model</em> field above after pulling the model.
+        </div>
+      </div>
+    </details>
+  </div>
+
+</div>
+
+<script>
+// ── Backup restore confirm (from existing backup list) ─────────────────
+function confirmBackupRestore(fileName) {
+  return confirm(
+    '↩  RESTORE FROM BACKUP?\n\n' +
+    'File: ' + fileName + '\n\n' +
+    'This will replace ALL current data with the contents of this backup.\n' +
+    'A safety copy (.bak) of the current database will be created first.\n\n' +
+    '🔄  The site will reload automatically after restore.\n\n' +
+    'Proceed?'
+  );
+}
+
+// ── Full manual restore confirm ────────────────────────────────────────
+function confirmRestore() {
+  return confirm(
+    '⚠️  RESTORE DATABASE FROM BACKUP?\n\n' +
+    'This will permanently replace:\n' +
+    '  • All PII fields and patterns\n' +
+    '  • All API clients and keys\n' +
+    '  • All request logs\n' +
+    '  • All settings and admin accounts\n\n' +
+    '📋  A safety copy (.bak) will be created first.\n\n' +
+    '🔄  The entire site will reload automatically\n' +
+    '     after the restore completes.\n\n' +
+    'Proceed with restore?'
+  );
+}
+
+// ── Post-restore: show reload banner and auto-reload ──────────────────
+var DB_RESTORED = @(_dbRestored ? "true" : "false");
+
+function doReload() { window.location.href = '/admin'; }
+
+if (DB_RESTORED) {
+  (function() {
+    var banner = document.createElement('div');
+    banner.id  = 'reload-banner';
+    banner.style.cssText =
+      'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+      'background:linear-gradient(90deg,#1677ff,#0958d9);' +
+      'color:#fff;padding:14px 24px;' +
+      'display:flex;align-items:center;justify-content:space-between;' +
+      'gap:16px;box-shadow:0 2px 12px rgba(0,0,0,.35)';
+    var cdId = 'db-countdown';
+    banner.innerHTML =
+      '<span style="font-size:14px;font-weight:600">' +
+        '✅ Database restored successfully. ' +
+        'Reloading the site in <b id="' + cdId + '">5</b> seconds…' +
+      '</span>' +
+      '<button onclick="doReload()" style="background:rgba(255,255,255,.2);' +
+        'border:1px solid rgba(255,255,255,.5);color:#fff;padding:6px 16px;' +
+        'border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap">' +
+        '🔄 Reload now' +
+      '</button>';
+    document.body.insertBefore(banner, document.body.firstChild);
+    document.body.style.paddingTop = '60px';
+
+    var n = 5;
+    var timer = setInterval(function() {
+      n--;
+      var el = document.getElementById(cdId);
+      if (el) el.textContent = n;
+      if (n <= 0) { clearInterval(timer); doReload(); }
+    }, 1000);
+  })();
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-strip button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.tab-strip button').forEach(b => {
+    if (b.getAttribute('onclick') === "switchTab('" + name + "')") b.classList.add('active');
+  });
+  history.replaceState(null, '', '/admin/settings?tab=' + name);
+}
+
+// ── Health check ───────────────────────────────────────────────────────
+async function runHealthCheck() {
+  const btn     = document.getElementById('healthCheckBtn');
+  const spinner = document.getElementById('health-spinner');
+  const result  = document.getElementById('health-result');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  result.style.display  = 'none';
+
+  try {
+    const resp = await fetch('/api/v1/health');
+    const data = await resp.json();
+    const ok   = resp.ok;
+
+    const statusClass = ok ? 'alert-success' : 'alert-danger';
+    const statusIcon  = ok ? '✅' : '❌';
+
+    const daysLeft = data.license?.daysLeft;
+    const licBadge = data.license?.status === 'ok'
+        ? '<span class="badge badge-green">Valid</span>'
+        : data.license?.status === 'expiring_soon'
+            ? `<span class="badge badge-blue">Expires in ${daysLeft}d</span>`
+            : data.license?.status === 'expired'
+                ? '<span class="badge badge-red">Expired</span>'
+                : '<span class="badge badge-red">Missing</span>';
+
+    result.innerHTML = `
+      <div class="alert ${statusClass}">${statusIcon} Status: <strong>${data.status ?? 'unknown'}</strong></div>
+      <table>
+        <tr><td>Version</td><td><span class="mono">${data.version ?? '—'}</span></td></tr>
+        <tr><td>Uptime</td><td>${fmtUptime(data.uptimeSeconds)}</td></tr>
+        <tr><td>Database</td><td>${data.db === 'ok' ? '<span class="badge badge-green">OK</span>' : '<span class="badge badge-red">Error</span>'}</td></tr>
+        <tr><td>License</td><td>${licBadge}${data.license?.expiry ? ' — expires ' + data.license.expiry : ''}</td></tr>
+        <tr><td>HTTP Status</td><td><span class="mono">${resp.status}</span></td></tr>
+      </table>`;
+  } catch (e) {
+    result.innerHTML = `<div class="alert alert-danger">❌ Request failed: ${e.message}</div>`;
+  }
+
+  result.style.display = 'block';
+  spinner.style.display = 'none';
+  btn.disabled = false;
+}
+
+function fmtUptime(s) {
+  if (!s) return '—';
+  if (s < 60)   return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+
+// ── AI Extraction Engine ───────────────────────────────────────────────
+function toggleAiFields(enabled) {
+  const fields = document.getElementById('ai-fields');
+  const badge  = document.getElementById('ai-status-badge');
+  if (fields) { fields.style.opacity = enabled ? '1' : '.45'; fields.style.pointerEvents = enabled ? '' : 'none'; }
+  if (badge)  { badge.textContent = enabled ? 'Enabled' : 'Disabled'; badge.className = 'badge ' + (enabled ? 'badge-green' : 'badge-red'); }
+}
+
+async function testAiConnection() {
+  const btn     = document.getElementById('aiTestBtn');
+  const spinner = document.getElementById('ai-test-spinner');
+  const result  = document.getElementById('ai-test-result');
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  result.style.display  = 'none';
+  try {
+    const resp = await fetch('/admin/settings?handler=TestAiConnection', { method: 'POST',
+      headers: { 'RequestVerificationToken': document.querySelector('input[name=__RequestVerificationToken]').value }});
+    const data = await resp.json();
+    if (data.ok) {
+      const models = data.models?.length ? data.models.join(', ') : 'no models loaded';
+      result.innerHTML = `<span style="color:#52c41a">✅ Connected — ${models} (${data.latencyMs} ms)</span>`;
+    } else {
+      result.innerHTML = `<span style="color:#ff4d4f">❌ ${data.error ?? 'Cannot reach AI engine'}</span>`;
+    }
+  } catch (e) {
+    result.innerHTML = `<span style="color:#ff4d4f">❌ Request failed: ${e.message}</span>`;
+  }
+  spinner.style.display = 'none';
+  result.style.display  = 'inline';
+  btn.disabled = false;
+}
+</script>

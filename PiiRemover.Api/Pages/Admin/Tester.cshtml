@@ -1,0 +1,2271 @@
+﻿@page "/admin/tester"
+@model PiiRemover.Api.Pages.Admin.TesterModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Live Tester";
+    ViewData["Nav"] = "tester";
+}
+
+<style>
+.page { max-width:100% !important; padding:0 20px !important; }
+
+/* ── Drop zone ─────────────────────────────────────────────────── */
+.drop-zone {
+  border:2px dashed var(--border2); border-radius:10px; padding:28px 24px;
+  text-align:center; cursor:pointer; transition:border-color .2s,background .2s;
+  background:var(--surface2); position:relative;
+}
+.drop-zone.drag-over { border-color:#1677ff; background:rgba(22,119,255,.06); }
+.drop-zone input[type=file] { position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%; }
+.drop-hint { color:var(--text3); font-size:12px; margin-top:4px; }
+.file-chips { display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;min-height:28px; }
+.chip { display:inline-flex;align-items:center;gap:5px;background:var(--surface);
+        border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:12px;color:var(--text2); }
+.chip-remove { cursor:pointer;color:var(--text3);font-size:13px;background:none;border:none;
+               padding:0;transition:color .15s; }
+.chip-remove:hover { color:#ff4d4f; }
+.chip-ext { background:rgba(22,119,255,.15);color:#1677ff;border-radius:3px;
+            padding:1px 5px;font-size:10px;font-weight:700;text-transform:uppercase; }
+
+/* ── Run bar ───────────────────────────────────────────────────── */
+.run-bar { display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap; }
+.btn-run { background:#1677ff;color:#fff;border:none;padding:8px 24px;border-radius:6px;
+           font-size:13px;font-weight:600;cursor:pointer;transition:background .2s;
+           display:flex;align-items:center;gap:6px; }
+.btn-run:hover:not(:disabled) { background:#0958d9; }
+.btn-run:disabled { background:var(--border2);cursor:not-allowed;color:var(--text3); }
+.run-status { font-size:12px;color:var(--text3); }
+
+/* ── File preview ──────────────────────────────────────────────── */
+.file-preview { margin-top:12px;padding:10px;border:1px solid var(--border);
+                border-radius:6px;background:var(--mono-bg);text-align:center;
+                overflow:hidden;position:relative; }
+.file-preview img { max-width:100%;border-radius:4px;object-fit:contain;
+                    display:block;margin:0 auto;
+                    transition:max-height .2s; }
+.preview-zoom-bar { display:flex;align-items:center;justify-content:center;gap:6px;
+                    padding:5px 0 2px;font-size:12px;color:var(--text3); }
+.preview-zoom-bar button { background:var(--surface);border:1px solid var(--border2);
+  color:var(--text2);padding:1px 8px;border-radius:3px;cursor:pointer;font-size:12px; }
+.preview-zoom-bar button:hover { border-color:#1677ff;color:#1677ff; }
+
+/* ── Upload card collapsed ─────────────────────────────────────── */
+.upload-collapsed .drop-zone,
+.upload-collapsed .file-preview { display:none !important; }
+.upload-collapsed { padding:8px 14px !important; }
+.upload-collapsed .upload-title { display:none; }
+.upload-mini-bar { display:none;align-items:center;gap:8px;flex-wrap:wrap; }
+.upload-collapsed .upload-mini-bar { display:flex; }
+.upload-expand-btn { background:none;border:1px solid var(--border2);color:var(--text3);
+  padding:2px 9px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap; }
+.upload-expand-btn:hover { border-color:#1677ff;color:#1677ff; }
+
+
+/* ── Result card ───────────────────────────────────────────────── */
+.result-card { background:var(--surface);border:1px solid var(--border);
+               border-radius:10px;margin-bottom:20px;overflow:hidden;box-shadow:var(--shadow); }
+.result-header { display:flex;align-items:center;gap:10px;padding:10px 16px;
+                 border-bottom:1px solid var(--border);background:var(--surface2); }
+.result-header .fname { font-weight:600;font-size:14px;flex:1;
+                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.result-header .fsize { color:var(--text3);font-size:12px; }
+.status-dot { width:9px;height:9px;border-radius:50%;flex-shrink:0; }
+.status-dot.pending { background:var(--text3); }
+.status-dot.running { background:#faad14;animation:pulse 1s infinite; }
+.status-dot.done    { background:#52c41a; }
+.status-dot.error   { background:#ff4d4f; }
+@@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+/* ── Stats bar ─────────────────────────────────────────────────── */
+.stats-bar { display:flex;align-items:center;flex-wrap:wrap;gap:0;padding:6px 16px;
+             border-bottom:1px solid var(--border);font-size:12px;color:var(--text2); }
+.stat-item { display:flex;align-items:center;gap:4px;padding:2px 12px 2px 0;
+             margin-right:12px;border-right:1px solid var(--border); }
+.stat-item:last-child { border-right:none; }
+.stat-val { font-weight:700;color:var(--text); }
+.stat-val.blue { color:#1677ff; }
+.stat-val.warn { color:#faad14; }
+.stat-val.good { color:#52c41a; }
+.fields-row { padding:5px 16px;border-bottom:1px solid var(--border);
+              font-size:12px;display:flex;align-items:center;flex-wrap:wrap;gap:5px; }
+.field-chip { background:rgba(26,111,240,.12);color:#4a90d9;
+              border:1px solid rgba(26,111,240,.2);border-radius:4px;
+              padding:1px 7px;font-size:11px;font-weight:600; }
+
+/* ── Card toolbar ──────────────────────────────────────────────── */
+.card-toolbar {
+  display:flex;align-items:center;gap:6px;padding:7px 14px;
+  border-bottom:1px solid var(--border);background:var(--surface2);flex-wrap:wrap;
+}
+.tb-btn {
+  background:var(--surface);border:1px solid var(--border2);color:var(--text2);
+  padding:3px 9px;border-radius:4px;font-size:12px;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.tb-btn:hover { border-color:#1677ff;color:#1677ff; }
+.tb-btn.active { background:rgba(22,119,255,.12);border-color:#1677ff;color:#1677ff; }
+.tb-sep { width:1px;height:20px;background:var(--border2);flex-shrink:0; }
+.tb-font-size { font-size:11px;font-weight:600;color:var(--text3);min-width:30px;text-align:center; }
+.search-wrap { display:flex;align-items:center;gap:4px;flex:1;min-width:140px;max-width:300px; }
+.search-wrap input {
+  flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border2);
+  border-radius:4px;padding:3px 8px;font-size:12px;outline:none;
+}
+.search-wrap input:focus { border-color:#1677ff; }
+.search-badge { font-size:11px;color:var(--text3);white-space:nowrap;min-width:40px; }
+.tb-btn.nav-btn { padding:3px 7px; }
+
+/* ── Split pane ────────────────────────────────────────────────── */
+.split-pane { display:grid;grid-template-columns:1fr 1fr;
+              height:calc(50vh - 10px);min-height:260px; }
+.pane { display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border); }
+.pane:last-child { border-right:none; }
+.pane-header { padding:7px 12px;font-size:12px;font-weight:600;letter-spacing:.3px;
+               border-bottom:1px solid var(--border);flex-shrink:0;
+               display:flex;align-items:center;gap:6px; }
+.pane-ocr    .pane-header { background:rgba(22,119,255,.07);color:#4a90d9; }
+.pane-redact .pane-header { background:rgba(82,196,26,.07); color:#52c41a; }
+.pane-time { margin-left:auto;font-weight:400;color:var(--text3);font-size:11px; }
+.pane-body {
+  flex:1;overflow-y:auto;overflow-x:auto;padding:10px 12px;
+  font-family:'Cascadia Code','Consolas','Courier New',monospace;
+  line-height:1.75;white-space:pre-wrap;word-break:break-word;
+  color:var(--text2);background:var(--mono-bg);
+}
+.pane-body::-webkit-scrollbar { width:5px;height:5px; }
+.pane-body::-webkit-scrollbar-thumb { background:var(--border2);border-radius:3px; }
+
+/* ── Highlights ────────────────────────────────────────────────── */
+mark.pii-orig {
+  background:rgba(250,173,20,.22);border-bottom:2px solid #faad14;
+  border-radius:2px;color:inherit;cursor:help;padding:0 1px;
+}
+mark.pii-repl {
+  background:rgba(82,196,26,.2);border-bottom:2px solid #52c41a;
+  border-radius:2px;color:#52c41a;font-weight:700;cursor:help;padding:0 1px;
+}
+mark.search-hit {
+  background:rgba(22,119,255,.25);border-bottom:2px solid #1677ff;
+  border-radius:2px;color:inherit;padding:0 1px;
+}
+mark.search-hit.active {
+  background:rgba(255,165,0,.45);border-color:#fa8c16;
+}
+
+/* ── Legend ────────────────────────────────────────────────────── */
+.legend { display:flex;gap:14px;align-items:center;padding:5px 16px;
+          border-top:1px solid var(--border);font-size:11px;color:var(--text3); }
+.legend-swatch { display:inline-block;width:24px;height:10px;border-radius:2px;flex-shrink:0; }
+
+/* ── Position mode ─────────────────────────────────────────────── */
+.pos-mark { display:inline-block;background:rgba(250,140,22,.18);color:#fa8c16;border-radius:3px;
+  font-size:9px;padding:0 3px;margin:0 2px;vertical-align:middle;font-family:monospace;
+  cursor:default;user-select:none;font-weight:700; }
+.pos-indicator { font-size:11px;font-family:monospace;color:#fa8c16;font-weight:600;
+  padding:0 4px;letter-spacing:0;white-space:nowrap; }
+.tb-btn.active { background:#fa8c16 !important;color:#fff !important;border-color:#fa8c16 !important; }
+
+/* ── Grid mode — character offset gutter ───────────────────────── */
+.gl {
+  display:inline-block;
+  width:4.5em;
+  text-align:right;
+  font-family:'Cascadia Code','Consolas','Courier New',monospace;
+  font-size:10px;
+  font-weight:600;
+  color:rgba(22,119,255,.85);
+  background:rgba(22,119,255,.07);
+  padding:0 6px 0 2px;
+  margin-right:10px;
+  border-right:2px solid rgba(22,119,255,.3);
+  user-select:none;
+  font-variant-numeric:tabular-nums;
+  cursor:default;
+  vertical-align:baseline;
+  line-height:inherit;
+  box-sizing:border-box;
+}
+.gl:hover { color:#1677ff;background:rgba(22,119,255,.14);border-right-color:rgba(22,119,255,.6); }
+[data-bs-theme="dark"] .gl {
+  color:rgba(96,165,250,.85);
+  background:rgba(96,165,250,.07);
+  border-right-color:rgba(96,165,250,.3);
+}
+[data-bs-theme="dark"] .gl:hover {
+  color:#60a5fa;background:rgba(96,165,250,.14);border-right-color:rgba(96,165,250,.6);
+}
+.pane-body.grid-active { padding-left:0; }
+
+/* ── Scope End marker line ──────────────────────────────────────── */
+.scope-end-line {
+  display:block;width:100%;height:0;
+  border-top:2px dashed rgba(250,140,22,.8);
+  margin:3px 0;position:relative;user-select:none;pointer-events:none;
+}
+.scope-end-line::after {
+  content:attr(data-label);
+  position:absolute;top:-11px;right:0;
+  font-size:9px;color:#fa8c16;background:var(--mono-bg);
+  padding:0 5px;font-family:monospace;font-weight:700;white-space:nowrap;
+}
+
+/* ── Skeleton ──────────────────────────────────────────────────── */
+.skeleton-line { height:11px;border-radius:3px;margin:7px 0;
+  background:linear-gradient(90deg,var(--border) 25%,var(--surface2) 50%,var(--border) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite; }
+@@keyframes shimmer { 0%{background-position:200% 0}100%{background-position:-200% 0} }
+.pane-error { color:#ff4d4f;font-size:12px;padding:16px 14px;background:var(--mono-bg);flex:1; }
+
+/* ── Context menu ──────────────────────────────────────────────── */
+.ctx-menu {
+  position:fixed;z-index:9000;background:var(--surface);border:1px solid var(--border2);
+  border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:190px;overflow:hidden;
+}
+.ctx-item {
+  padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text);
+  transition:background .1s;display:flex;align-items:center;gap:8px;
+}
+.ctx-item:hover { background:rgba(22,119,255,.1);color:#1677ff; }
+
+/* ── Modals ────────────────────────────────────────────────────── */
+.modal-overlay {
+  position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.6);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.modal-box {
+  background:var(--surface);border:1px solid var(--border2);border-radius:10px;
+  width:100%;max-width:480px;box-shadow:0 8px 40px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;max-height:90vh;
+}
+.modal-box.modal-wide { max-width:640px; }
+.modal-header {
+  padding:14px 18px;border-bottom:1px solid var(--border);font-weight:600;font-size:15px;
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.modal-close { background:none;border:none;color:var(--text3);font-size:18px;
+               cursor:pointer;padding:0;line-height:1; }
+.modal-close:hover { color:#ff4d4f; }
+.modal-body { padding:16px 18px;overflow-y:auto;flex:1; }
+.modal-footer { padding:10px 18px;border-top:1px solid var(--border);
+                display:flex;justify-content:flex-end;gap:8px;flex-shrink:0; }
+
+
+/* ── Add PII form ──────────────────────────────────────────────── */
+.pii-mode-radio { display:flex;flex-direction:column;gap:12px;margin-bottom:14px; }
+.pii-mode-option { display:flex;align-items:flex-start;gap:8px;cursor:pointer; }
+.pii-mode-option input { margin-top:3px;flex-shrink:0; }
+.pii-mode-label { font-weight:600;font-size:13px; }
+.pii-mode-body { display:none;margin-top:8px;padding:10px;background:var(--surface2);
+                 border:1px solid var(--border);border-radius:6px; }
+.pii-mode-body.active { display:block; }
+.form-label { font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block; }
+.form-ctrl { background:var(--surface);color:var(--text);border:1px solid var(--border2);
+             border-radius:4px;padding:6px 9px;font-size:13px;width:100%;
+             outline:none;margin-bottom:8px; }
+.form-ctrl:focus { border-color:#1677ff; }
+.pattern-pill { display:inline-block;font-family:'Consolas','Courier New',monospace;
+                font-size:12px;background:rgba(250,173,20,.15);border:1px solid #faad14;
+                border-radius:4px;padding:2px 8px;color:#faad14;margin-bottom:12px; }
+
+/* ── Tabs ──────────────────────────────────────────────────────── */
+.tab-bar {
+  display:flex;border-bottom:2px solid var(--border);
+  margin:-4px -4px 16px;       /* bleed to card edges */
+}
+.tab-btn {
+  padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;
+  border:none;background:none;color:var(--text3);
+  border-bottom:2px solid transparent;margin-bottom:-2px;
+  transition:color .15s,border-color .15s;white-space:nowrap;
+}
+.tab-btn:hover:not(.active) { color:var(--text); }
+.tab-btn.active { color:#1677ff;border-bottom-color:#1677ff; }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* ── Mode radio row ────────────────────────────────────────────── */
+.mode-row { display:flex;align-items:center;gap:16px;flex-wrap:wrap; }
+.mode-row label {
+  display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;color:var(--text2);
+  padding:4px 10px;border:1px solid var(--border2);border-radius:5px;transition:all .15s;
+}
+.mode-row label:hover { border-color:#1677ff;color:#1677ff; }
+.mode-row input[type=radio]:checked + span { color:var(--text);font-weight:600; }
+.mode-row label:has(input:checked) { border-color:#1677ff;background:rgba(22,119,255,.07);color:#1677ff; }
+
+/* ── Run area (shared bottom) ──────────────────────────────────── */
+.run-area {
+  margin-top:14px;padding-top:12px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+
+/* ── Text textarea ─────────────────────────────────────────────── */
+.text-toolbar { display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap; }
+.text-input-area {
+  width:100%;min-height:110px;max-height:340px;resize:vertical;
+  background:var(--mono-bg);color:var(--text);border:1px solid var(--border2);
+  border-radius:6px;padding:10px 12px;font-size:13px;line-height:1.75;
+  font-family:'Cascadia Code','Consolas','Courier New',monospace;
+  outline:none;box-sizing:border-box;transition:border-color .15s;
+}
+.text-input-area:focus { border-color:#1677ff; }
+.text-input-area::placeholder { color:var(--text3);font-style:italic; }
+
+/* ── Single-pane (OCR-only / Redact-only) ─────────────────────── */
+.split-pane.pane-single { grid-template-columns:1fr !important; }
+.pane-single .pane:first-child { border-right:none; }
+
+/* Help panel ────────────────────────────────────────────────── */
+.help-toggle {
+  display:inline-flex;align-items:center;gap:5px;
+  background:none;border:1px solid var(--border2);color:var(--text3);
+  padding:4px 12px;border-radius:4px;font-size:12px;cursor:pointer;
+  transition:all .15s;
+}
+.help-toggle:hover { border-color:#1677ff;color:#1677ff; }
+.help-panel {
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  margin-bottom:16px;overflow:hidden;box-shadow:var(--shadow);
+}
+.help-sections { display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:0; }
+.help-section {
+  padding:14px 18px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);
+}
+.help-section:last-child { border-bottom:none; }
+.help-section-title {
+  font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.help-row { display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:12px; }
+.help-row:last-child { margin-bottom:0; }
+.help-icon { font-size:14px;flex-shrink:0;width:20px;text-align:center; }
+.help-text { color:var(--text2);line-height:1.55; }
+.help-text strong { color:var(--text); }
+.help-key {
+  display:inline-block;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:3px;padding:0 5px;font-size:11px;font-family:'Consolas',monospace;
+  color:var(--text2);vertical-align:middle;
+}
+.help-swatch {
+  display:inline-block;width:28px;height:9px;border-radius:2px;
+  vertical-align:middle;flex-shrink:0;margin-top:3px;
+}
+</style>
+
+<!-- ── Page header ──────────────────────────────────────────────────────── -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+  <h1 class="page-title" style="margin:0">🔍 Live Tester &amp; Debug</h1>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="help-toggle" id="helpToggleBtn" onclick="toggleHelp()">❓ How to use</button>
+  </div>
+</div>
+
+<!-- ── Help panel ─────────────────────────────────────────────────────────── -->
+<div class="help-panel" id="helpPanel" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:10px 18px;border-bottom:1px solid var(--border);background:var(--surface2)">
+    <span style="font-size:13px;font-weight:600;color:var(--text)">📖 Live Tester — Feature Guide</span>
+    <button class="help-toggle" onclick="toggleHelp()" style="padding:2px 9px">✕ Close</button>
+  </div>
+  <div class="help-sections">
+
+    <!-- Upload -->
+    <div class="help-section">
+      <div class="help-section-title">📂 File Analysis</div>
+      <div class="help-row">
+        <span class="help-icon">📄</span>
+        <span class="help-text"><strong>Drag &amp; drop</strong> or <strong>click</strong> the drop zone to browse. Up to <strong>3 files</strong> at once: PDF, PNG, JPG, TIFF, BMP, TXT.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">⚙</span>
+        <span class="help-text">Choose mode: <strong>OCR + Redact</strong> (default) runs OCR then redaction and shows two panes. <strong>OCR only</strong> just extracts text — single pane, no PII detection.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">▶</span>
+        <span class="help-text">Click <strong>Analyze File</strong> to send all files — OCR and Redaction run in parallel for each.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">⊕</span>
+        <span class="help-text">After running the upload area <strong>collapses</strong>. Click <strong>⊕ Change files</strong> in the mini bar to swap, then <strong>Re-run File</strong> to re-analyze.</span>
+      </div>
+    </div>
+
+    <!-- Text input -->
+    <div class="help-section">
+      <div class="help-section-title">📝 Text Input</div>
+      <div class="help-row">
+        <span class="help-icon">✍</span>
+        <span class="help-text">Use the <strong>📝 Type or Paste Text</strong> card to redact text directly — no file upload needed. Works for both English and Hebrew.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">⇄</span>
+        <span class="help-text">The <strong>← RTL / → LTR</strong> and <strong>A− / A+</strong> buttons in the text toolbar control direction and font size of the textarea independently from result cards.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">▶</span>
+        <span class="help-text"><strong>Analyze Text</strong> is enabled as soon as you type something. Click it to run redaction — results appear as a card below (same two-pane view as file analysis).</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">💡</span>
+        <span class="help-text">You can run <em>both</em> file analysis and text analysis independently. Results stack up — use <strong>✕ Clear Results</strong> to reset.</span>
+      </div>
+    </div>
+
+    <!-- Results layout -->
+    <div class="help-section">
+      <div class="help-section-title">📊 Results Card</div>
+      <div class="help-row">
+        <span class="help-icon">⏱</span>
+        <span class="help-text">Each card shows <strong>OCR duration</strong>, <strong>Redact duration</strong>, number of <strong>PII hits</strong>, character count, and the OCR engine used.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🏷</span>
+        <span class="help-text">The <strong>FIELDS</strong> row lists every PII field that matched (e.g. "Israeli ID", "Email Address"). Empty = no PII found.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">📄</span>
+        <span class="help-text"><strong>Left pane (OCR)</strong> — raw extracted text with detected PII highlighted in
+          <span class="help-swatch" style="background:rgba(250,173,20,.35);border-bottom:2px solid #faad14"></span> amber.
+        </span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🔒</span>
+        <span class="help-text"><strong>Right pane (Redacted)</strong> — same text with PII replaced, shown in
+          <span class="help-swatch" style="background:rgba(82,196,26,.25);border-bottom:2px solid #52c41a"></span> green.
+          Hover any highlight for details.
+        </span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">↕</span>
+        <span class="help-text">Both panes <strong>scroll together</strong> — scrolling either pane proportionally moves the other so OCR and Redacted stay aligned.</span>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="help-section">
+      <div class="help-section-title">🛠 Card Toolbar</div>
+      <div class="help-row">
+        <span class="help-icon">⇄</span>
+        <span class="help-text"><strong>← RTL / → LTR</strong> button toggles text direction for <em>both</em> panes simultaneously. Detected automatically from Hebrew character ratio; override manually if needed.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">Aa</span>
+        <span class="help-text"><strong>A− / A+</strong> decrease or increase font size (9–20 px) for both panes at once, so columns stay comparable.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🔍</span>
+        <span class="help-text"><strong>Search box</strong> — type to highlight matches in
+          <span class="help-swatch" style="background:rgba(22,119,255,.3);border-bottom:2px solid #1677ff"></span> blue
+          across both panes. The badge shows <em>current / total</em> hits.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">↑↓</span>
+        <span class="help-text">Use <span class="help-key">↑</span> <span class="help-key">↓</span> buttons (or <span class="help-key">Enter</span> / <span class="help-key">Shift+Enter</span>) to jump between hits. Both panes scroll to the same position.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">✕</span>
+        <span class="help-text"><span class="help-key">✕</span> or <span class="help-key">Esc</span> clears the search and removes highlights.</span>
+      </div>
+    </div>
+
+    <!-- Right-click -->
+    <div class="help-section">
+      <div class="help-section-title">🖱 Right-Click to Add Rules</div>
+      <div class="help-row">
+        <span class="help-icon">🖱</span>
+        <span class="help-text"><strong>Select any text</strong> in the OCR or Redacted pane and <strong>right-click</strong> to see the context menu.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🔒</span>
+        <span class="help-text"><strong>Add Value to Redact…</strong> — adds the selection as a new <em>redact</em> rule. Pick an existing field or create a new one with a replacement text.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🛡</span>
+        <span class="help-text"><strong>Add Value to Preserve…</strong> — adds the selection to a <em>preserve</em> field so it is never redacted (e.g. a hospital name or brand). No replacement text needed.</span>
+      </div>
+    </div>
+
+    <!-- Add value modals -->
+    <div class="help-section">
+      <div class="help-section-title">➕ Add Value dialog</div>
+      <div class="help-row">
+        <span class="help-icon">1️⃣</span>
+        <span class="help-text"><strong>Existing field</strong> — pick a field from the dropdown. The value is added as a <em>Whole Word</em> pattern immediately.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">2️⃣</span>
+        <span class="help-text"><strong>New field</strong> — enter a field name and (for Redact) a replacement placeholder such as <code style="font-size:11px">[NAME]</code> or <code style="font-size:11px">████</code>.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🔄</span>
+        <span class="help-text">Changes take effect on the <strong>next analysis</strong> — the PII cache is invalidated automatically.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">📖</span>
+        <span class="help-text">For advanced pattern configuration visit the <a href="/admin/fields" style="color:#1677ff">Fields page</a> or see <a href="/admin/pattern-help" target="_blank" style="color:#1677ff">📖 Pattern Help</a>.</span>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="help-section" style="border-right:none">
+      <div class="help-section-title">💡 Tips &amp; Tricks</div>
+      <div class="help-row">
+        <span class="help-icon">🌐</span>
+        <span class="help-text">The page auto-detects <strong>Hebrew text</strong> and sets RTL. Override per-card with the direction button.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">⚡</span>
+        <span class="help-text">Upload <strong>3 files at once</strong> to compare redaction across different document types in parallel.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🕵</span>
+        <span class="help-text">Use the <strong>search</strong> to verify a specific name or number was redacted — search in the Redacted pane to confirm the replacement, or in the OCR pane to see the original.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🎯</span>
+        <span class="help-text"><strong>Hover</strong> any amber or green highlight to see a tooltip: field name, original matched text, and the replacement value.</span>
+      </div>
+      <div class="help-row">
+        <span class="help-icon">🔁</span>
+        <span class="help-text">After adding a new pattern, click <strong>Re-run</strong> in the mini bar (without re-uploading) to immediately see the impact on the same documents.</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Input card (tabbed: File | Text) ─────────────────────────────────── -->
+<div class="card" id="uploadCard" style="margin-bottom:16px">
+
+  <!-- Mini bar (visible when file-upload collapsed) -->
+  <div class="upload-mini-bar">
+    <span style="font-size:12px;font-weight:600;color:var(--text2)">📄</span>
+    <div class="file-chips" id="fileChipsMini" style="margin:0;min-height:0"></div>
+    <button class="upload-expand-btn" onclick="expandUpload()">⊕ Change files</button>
+    <button class="btn-run" id="runBtnMini" style="padding:4px 14px;font-size:12px" onclick="runFileAnalysis()">
+      <span>▶</span> Re-run File
+    </button>
+    <button class="btn btn-default btn-sm" id="clearBtnMini" style="display:none" onclick="clearResults()">✕ Clear</button>
+    <span class="run-status" id="runStatusMini" style="font-size:11px"></span>
+  </div>
+
+  <!-- ─ Tab bar ─ -->
+  <div class="tab-bar upload-title">
+    <button class="tab-btn active" data-tab="file" onclick="switchTab('file')">📂 File</button>
+    <button class="tab-btn" data-tab="text" onclick="switchTab('text')">📝 Text</button>
+    <!-- legend pushed right -->
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:12px;align-items:center;font-size:11px;color:var(--text3);padding:0 4px 2px">
+      <span><span class="legend-swatch" style="background:rgba(250,173,20,.35);border-bottom:2px solid #faad14;vertical-align:middle"></span> PII found</span>
+      <span><span class="legend-swatch" style="background:rgba(82,196,26,.25);border-bottom:2px solid #52c41a;vertical-align:middle"></span> Redacted</span>
+      <span><span class="legend-swatch" style="background:rgba(22,119,255,.3);border-bottom:2px solid #1677ff;vertical-align:middle"></span> Search hit</span>
+    </div>
+  </div>
+
+  <!-- ─ FILE tab ─ -->
+  <div class="tab-panel active" data-tab="file">
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.txt" />
+      <div style="font-size:28px;margin-bottom:6px">📄</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text)">Drop files here or click to browse</div>
+      <div class="drop-hint">PDF · PNG · JPG · TIFF · BMP · TXT &nbsp;·&nbsp; Max 3 files</div>
+    </div>
+    <div class="file-chips" id="fileChips"></div>
+    <div class="file-preview" id="filePreview" style="display:none">
+      <div class="preview-zoom-bar">
+        <button onclick="zoomPreview(-0.25)" title="Zoom out">🔍−</button>
+        <span id="previewZoomLabel">100%</span>
+        <button onclick="zoomPreview(+0.25)" title="Zoom in">🔍+</button>
+        <button onclick="zoomPreview(0)" title="Reset zoom" style="margin-left:4px">↺</button>
+      </div>
+      <div id="previewContent"></div>
+    </div>
+  </div>
+
+  <!-- ─ TEXT tab ─ -->
+  <div class="tab-panel" data-tab="text">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div class="text-toolbar" style="flex:1;margin-bottom:0">
+        <button class="tb-btn" id="textDirBtn" onclick="textToggleDir()" title="Toggle text direction">← RTL</button>
+        <span class="tb-sep"></span>
+        <button class="tb-btn" onclick="textChangeFontSize(-1)" title="Smaller text">A−</button>
+        <span class="tb-font-size" id="textFszLabel">13px</span>
+        <button class="tb-btn" onclick="textChangeFontSize(+1)" title="Larger text">A+</button>
+        <span class="tb-sep"></span>
+        <button class="tb-btn" id="textClearBtn" onclick="clearTextInput()"
+                style="display:none;color:#ff4d4f;border-color:rgba(255,77,79,.4)">✕ Clear</button>
+      </div>
+      <span id="textCharCount" style="font-size:11px;color:var(--text3);white-space:nowrap">0 chars</span>
+    </div>
+    <textarea class="text-input-area" id="textInput"
+              placeholder="Type or paste text here… (English or Hebrew)"
+              oninput="onTextInput()" dir="ltr"></textarea>
+  </div>
+
+  <!-- ─ Shared run area ─ -->
+  <div class="run-area">
+    <!-- File modes -->
+    <div id="fileModeRow" class="mode-row">
+      <label><input type="radio" name="fileMode" value="ocr-redact" checked><span>OCR + Redact</span></label>
+      <label><input type="radio" name="fileMode" value="ocr-only"><span>OCR only</span></label>
+    </div>
+    <!-- Text modes -->
+    <div id="textModeRow" class="mode-row" style="display:none">
+      <label><input type="radio" name="textMode" value="highlight-redact" checked><span>Highlight + Redact</span></label>
+      <label><input type="radio" name="textMode" value="redact-only"><span>Redact only</span></label>
+    </div>
+
+    <div style="flex:1"></div>
+
+    <!-- File button -->
+    <button class="btn-run" id="runBtn" disabled onclick="runFileAnalysis()">
+      <span id="runIcon">▶</span><span id="runLabel">Analyze File</span>
+    </button>
+    <!-- Text button -->
+    <button class="btn-run" id="analyzeTextBtn" disabled onclick="runTextAnalysis()"
+            style="display:none;background:#722ed1" title="Run redaction on typed text">
+      <span id="textRunIcon">▶</span><span>Analyze Text</span>
+    </button>
+    <button class="btn btn-default btn-sm" id="clearBtn" style="display:none" onclick="clearResults()">✕ Clear</button>
+    <span class="run-status" id="runStatus"></span>
+    <span class="run-status" id="textRunStatus" style="display:none"></span>
+  </div>
+
+</div>
+
+<!-- ── Results ───────────────────────────────────────────────────────────── -->
+<div id="results"></div>
+
+<!-- ── Context menu ──────────────────────────────────────────────────────── -->
+<div id="ctxMenu" class="ctx-menu" style="display:none">
+  <div class="ctx-item" id="ctxItemRedact"   onclick="ctxAddRedact()">🔒 Add Value to Redact…</div>
+  <div class="ctx-item" id="ctxItemPreserve" onclick="ctxAddPreserve()">🛡 Add Value to Preserve…</div>
+  <div id="ctxScopeSep" style="border-top:1px solid var(--border);margin:3px 0"></div>
+  <div class="ctx-item" id="ctxItemScopeEnd" onclick="ctxSetScopeEnd()"
+       style="color:#fa8c16">📍 Set Scope End position here…</div>
+</div>
+
+
+<!-- ── Set Scope End Position modal ─────────────────────────────────────── -->
+<div id="setScopeEndModal" class="modal-overlay" style="display:none" onclick="overlayClose(event,'setScopeEndModal')">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-header">
+      <span>📍 Set Scope End Position</span>
+      <button class="modal-close" onclick="closeSetScopeEnd()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0 0 6px;font-size:13px">
+        Character position: <strong id="scopeEndPosLabel" style="color:#fa8c16;font-family:monospace;font-size:15px">—</strong>
+      </p>
+      <p style="margin:0 0 14px;font-size:11px;color:var(--text3);line-height:1.6">
+        The FileList pattern will only fire within the first N characters of the document.
+        Select which pattern to update:
+      </p>
+      <select id="scopeEndPatternSelect"
+              style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:5px;background:var(--surface);color:var(--text);font-size:13px;margin-bottom:12px">
+        <option value="">— loading patterns… —</option>
+      </select>
+      <p id="scopeEndCurrentVal" style="font-size:11px;color:var(--text3);margin:0 0 14px"></p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-default" onclick="closeSetScopeEnd()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitSetScopeEnd()"
+                style="background:#fa8c16;border-color:#fa8c16">💾 Save Scope End Position</button>
+      </div>
+      <p id="scopeEndStatus" style="font-size:12px;margin:10px 0 0;min-height:18px"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Value modal (Redact / Preserve) ───────────────────────────────── -->
+<div id="addPiiModal" class="modal-overlay" style="display:none" onclick="overlayClose(event,'addPiiModal')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="addPiiTitle">➕ Add Value</span>
+      <button class="modal-close" onclick="closeAddPii()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- selected value -->
+      <div style="margin-bottom:14px">
+        <span style="font-size:12px;color:var(--text3)">Value to add:</span><br>
+        <span class="pattern-pill" id="addPiiText"></span>
+      </div>
+
+      <!-- existing / new toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;
+                      border:2px solid var(--border2);border-radius:8px;padding:10px 12px;
+                      transition:border-color .15s" id="addModeExistingLbl">
+          <input type="radio" name="addMode" value="existing" checked onchange="addModeChange()">
+          <span>
+            <div style="font-size:13px;font-weight:600">Existing field</div>
+            <div style="font-size:11px;color:var(--text3)">Add to a field you already have</div>
+          </span>
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;
+                      border:2px solid var(--border2);border-radius:8px;padding:10px 12px;
+                      transition:border-color .15s" id="addModeNewLbl">
+          <input type="radio" name="addMode" value="new" onchange="addModeChange()">
+          <span>
+            <div style="font-size:13px;font-weight:600">New field</div>
+            <div style="font-size:11px;color:var(--text3)">Create a brand-new field</div>
+          </span>
+        </label>
+      </div>
+
+      <!-- existing field section -->
+      <div id="addExistingSection">
+        <label class="form-label">Field</label>
+        <select class="form-ctrl" id="addFieldSelect" onchange="onFieldSelectChange()">
+          <option value="">— loading… —</option>
+        </select>
+
+        <!-- "combine" checkbox — shown when selected field has a ConstList pattern -->
+        <label id="addCombineRow"
+               style="display:none;align-items:center;gap:8px;margin-top:10px;
+                      padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;
+                      background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2)"
+               id="addCombineRow">
+          <input type="checkbox" id="addCombineChk" checked
+                 style="width:14px;height:14px;accent-color:#1677ff">
+          <span>
+            <strong style="color:#1677ff">Add and combine with existing ConstList</strong>
+            <span style="display:block;font-size:11px;color:var(--text3)">
+              Appends this value to the field's keyword list — no new separate pattern
+            </span>
+          </span>
+        </label>
+
+        <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="submitAddToExisting()">✓ Add to Field</button>
+      </div>
+
+      <!-- new field section -->
+      <div id="addNewSection" style="display:none">
+        <label class="form-label">Field name</label>
+        <input type="text" class="form-ctrl" id="addNewName" placeholder="e.g. Doctor Names">
+        <div id="addReplaceRow">
+          <label class="form-label">Replacement char <span style="font-size:11px;color:var(--text3)">(1 character — repeated × match length)</span></label>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px">
+            <input type="text" class="form-ctrl" id="addNewReplace" value="█" maxlength="1"
+                   style="width:48px;font-size:22px;text-align:center;font-family:monospace;padding:2px 6px;flex:none"
+                   title="Single character, repeated to match the length of each matched text"
+                   oninput="syncTesterPresets()">
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              @foreach (var c in new[]{"█","*","-","#","?","•","_","×"}) {
+                <span onclick="document.getElementById('addNewReplace').value='@c';syncTesterPresets()"
+                      id="tp-@c.GetHashCode()"
+                      style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+                             font-size:14px;font-family:monospace;border:1px solid var(--border2);border-radius:5px;
+                             cursor:pointer;background:var(--surface);color:var(--text);transition:all .12s;user-select:none"
+                      onmouseenter="this.style.borderColor='#1677ff';this.style.color='#1677ff'"
+                      onmouseleave="syncTesterPresets()">@c</span>
+              }
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="submitAddNewField()">✓ Create Field &amp; Add</button>
+      </div>
+
+      <div id="addPiiStatus" style="font-size:12px;margin-top:10px;min-height:16px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default btn-sm" onclick="closeAddPii()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden anti-forgery form -->
+<form id="__AntiForgery" style="display:none">@Html.AntiForgeryToken()</form>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════
+let selectedFiles = [];
+const MAX_FILES   = 3;
+let previewZoom   = 1;   // 1 = 100%
+
+// Text input state
+let textDir      = 'ltr';
+let textFontSize = 13;
+
+// Per-card state: { fontSize, dir, ocrText, piiMatches, searchTerm, hitIdx, hitCount }
+const cardStates  = new Map();
+
+// Context menu state
+let ctxText   = '';
+let ctxSource = '';
+
+// Add-PII modal state
+let addPiiCurrentText = '';
+let cachedFields      = null;    // fetched once per session
+
+// ═══════════════════════════════════════════════════════════════════
+// HELP PANEL
+// ═══════════════════════════════════════════════════════════════════
+function toggleHelp() {
+  const panel = document.getElementById('helpPanel');
+  const btn   = document.getElementById('helpToggleBtn');
+  const open  = panel.style.display === 'none';
+  panel.style.display = open ? '' : 'none';
+  btn.textContent = open ? '✕ Close guide' : '❓ How to use';
+  try { localStorage.setItem('tester-help-open', open ? '1' : '0'); } catch {}
+}
+// Restore last state
+(function() {
+  try {
+    if (localStorage.getItem('tester-help-open') === '1') {
+      document.getElementById('helpPanel').style.display = '';
+      document.getElementById('helpToggleBtn').textContent = '✕ Close guide';
+    }
+  } catch {}
+})();
+
+// ═══════════════════════════════════════════════════════════════════
+// FILE HANDLING
+// ═══════════════════════════════════════════════════════════════════
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const runBtn    = document.getElementById('runBtn');
+
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+fileInput.addEventListener('click',  e  => e.stopPropagation());
+dropZone.addEventListener('click',   ()  => fileInput.click());
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',      e => { e.preventDefault(); dropZone.classList.remove('drag-over'); addFiles(e.dataTransfer.files); });
+
+function addFiles(list) {
+  for (const f of list) {
+    if (selectedFiles.length >= MAX_FILES) break;
+    if (!selectedFiles.find(x => x.name === f.name && x.size === f.size))
+      selectedFiles.push(f);
+  }
+  renderChips();
+  updatePreview();
+  runBtn.disabled = !selectedFiles.length;
+  fileInput.value = '';
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderChips();
+  updatePreview();
+  runBtn.disabled = !selectedFiles.length;
+}
+
+function renderChips() {
+  const chipsHtml = selectedFiles.map((f, i) => {
+    const ext  = f.name.split('.').pop().toUpperCase();
+    const size = fmtSize(f.size);
+    return `<span class="chip">
+      <span class="chip-ext">${h(ext)}</span>
+      ${h(f.name)} <span style="color:var(--text3)">(${size})</span>
+      <button class="chip-remove" onclick="removeFile(${i})">✕</button>
+    </span>`;
+  }).join('');
+  document.getElementById('fileChips').innerHTML     = chipsHtml;
+  document.getElementById('fileChipsMini').innerHTML = chipsHtml;
+}
+
+function updatePreview() {
+  const el      = document.getElementById('filePreview');
+  const content = document.getElementById('previewContent');
+  if (selectedFiles.length !== 1) { el.style.display = 'none'; return; }
+  const f   = selectedFiles[0];
+  const ext = f.name.split('.').pop().toLowerCase();
+  previewZoom = 1;
+  document.getElementById('previewZoomLabel').textContent = '100%';
+
+  if (['png','jpg','jpeg','bmp','tif','tiff','gif','webp'].includes(ext)) {
+    const url = URL.createObjectURL(f);
+    content.innerHTML = `<img src="${url}" alt="${h(f.name)}" style="max-height:${180*previewZoom}px">`;
+    el.style.display = 'block';
+  } else if (ext === 'txt') {
+    const rd = new FileReader();
+    rd.onload = ev => {
+      content.innerHTML = `<pre id="previewText" style="font-size:${11*previewZoom}px;max-height:150px;overflow:auto;text-align:left;color:var(--text2);white-space:pre-wrap">${h(String(ev.target.result).slice(0, 800))}</pre>`;
+    };
+    rd.readAsText(f);
+    el.style.display = 'block';
+  } else {
+    content.innerHTML = `<div style="font-size:13px;color:var(--text2);padding:8px 0">📄 <strong>${h(f.name)}</strong> — ${fmtSize(f.size)}</div>`;
+    el.style.display = 'block';
+  }
+}
+
+function zoomPreview(delta) {
+  if (delta === 0) previewZoom = 1; // reset
+  else previewZoom = Math.max(0.25, Math.min(5, previewZoom + delta));
+  document.getElementById('previewZoomLabel').textContent = Math.round(previewZoom * 100) + '%';
+  const img  = document.querySelector('#previewContent img');
+  const pre  = document.getElementById('previewText');
+  if (img) img.style.maxHeight = (180 * previewZoom) + 'px';
+  if (pre) pre.style.fontSize  = (11 * previewZoom) + 'px';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════
+let currentTab = 'file';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.classList.toggle('active', p.dataset.tab === tab));
+
+  // toggle mode rows and run buttons
+  const isFile = tab === 'file';
+  document.getElementById('fileModeRow').style.display    = isFile ? '' : 'none';
+  document.getElementById('textModeRow').style.display    = isFile ? 'none' : '';
+  document.getElementById('runBtn').style.display         = isFile ? '' : 'none';
+  document.getElementById('analyzeTextBtn').style.display = isFile ? 'none' : '';
+  document.getElementById('runStatus').style.display      = isFile ? '' : 'none';
+  document.getElementById('textRunStatus').style.display  = isFile ? 'none' : '';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TEXT INPUT HANDLERS
+// ═══════════════════════════════════════════════════════════════════
+function onTextInput() {
+  const ta  = document.getElementById('textInput');
+  const val = ta ? ta.value : '';
+  document.getElementById('analyzeTextBtn').disabled = !val.trim();
+  document.getElementById('textClearBtn').style.display = val.length ? '' : 'none';
+  document.getElementById('textCharCount').textContent = val.length.toLocaleString() + ' chars';
+}
+
+function clearTextInput() {
+  const ta = document.getElementById('textInput');
+  if (ta) ta.value = '';
+  onTextInput();
+}
+
+function textToggleDir() {
+  textDir = textDir === 'rtl' ? 'ltr' : 'rtl';
+  const btn = document.getElementById('textDirBtn');
+  if (btn) btn.textContent = textDir === 'rtl' ? '→ LTR' : '← RTL';
+  const ta = document.getElementById('textInput');
+  if (ta) ta.dir = textDir;
+}
+
+function textChangeFontSize(delta) {
+  textFontSize = Math.max(9, Math.min(20, textFontSize + delta));
+  const lbl = document.getElementById('textFszLabel');
+  if (lbl) lbl.textContent = textFontSize + 'px';
+  const ta = document.getElementById('textInput');
+  if (ta) ta.style.fontSize = textFontSize + 'px';
+}
+
+async function runTextAnalysis() {
+  const ta = document.getElementById('textInput');
+  const text = ta ? ta.value.trim() : '';
+  if (!text) return;
+
+  const redactOnly = document.querySelector('input[name="textMode"]:checked')?.value === 'redact-only';
+
+  const btn      = document.getElementById('analyzeTextBtn');
+  const statusEl = document.getElementById('textRunStatus');
+  btn.disabled = true;
+  document.getElementById('textRunIcon').textContent = '⏳';
+  statusEl.textContent = 'Analyzing…';
+
+  const id        = 'rc-text-' + Date.now();
+  const container = document.getElementById('results');
+  container.insertAdjacentHTML('beforeend', buildSkeletonCardText(id, text.length));
+
+  const token = getToken();
+  try {
+    const r = await fetch('/admin/tester?handler=RedactText', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+      body: JSON.stringify({ text })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    renderResultText(id, text, data, redactOnly);
+    statusEl.textContent = '';
+    document.getElementById('clearBtn').style.display     = '';
+    document.getElementById('clearBtnMini').style.display = '';
+  } catch (err) {
+    renderError(id, { name: 'Text Input', size: 0 }, String(err));
+    statusEl.textContent = '⚠ ' + err.message;
+  } finally {
+    document.getElementById('textRunIcon').textContent = '▶';
+    btn.disabled = !(document.getElementById('textInput')?.value.trim());
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RUN FILE ANALYSIS
+// ═══════════════════════════════════════════════════════════════════
+function collapseUpload() {
+  document.getElementById('uploadCard').classList.add('upload-collapsed');
+}
+function expandUpload() {
+  document.getElementById('uploadCard').classList.remove('upload-collapsed');
+}
+
+async function runFileAnalysis() {
+  if (!selectedFiles.length) return;
+  const ocrOnly = document.querySelector('input[name="fileMode"]:checked')?.value === 'ocr-only';
+  collapseUpload();
+  runBtn.disabled = true;
+  document.getElementById('runBtnMini').disabled = true;
+  runBtn.querySelector('#runIcon').textContent  = '⏳';
+  runBtn.querySelector('#runLabel').textContent = 'Processing…';
+  const statusEl     = document.getElementById('runStatus');
+  const statusElMini = document.getElementById('runStatusMini');
+  statusEl.textContent = statusElMini.textContent = `Sending ${selectedFiles.length} file(s)…`;
+
+  const container = document.getElementById('results');
+  container.innerHTML = '';
+  const ids = selectedFiles.map((f, i) => {
+    const id = 'rc-' + Date.now() + '-' + i;
+    container.insertAdjacentHTML('beforeend', buildSkeletonCard(f, id));
+    return id;
+  });
+
+  const token = getToken();
+  let done = 0;
+  await Promise.all(selectedFiles.map((file, i) =>
+    uploadAnalyze(file, token, ocrOnly)
+      .then(data => { done++; const msg = `${done}/${selectedFiles.length} done…`; statusEl.textContent = statusElMini.textContent = msg; renderResult(ids[i], file, data, ocrOnly); })
+      .catch(err  => { done++; const msg = `${done}/${selectedFiles.length} done…`; statusEl.textContent = statusElMini.textContent = msg; renderError(ids[i], file, String(err)); })
+  ));
+
+  statusEl.textContent = statusElMini.textContent = '';
+  runBtn.querySelector('#runIcon').textContent  = '▶';
+  runBtn.querySelector('#runLabel').textContent = 'Analyze File';
+  runBtn.disabled = !selectedFiles.length;
+  document.getElementById('runBtnMini').disabled = !selectedFiles.length;
+  document.getElementById('clearBtn').style.display     = '';
+  document.getElementById('clearBtnMini').style.display = '';
+}
+
+// backward compat alias (mini bar uses runAnalysis in some paths)
+function runAnalysis() { runFileAnalysis(); }
+
+async function uploadAnalyze(file, token, ocrOnly) {
+  const fd      = new FormData();
+  const handler = ocrOnly ? 'OcrOnly' : 'Analyze';
+  fd.append('file', file);
+  const r = await fetch(`/admin/tester?handler=${handler}`, {
+    method: 'POST', headers: { 'RequestVerificationToken': token }, body: fd
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.error || body.detail || `HTTP ${r.status}`);
+  return body;
+}
+
+function clearResults() {
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('clearBtn').style.display     = 'none';
+  document.getElementById('clearBtnMini').style.display = 'none';
+  document.getElementById('runStatus').textContent      = '';
+  document.getElementById('runStatusMini').textContent  = '';
+  document.getElementById('textRunStatus').textContent  = '';
+  cardStates.clear();
+  expandUpload();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CARD RENDERING
+// ═══════════════════════════════════════════════════════════════════
+function buildSkeletonCard(file, id) {
+  return `<div class="result-card" id="${id}">
+    <div class="result-header">
+      <span class="status-dot running"></span>
+      <span class="chip-ext">${h(file.name.split('.').pop().toUpperCase())}</span>
+      <span class="fname">${h(file.name)}</span>
+      <span class="fsize">${fmtSize(file.size)}</span>
+    </div>
+    <div style="padding:18px 16px">
+      ${[80,60,90,50,75].map(w=>`<div class="skeleton-line" style="width:${w}%"></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function buildSkeletonCardText(id, charLen) {
+  return `<div class="result-card" id="${id}">
+    <div class="result-header">
+      <span class="status-dot running"></span>
+      <span class="chip-ext" style="background:rgba(114,46,209,.2);color:#722ed1">TXT</span>
+      <span class="fname">📝 Direct Text Input</span>
+      <span class="fsize">${(charLen||0).toLocaleString()} chars</span>
+    </div>
+    <div style="padding:18px 16px">
+      ${[80,60,90,50,75].map(w=>`<div class="skeleton-line" style="width:${w}%"></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ── renderResultText: plain text input → redact (no OCR step) ─────────────
+function renderResultText(id, inputText, data, redactOnly = false) {
+  const card = document.getElementById(id);
+  if (!card) return;
+
+  const matches  = data.matches   || [];
+  const fields   = data.fieldsHit || [];
+  const mc       = data.matchCount || 0;
+  const mcCls    = mc > 0 ? 'warn' : 'good';
+  const initDir  = detectDir(inputText);
+  const initSize = 11.5;
+
+  cardStates.set(id, {
+    fontSize: initSize, dir: initDir,
+    ocrText: inputText, piiMatches: matches,
+    textRedactOnly: redactOnly,               // flag: single pane showing redacted output
+    searchTerm: '', hitIdx: 0, hitCount: 0,
+    posMode: false, gridMode: false
+  });
+
+  const fieldsHtml = fields.length
+    ? fields.map(f => `<span class="field-chip">${h(f)}</span>`).join('')
+    : `<span style="color:var(--text3);font-size:12px">No PII matched</span>`;
+
+  const modeBadge = redactOnly
+    ? '<span style="margin-left:auto;font-size:11px;color:#722ed1;font-weight:600">REDACT ONLY</span>'
+    : '';
+
+  const splitPaneHtml = redactOnly
+    ? `<div class="split-pane pane-single">
+  <div class="pane pane-redact">
+    <div class="pane-header">
+      🔒 Redacted Output
+      <span style="font-weight:400;font-size:11px;color:var(--text3)">replacements in <span style="color:#52c41a">green</span> · right-click to collect</span>
+      <span class="pane-time">⏱ ${data.durationMs ?? '—'}ms</span>
+    </div>
+    <div class="pane-body" id="${id}-ocrPane" dir="${initDir}" style="font-size:${initSize}px"></div>
+  </div>
+</div>`
+    : `<div class="split-pane">
+  <div class="pane pane-ocr">
+    <div class="pane-header">
+      📝 Original — PII highlighted
+      <span style="font-weight:400;font-size:11px;color:var(--text3)">found in <span style="color:#faad14">amber</span></span>
+    </div>
+    <div class="pane-body" id="${id}-ocrPane" dir="${initDir}" style="font-size:${initSize}px"></div>
+  </div>
+  <div class="pane pane-redact">
+    <div class="pane-header">
+      🔒 Redacted Output
+      <span style="font-weight:400;font-size:11px;color:var(--text3)">replacements in <span style="color:#52c41a">green</span> · right-click to collect</span>
+      <span class="pane-time">⏱ ${data.durationMs ?? '—'}ms</span>
+    </div>
+    <div class="pane-body" id="${id}-rdPane" dir="${initDir}" style="font-size:${initSize}px"></div>
+  </div>
+</div>`;
+
+  const legendHtml = redactOnly
+    ? `<div class="legend">
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(82,196,26,.25);border-bottom:2px solid #52c41a"></span>Replacement
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(22,119,255,.3);border-bottom:2px solid #1677ff"></span>Search hit
+  </span>
+  <span style="margin-left:auto;font-size:11px">Right-click → collect missing patterns</span>
+</div>`
+    : `<div class="legend">
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(250,173,20,.35);border-bottom:2px solid #faad14"></span>Original PII
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(82,196,26,.25);border-bottom:2px solid #52c41a"></span>Replacement
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(22,119,255,.3);border-bottom:2px solid #1677ff"></span>Search hit
+  </span>
+  <span style="margin-left:auto;font-size:11px">Hover highlights · Right-click redacted → collect missing</span>
+</div>`;
+
+  card.innerHTML = `
+<div class="result-header">
+  <span class="status-dot done"></span>
+  <span class="chip-ext" style="background:rgba(114,46,209,.2);color:#722ed1">TXT</span>
+  <span class="fname">📝 Direct Text Input</span>
+  <span class="fsize">${inputText.length.toLocaleString()} chars</span>
+  ${modeBadge}
+</div>
+<div class="stats-bar">
+  <span class="stat-item">🔒 Redact <span class="stat-val blue">${data.durationMs ?? '—'}ms</span></span>
+  <span class="stat-item">⚡ PII hits <span class="stat-val ${mcCls}">${mc}</span></span>
+  <span class="stat-item">📝 Chars <span class="stat-val">${inputText.length.toLocaleString()}</span></span>
+</div>
+<div class="fields-row"><strong style="font-size:11px;color:var(--text3);margin-right:4px">FIELDS:</strong>${fieldsHtml}</div>
+<div class="card-toolbar" id="${id}-tb">
+  <button class="tb-btn" id="${id}-dirBtn" onclick="toggleDir('${id}')" title="Toggle text direction">
+    ${initDir === 'rtl' ? '→ LTR' : '← RTL'}
+  </button>
+  <span class="tb-sep"></span>
+  <button class="tb-btn" onclick="changeFontSize('${id}',-1)">A−</button>
+  <span class="tb-font-size" id="${id}-fsz">${initSize}px</span>
+  <button class="tb-btn" onclick="changeFontSize('${id}',+1)">A+</button>
+  <span class="tb-sep"></span>
+  <button class="tb-btn" id="${id}-posBtn" onclick="togglePositions('${id}')" title="Show character position markers — helps set ScopeEndPosition">📍 Pos</button>
+  <button class="tb-btn" id="${id}-gridBtn" onclick="toggleGrid('${id}')" title="Show character offset gutter (line-by-line position map)">⊞ Grid</button>
+  <span class="pos-indicator" id="${id}-posHint" style="display:none">pos: —</span>
+  <span class="tb-sep"></span>
+  <div class="search-wrap">
+    <input type="text" placeholder="🔍 Search…" id="${id}-srch"
+           oninput="onSearchInput('${id}')" onkeydown="onSearchKey(event,'${id}')">
+    <span class="search-badge" id="${id}-sbadge"></span>
+    <button class="tb-btn nav-btn" onclick="navigateHit('${id}',-1)">↑</button>
+    <button class="tb-btn nav-btn" onclick="navigateHit('${id}',+1)">↓</button>
+    <button class="tb-btn nav-btn" onclick="clearSearch('${id}')">✕</button>
+  </div>
+</div>
+${splitPaneHtml}
+${legendHtml}`;
+
+  refreshPanes(id);
+  if (!redactOnly) attachScrollSync(id);
+  attachPosListener(id);
+}
+
+function renderResult(id, file, data, ocrOnly = false) {
+  const card = document.getElementById(id);
+  if (!card) return;
+
+  const ocr     = data.ocr    || {};
+  const redact  = data.redact || {};
+  const matches = redact.matches  || [];
+  const fields  = redact.fieldsHit || [];
+  const ocrText = ocr.text || '';
+
+  // Detect dominant direction from OCR text
+  const initDir  = detectDir(ocrText);
+  const initSize = 11.5;
+
+  cardStates.set(id, {
+    fontSize: initSize, dir: initDir,
+    ocrText, piiMatches: matches,
+    searchTerm: '', hitIdx: 0, hitCount: 0,
+    posMode: false, gridMode: false
+  });
+
+  const mc    = redact.matchCount || 0;
+  const mcCls = mc > 0 ? 'warn' : 'good';
+
+  const fieldsHtml = fields.length
+    ? fields.map(f => `<span class="field-chip">${h(f)}</span>`).join('')
+    : `<span style="color:var(--text3);font-size:12px">No PII matched</span>`;
+
+  const statsBar = ocrOnly
+    ? `<div class="stats-bar">
+  <span class="stat-item">📄 OCR <span class="stat-val blue">${ocr.durationMs ?? '—'}ms</span></span>
+  <span class="stat-item">📝 Chars <span class="stat-val">${(ocr.charCount||0).toLocaleString()}</span></span>
+  <span class="stat-item">🧩 Engine <span class="stat-val" style="font-size:11px">${h(ocr.extractorUsed||'')}</span></span>
+</div>`
+    : `<div class="stats-bar">
+  <span class="stat-item">📄 OCR <span class="stat-val blue">${ocr.durationMs ?? '—'}ms</span></span>
+  <span class="stat-item">🔒 Redact <span class="stat-val blue">${redact.durationMs ?? '—'}ms</span></span>
+  <span class="stat-item">⚡ PII hits <span class="stat-val ${mcCls}">${mc}</span></span>
+  <span class="stat-item">📝 Chars <span class="stat-val">${(ocr.charCount||0).toLocaleString()}</span></span>
+  <span class="stat-item">🧩 Engine <span class="stat-val" style="font-size:11px">${h(ocr.extractorUsed||'')}</span></span>
+</div>`;
+
+  const fieldsRow = ocrOnly ? ''
+    : `<div class="fields-row"><strong style="font-size:11px;color:var(--text3);margin-right:4px">FIELDS:</strong>${fieldsHtml}</div>`;
+
+  const splitPane = ocrOnly
+    ? `<div class="split-pane pane-single">
+  <div class="pane pane-ocr">
+    <div class="pane-header">
+      📄 OCR — Extracted Text
+      <span style="font-weight:400;font-size:11px;color:var(--text3)">raw output</span>
+      <span class="pane-time">⏱ ${ocr.durationMs ?? '—'}ms</span>
+    </div>
+    <div class="pane-body" id="${id}-ocrPane" dir="${initDir}" style="font-size:${initSize}px"></div>
+  </div>
+</div>`
+    : `<div class="split-pane">
+  <div class="pane pane-ocr">
+    <div class="pane-header">
+      📄 OCR — Raw Extracted Text
+      <span style="font-weight:400;font-size:11px;color:var(--text3)">PII in <span style="color:#faad14">amber</span></span>
+      <span class="pane-time">⏱ ${ocr.durationMs ?? '—'}ms</span>
+    </div>
+    <div class="pane-body" id="${id}-ocrPane" dir="${initDir}" style="font-size:${initSize}px"></div>
+  </div>
+  <div class="pane pane-redact">
+    <div class="pane-header">
+      🔒 Redacted Output
+      <span style="font-weight:400;font-size:11px;color:var(--text3)">replacements in <span style="color:#52c41a">green</span> · right-click to collect</span>
+      <span class="pane-time">⏱ ${redact.durationMs ?? '—'}ms</span>
+    </div>
+    <div class="pane-body" id="${id}-rdPane" dir="${initDir}" style="font-size:${initSize}px"></div>
+  </div>
+</div>`;
+
+  const legend = ocrOnly
+    ? `<div class="legend">
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(22,119,255,.3);border-bottom:2px solid #1677ff"></span>Search hit
+  </span>
+  <span style="margin-left:auto;font-size:11px">OCR only — no redaction applied</span>
+</div>`
+    : `<div class="legend">
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(250,173,20,.35);border-bottom:2px solid #faad14"></span>Original PII
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(82,196,26,.25);border-bottom:2px solid #52c41a"></span>Replacement
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:5px">
+    <span class="legend-swatch" style="background:rgba(22,119,255,.3);border-bottom:2px solid #1677ff"></span>Search hit
+  </span>
+  <span style="margin-left:auto;font-size:11px">Hover highlights for details · Right-click redacted text → Missing Patterns</span>
+</div>`;
+
+  card.innerHTML = `
+<div class="result-header">
+  <span class="status-dot done"></span>
+  <span class="chip-ext">${h(file.name.split('.').pop().toUpperCase())}</span>
+  <span class="fname">${h(file.name)}</span>
+  <span class="fsize">${fmtSize(file.size)}</span>
+  ${ocrOnly ? '<span style="margin-left:auto;font-size:11px;color:#1677ff;font-weight:600">OCR ONLY</span>' : ''}
+</div>
+${statsBar}
+${fieldsRow}
+<div class="card-toolbar" id="${id}-tb">
+  <button class="tb-btn" id="${id}-dirBtn" onclick="toggleDir('${id}')" title="Toggle text direction">
+    ${initDir === 'rtl' ? '→ LTR' : '← RTL'}
+  </button>
+  <span class="tb-sep"></span>
+  <button class="tb-btn" onclick="changeFontSize('${id}',-1)" title="Smaller font">A−</button>
+  <span class="tb-font-size" id="${id}-fsz">${initSize}px</span>
+  <button class="tb-btn" onclick="changeFontSize('${id}',+1)" title="Larger font">A+</button>
+  <span class="tb-sep"></span>
+  <button class="tb-btn" id="${id}-posBtn" onclick="togglePositions('${id}')" title="Show character position markers — helps set ScopeEndPosition">📍 Pos</button>
+  <button class="tb-btn" id="${id}-gridBtn" onclick="toggleGrid('${id}')" title="Show character offset gutter (line-by-line position map)">⊞ Grid</button>
+  <span class="pos-indicator" id="${id}-posHint" style="display:none">pos: —</span>
+  <span class="tb-sep"></span>
+  <div class="search-wrap">
+    <input type="text" placeholder="🔍 Search in document…" id="${id}-srch"
+           oninput="onSearchInput('${id}')"
+           onkeydown="onSearchKey(event,'${id}')">
+    <span class="search-badge" id="${id}-sbadge"></span>
+    <button class="tb-btn nav-btn" onclick="navigateHit('${id}',-1)" title="Previous hit">↑</button>
+    <button class="tb-btn nav-btn" onclick="navigateHit('${id}',+1)" title="Next hit">↓</button>
+    <button class="tb-btn nav-btn" onclick="clearSearch('${id}')" title="Clear search">✕</button>
+  </div>
+  ${!ocrOnly ? `<span class="tb-sep"></span>
+  <button class="tb-btn" onclick="downloadRedacted('${id}','${h(file.name)}')" title="Download redacted text as file">⬇ Redacted</button>` : ''}
+</div>
+${splitPane}
+${legend}`;
+
+  refreshPanes(id);
+  attachScrollSync(id);
+  attachPosListener(id);
+}
+
+function renderError(id, file, msg) {
+  const card = document.getElementById(id);
+  if (!card) return;
+  card.innerHTML = `
+<div class="result-header">
+  <span class="status-dot error"></span>
+  <span class="chip-ext">${h(file.name.split('.').pop().toUpperCase())}</span>
+  <span class="fname">${h(file.name)}</span>
+  <span class="fsize">${fmtSize(file.size)}</span>
+</div>
+<div class="pane-error">⚠ ${h(msg)}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PANE CONTENT (OCR + REDACT HTML with PII + search highlights)
+// ═══════════════════════════════════════════════════════════════════
+function refreshPanes(id) {
+  const s = cardStates.get(id);
+  if (!s) return;
+  const ocrPane = document.getElementById(id + '-ocrPane');
+  const rdPane  = document.getElementById(id + '-rdPane');  // null in single-pane modes
+  if (!ocrPane) return;
+
+  if (s.textRedactOnly) {
+    // Text / redact-only: single pane shows redacted output
+    const rdHtml = buildRedactHtml(s.ocrText, s.piiMatches, s.gridMode);
+    ocrPane.innerHTML = s.searchTerm ? applySearchHighlights(rdHtml, s.searchTerm) : rdHtml;
+  } else {
+    // Normal: ocrPane = original highlighted, rdPane = redacted
+    const ocrHtml = buildOcrHtml(s.ocrText, s.piiMatches, s.posMode, s.gridMode);
+    ocrPane.innerHTML = s.searchTerm ? applySearchHighlights(ocrHtml, s.searchTerm) : ocrHtml;
+    if (rdPane) {
+      const rdHtml = buildRedactHtml(s.ocrText, s.piiMatches, s.gridMode);
+      rdPane.innerHTML = s.searchTerm ? applySearchHighlights(rdHtml, s.searchTerm) : rdHtml;
+    }
+  }
+
+  // Re-draw scope-end marker (survives innerHTML refresh)
+  if (s.scopeEndPos > 0) insertScopeEndMarker(ocrPane, s.scopeEndPos);
+
+  // Update hit count
+  if (s.searchTerm) {
+    s.hitCount = ocrPane.querySelectorAll('mark.search-hit').length;
+    updateSearchBadge(id);
+    if (s.hitCount > 0) scrollToHit(id, s.hitIdx);
+  } else {
+    s.hitCount = 0;
+    updateSearchBadge(id);
+  }
+}
+
+/** OCR pane: original text with PII positions highlighted in amber.
+ *  posMode  — shows [N] badges + data-from spans for hover position
+ *  gridMode — shows line-start offset gutter (and implies data-from spans for hover) */
+function buildOcrHtml(text, matches, posMode = false, gridMode = false) {
+  if (!text) return '<span style="color:var(--text3);font-style:italic">No text extracted.</span>';
+
+  const needDataFrom = posMode || gridMode;
+
+  // Wrap a plain-text segment with data-from spans.
+  // showBadges=true also inserts visible [N] markers at every 100-char boundary.
+  function wrapPlain(txt, startPos, showBadges) {
+    if (!txt) return '';
+    let out = '', i = 0;
+    while (i < txt.length) {
+      const absPos = startPos + i;
+      if (showBadges && absPos > 0 && absPos % 100 === 0)
+        out += `<span class="pos-mark" data-from="${absPos}">[${absPos}]</span>`;
+      const toNext100 = 100 - (absPos % 100) || 100;
+      const chunkLen  = Math.min(50, toNext100, txt.length - i);
+      out += `<span data-from="${absPos}">${escHtml(txt.slice(i, i + chunkLen))}</span>`;
+      i += chunkLen;
+    }
+    return out;
+  }
+
+  // Render a slice of the text [from, to) respecting sorted matches within that range.
+  function renderSlice(from, to, sorted) {
+    let out = '', pos = from;
+    for (const m of sorted) {
+      const ms = Math.min(m.startIndex, text.length);
+      const me = Math.min(ms + m.length, text.length);
+      if (ms >= to) break;
+      if (me <= from) continue;
+      const segStart = Math.max(ms, from);
+      const segEnd   = Math.min(me, to);
+      if (segStart > pos) {
+        const plain = text.slice(pos, segStart);
+        out += needDataFrom ? wrapPlain(plain, pos, posMode) : escHtml(plain);
+      }
+      // Only emit the mark if the match starts within this slice
+      if (ms >= from && ms < to) {
+        out += `<mark class="pii-orig" data-from="${ms}" title="${ea(m.fieldName)}: ${ea(text.slice(ms, me))}">${escHtml(text.slice(ms, me))}</mark>`;
+        pos = me;
+      } else {
+        pos = segEnd;
+      }
+    }
+    if (pos < to) {
+      const plain = text.slice(pos, to);
+      out += needDataFrom ? wrapPlain(plain, pos, posMode) : escHtml(plain);
+    }
+    return out;
+  }
+
+  const sorted = matches && matches.length
+    ? [...matches].sort((a, b) => a.startIndex - b.startIndex)
+    : [];
+
+  if (!gridMode) {
+    // Original non-grid path (unchanged behaviour)
+    let html = '', pos = 0;
+    for (const m of sorted) {
+      const s = Math.min(m.startIndex, text.length);
+      const e = Math.min(s + m.length, text.length);
+      if (s > pos) html += posMode ? wrapPlain(text.slice(pos, s), pos, true) : escHtml(text.slice(pos, s));
+      html += `<mark class="pii-orig" data-from="${s}" title="${ea(m.fieldName)}: ${ea(text.slice(s,e))}">${escHtml(text.slice(s,e))}</mark>`;
+      pos = e;
+    }
+    if (pos < text.length) html += posMode ? wrapPlain(text.slice(pos), pos, true) : escHtml(text.slice(pos));
+    return html;
+  }
+
+  // Grid mode: split by \n, inject offset gutter at start of each line
+  const lines = text.split('\n');
+  let html = '';
+  let absOffset = 0;
+  for (let li = 0; li < lines.length; li++) {
+    html += `<span class="gl" data-pos="${absOffset}">${String(absOffset).padStart(5, '0')}</span>`;
+    const lineEnd = absOffset + lines[li].length;
+    html += renderSlice(absOffset, lineEnd, sorted);
+    if (li < lines.length - 1) {
+      html += '\n';
+      absOffset = lineEnd + 1;
+    }
+  }
+  return html;
+}
+
+/** Redact pane: rebuild from original positions but show replacement strings in green.
+ *  gridMode — injects line-start offset gutter matching the OCR pane */
+function buildRedactHtml(text, matches, gridMode = false) {
+  if (!text) return '<span style="color:var(--text3);font-style:italic">No text extracted.</span>';
+
+  // Helper: render a redacted slice [from,to) of the source text
+  function renderSlice(from, to, sorted) {
+    let out = '', pos = from;
+    for (const m of sorted) {
+      const ms = Math.min(m.startIndex, text.length);
+      const me = Math.min(ms + m.length, text.length);
+      if (ms >= to) break;
+      if (me <= from) continue;
+      if (ms >= from && ms < to) {
+        if (ms > pos) out += escHtml(text.slice(pos, ms));
+        out += `<mark class="pii-repl" title="${ea(m.fieldName)}: &quot;${ea(m.matchedText)}&quot; → &quot;${ea(m.replacement)}&quot;">${escHtml(m.replacement)}</mark>`;
+        pos = me;
+      }
+    }
+    if (pos < to) out += escHtml(text.slice(pos, to));
+    return out;
+  }
+
+  if (!matches || !matches.length) {
+    if (!gridMode) return escHtml(text);
+    // Grid mode with no matches: still show gutter
+    const lines = text.split('\n');
+    let html = ''; let absOffset = 0;
+    for (let li = 0; li < lines.length; li++) {
+      html += `<span class="gl" data-pos="${absOffset}">${String(absOffset).padStart(5, '0')}</span>`;
+      html += escHtml(lines[li]);
+      if (li < lines.length - 1) { html += '\n'; absOffset += lines[li].length + 1; }
+    }
+    return html;
+  }
+
+  const sorted = [...matches].sort((a, b) => a.startIndex - b.startIndex);
+
+  if (!gridMode) {
+    let html = '', pos = 0;
+    for (const m of sorted) {
+      const s = Math.min(m.startIndex, text.length);
+      const e = Math.min(s + m.length, text.length);
+      if (s > pos) html += escHtml(text.slice(pos, s));
+      html += `<mark class="pii-repl" title="${ea(m.fieldName)}: &quot;${ea(m.matchedText)}&quot; → &quot;${ea(m.replacement)}&quot;">${escHtml(m.replacement)}</mark>`;
+      pos = e;
+    }
+    if (pos < text.length) html += escHtml(text.slice(pos));
+    return html;
+  }
+
+  // Grid mode: split by \n, inject offset gutter at start of each line
+  const lines = text.split('\n');
+  let html = '';
+  let absOffset = 0;
+  for (let li = 0; li < lines.length; li++) {
+    html += `<span class="gl" data-pos="${absOffset}">${String(absOffset).padStart(5, '0')}</span>`;
+    const lineEnd = absOffset + lines[li].length;
+    html += renderSlice(absOffset, lineEnd, sorted);
+    if (li < lines.length - 1) {
+      html += '\n';
+      absOffset = lineEnd + 1;
+    }
+  }
+  return html;
+}
+
+/** Apply search highlights on top of existing HTML by walking text nodes */
+function applySearchHighlights(html, term) {
+  if (!term) return html;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const lower = term.toLowerCase();
+
+  const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT);
+  const nodes  = [];
+  let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+
+  for (const node of nodes) {
+    const txt   = node.textContent || '';
+    const lower2 = txt.toLowerCase();
+    if (lower2.indexOf(lower) === -1) continue;
+
+    const frag = document.createDocumentFragment();
+    let pos2   = 0;
+    let idx;
+    while ((idx = lower2.indexOf(lower, pos2)) !== -1) {
+      if (idx > pos2) frag.appendChild(document.createTextNode(txt.slice(pos2, idx)));
+      const mark = document.createElement('mark');
+      mark.className = 'search-hit';
+      mark.textContent = txt.slice(idx, idx + lower.length);
+      frag.appendChild(mark);
+      pos2 = idx + lower.length;
+    }
+    if (pos2 < txt.length) frag.appendChild(document.createTextNode(txt.slice(pos2)));
+    node.parentNode.replaceChild(frag, node);
+  }
+  return tmp.innerHTML;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PER-CARD CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+function toggleDir(id) {
+  const s = cardStates.get(id); if (!s) return;
+  s.dir = s.dir === 'rtl' ? 'ltr' : 'rtl';
+  const btn = document.getElementById(id + '-dirBtn');
+  if (btn) btn.textContent = s.dir === 'rtl' ? '→ LTR' : '← RTL';
+  applyPaneAttrs(id);
+}
+
+function changeFontSize(id, delta) {
+  const s = cardStates.get(id); if (!s) return;
+  s.fontSize = Math.max(9, Math.min(20, s.fontSize + delta));
+  const lbl = document.getElementById(id + '-fsz');
+  if (lbl) lbl.textContent = s.fontSize + 'px';
+  applyPaneAttrs(id);
+}
+
+function applyPaneAttrs(id) {
+  const s = cardStates.get(id); if (!s) return;
+  for (const sfx of ['-ocrPane', '-rdPane']) {
+    const el = document.getElementById(id + sfx);
+    if (el) { el.style.fontSize = s.fontSize + 'px'; el.dir = s.dir; }
+  }
+  // also update direction button text
+  const dirBtn = document.getElementById(id + '-dirBtn');
+  if (dirBtn) dirBtn.textContent = s.dir === 'rtl' ? '→ LTR' : '← RTL';
+}
+
+// ── Position mode ───────────────────────────────────────────────────
+function togglePositions(id) {
+  const s = cardStates.get(id); if (!s) return;
+  s.posMode = !s.posMode;
+  const btn  = document.getElementById(id + '-posBtn');
+  const hint = document.getElementById(id + '-posHint');
+  if (btn)  btn.classList.toggle('active', s.posMode);
+  if (hint) {
+    hint.style.display = (s.posMode || s.gridMode) ? '' : 'none';
+    hint.textContent = 'pos: —';
+  }
+  refreshPanes(id);
+}
+
+// ── Grid mode ────────────────────────────────────────────────────────
+function toggleGrid(id) {
+  const s = cardStates.get(id); if (!s) return;
+  s.gridMode = !s.gridMode;
+  const btn  = document.getElementById(id + '-gridBtn');
+  const hint = document.getElementById(id + '-posHint');
+  if (btn) {
+    btn.classList.toggle('active', s.gridMode);
+  }
+  if (hint) {
+    hint.style.display = (s.posMode || s.gridMode) ? '' : 'none';
+    hint.textContent = 'pos: —';
+  }
+  for (const sfx of ['-ocrPane', '-rdPane']) {
+    document.getElementById(id + sfx)?.classList.toggle('grid-active', s.gridMode);
+  }
+  refreshPanes(id);
+}
+
+/** Attach hover-position listener to the OCR pane (call once after card render). */
+function attachPosListener(id) {
+  const pane = document.getElementById(id + '-ocrPane');
+  if (!pane) return;
+  pane.addEventListener('mousemove', e => {
+    const s = cardStates.get(id);
+    if (!s || (!s.posMode && !s.gridMode)) return;
+    const hint = document.getElementById(id + '-posHint');
+    if (!hint) return;
+    // Walk up from the hovered element to find the nearest data-from attribute
+    // (works for posMode spans; gridMode also emits data-from via wrapPlain)
+    let el = e.target;
+    while (el && el !== pane) {
+      if (el.dataset && el.dataset.from !== undefined) {
+        const absPos = parseInt(el.dataset.from, 10);
+        if (s.gridMode) {
+          // Show Ln / Col / Pos
+          const rawText = s.ocrText || '';
+          const upTo    = rawText.slice(0, absPos);
+          const ln      = (upTo.match(/\n/g) || []).length + 1;
+          const lastNl  = upTo.lastIndexOf('\n');
+          const col     = absPos - (lastNl + 1);
+          hint.textContent = `Ln ${ln}, Col ${col} · Pos ${absPos}`;
+        } else {
+          hint.textContent = `pos: ${absPos}`;
+        }
+        return;
+      }
+      // Also handle gutter spans clicked/hovered (data-pos)
+      if (el.dataset && el.dataset.pos !== undefined) {
+        const absPos = parseInt(el.dataset.pos, 10);
+        const rawText = s.ocrText || '';
+        const upTo    = rawText.slice(0, absPos);
+        const ln      = (upTo.match(/\n/g) || []).length + 1;
+        hint.textContent = `Ln ${ln} · Pos ${absPos}`;
+        return;
+      }
+      el = el.parentElement;
+    }
+    hint.textContent = 'pos: —';
+  });
+  pane.addEventListener('mouseleave', () => {
+    const hint = document.getElementById(id + '-posHint');
+    if (hint) hint.textContent = 'pos: —';
+  });
+}
+
+// Search
+function onSearchInput(id) {
+  const inp = document.getElementById(id + '-srch');
+  if (!inp) return;
+  const s = cardStates.get(id); if (!s) return;
+  s.searchTerm = inp.value.trim();
+  s.hitIdx     = 0;
+  refreshPanes(id);
+}
+
+function onSearchKey(e, id) {
+  if (e.key === 'Enter') navigateHit(id, e.shiftKey ? -1 : +1);
+  if (e.key === 'Escape') clearSearch(id);
+}
+
+function clearSearch(id) {
+  const inp = document.getElementById(id + '-srch');
+  if (inp) inp.value = '';
+  const s = cardStates.get(id); if (!s) return;
+  s.searchTerm = ''; s.hitIdx = 0; s.hitCount = 0;
+  refreshPanes(id);
+  updateSearchBadge(id);
+}
+
+function navigateHit(id, dir) {
+  const s = cardStates.get(id); if (!s || !s.hitCount) return;
+  s.hitIdx = ((s.hitIdx + dir) % s.hitCount + s.hitCount) % s.hitCount;
+  updateSearchBadge(id);
+  scrollToHit(id, s.hitIdx);
+}
+
+function updateSearchBadge(id) {
+  const s   = cardStates.get(id);
+  const el  = document.getElementById(id + '-sbadge');
+  if (!el || !s) return;
+  el.textContent = s.hitCount > 0
+    ? `${s.hitIdx + 1}/${s.hitCount}`
+    : (s.searchTerm ? '0' : '');
+}
+
+function scrollToHit(id, idx) {
+  const ocrPane = document.getElementById(id + '-ocrPane');
+  const rdPane  = document.getElementById(id + '-rdPane');
+  if (!ocrPane || !rdPane) return;
+
+  const ocrHits = ocrPane.querySelectorAll('mark.search-hit');
+  const rdHits  = rdPane.querySelectorAll('mark.search-hit');
+
+  // De-activate all, activate current
+  ocrHits.forEach((m, i) => m.classList.toggle('active', i === idx));
+  rdHits.forEach( (m, i) => m.classList.toggle('active', i === idx));
+
+  const hit = ocrHits[idx];
+  if (hit) {
+    const offset = hit.offsetTop;
+    ocrPane.scrollTop = Math.max(0, offset - ocrPane.clientHeight * 0.35);
+    // Sync redact pane proportionally
+    const ratio = ocrPane.scrollTop / Math.max(1, ocrPane.scrollHeight - ocrPane.clientHeight);
+    rdPane.scrollTop = ratio * Math.max(0, rdPane.scrollHeight - rdPane.clientHeight);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SCROLL SYNC — bidirectional proportional sync between OCR / Redact
+// ═══════════════════════════════════════════════════════════════════
+function attachScrollSync(id) {
+  const ocrPane = document.getElementById(id + '-ocrPane');
+  const rdPane  = document.getElementById(id + '-rdPane');
+  if (!ocrPane || !rdPane) return;  // ocr-only mode has no rdPane — skip sync
+
+  let syncing = false;
+
+  ocrPane.addEventListener('scroll', () => {
+    if (syncing) return;
+    syncing = true;
+    const max   = ocrPane.scrollHeight - ocrPane.clientHeight;
+    const ratio = max > 0 ? ocrPane.scrollTop / max : 0;
+    rdPane.scrollTop = ratio * Math.max(0, rdPane.scrollHeight - rdPane.clientHeight);
+    requestAnimationFrame(() => { syncing = false; });
+  });
+
+  rdPane.addEventListener('scroll', () => {
+    if (syncing) return;
+    syncing = true;
+    const max   = rdPane.scrollHeight - rdPane.clientHeight;
+    const ratio = max > 0 ? rdPane.scrollTop / max : 0;
+    ocrPane.scrollTop = ratio * Math.max(0, ocrPane.scrollHeight - ocrPane.clientHeight);
+    requestAnimationFrame(() => { syncing = false; });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTEXT MENU (right-click on OCR / Redact panes)
+// ═══════════════════════════════════════════════════════════════════
+const ctxMenu = document.getElementById('ctxMenu');
+let ctxCardId = '';
+let ctxPos    = -1;   // character position captured on right-click
+
+document.getElementById('results').addEventListener('contextmenu', e => {
+  const paneBody = e.target.closest('.pane-body');
+  if (!paneBody) return;
+  e.preventDefault();
+
+  const sel    = window.getSelection();
+  const txt    = sel ? sel.toString().trim() : '';
+  const isOcr  = paneBody.closest('.pane-ocr') !== null;
+  const card   = paneBody.closest('.result-card');
+  ctxCardId    = card ? card.id : '';
+  ctxText      = txt;
+  ctxSource    = card ? (card.querySelector('.fname')?.textContent || '') : '';
+  ctxSource   += isOcr ? ' (OCR)' : ' (Redacted)';
+
+  // Capture char position for scope-end feature
+  ctxPos = isOcr ? getCharPositionAtPoint(paneBody, e.clientX, e.clientY) : -1;
+
+  // Show / hide text-selection items
+  const hasTxt = txt && txt.length > 0 && txt.length <= 300;
+  document.getElementById('ctxItemRedact').style.display   = hasTxt ? '' : 'none';
+  document.getElementById('ctxItemPreserve').style.display = hasTxt ? '' : 'none';
+
+  // Show scope-end item only in OCR pane with a valid position
+  const showScope = isOcr && ctxPos >= 0;
+  document.getElementById('ctxItemScopeEnd').style.display = showScope ? '' : 'none';
+  document.getElementById('ctxItemScopeEnd').textContent   = showScope
+    ? `📍 Set Scope End here  (pos: ${ctxPos})` : '';
+  document.getElementById('ctxScopeSep').style.display = showScope ? '' : 'none';
+
+  // Don't show menu if nothing to offer
+  if (!hasTxt && !showScope) return;
+
+  ctxMenu.style.display = 'block';
+  ctxMenu.style.left    = Math.min(e.clientX, window.innerWidth  - 230) + 'px';
+  ctxMenu.style.top     = Math.min(e.clientY, window.innerHeight - 60)  + 'px';
+});
+
+document.addEventListener('click',       hideCtx);
+document.addEventListener('contextmenu', e => { if (!e.target.closest('.pane-body')) hideCtx(); });
+function hideCtx() { ctxMenu.style.display = 'none'; }
+
+function ctxAddRedact() {
+  hideCtx();
+  if (!ctxText) return;
+  openAddPii(ctxText, 'redact');
+}
+
+function ctxAddPreserve() {
+  hideCtx();
+  if (!ctxText) return;
+  openAddPii(ctxText, 'preserve');
+}
+
+function ctxSetScopeEnd() {
+  hideCtx();
+  if (ctxPos < 0) return;
+  openSetScopeEnd(ctxPos, ctxCardId);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SCOPE END POSITION — capture, modal, marker
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Calculate the character offset in the OCR pane at the given mouse coords.
+ * Uses caretRangeFromPoint (Chrome/Edge) or caretPositionFromPoint (Firefox).
+ * In posMode the data-from spans give an exact fast-path; otherwise falls back
+ * to walking all text nodes while skipping .pos-mark / .scope-end-line content.
+ */
+function getCharPositionAtPoint(pane, x, y) {
+  let range;
+  try {
+    if (document.caretRangeFromPoint) {
+      range = document.caretRangeFromPoint(x, y);
+    } else if (document.caretPositionFromPoint) {
+      const c = document.caretPositionFromPoint(x, y);
+      if (c) { range = document.createRange(); range.setStart(c.offsetNode, c.offset); }
+    }
+  } catch { return -1; }
+  if (!range) return -1;
+
+  // Fast path: we're inside a data-from span (posMode on)
+  try {
+    let el = range.startContainer.nodeType === Node.TEXT_NODE
+      ? range.startContainer.parentElement : range.startContainer;
+    while (el && el !== pane) {
+      if (el.dataset?.from !== undefined && !el.classList.contains('pos-mark')) {
+        const r2 = document.createRange();
+        r2.setStart(el.firstChild || el, 0);
+        r2.setEnd(range.startContainer, range.startOffset);
+        return +el.dataset.from + r2.toString().length;
+      }
+      el = el.parentElement;
+    }
+  } catch {}
+
+  // Fallback: walk text nodes, skipping non-content markers
+  try {
+    const walker = document.createTreeWalker(pane, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => n.parentElement?.closest('.pos-mark,.scope-end-line')
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+    });
+    let count = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      // Is range endpoint inside this node?
+      if (node === range.startContainer) { count += range.startOffset; break; }
+      // Is range endpoint before this node?
+      try {
+        const cmp = range.comparePoint(node, 0);
+        if (cmp > 0) break;   // range end is before this node
+      } catch {}
+      count += len;
+    }
+    return count;
+  } catch { return -1; }
+}
+
+let scopeEndCurrentCardId = '';
+let scopeEndCurrentPos    = -1;
+
+async function openSetScopeEnd(pos, cardId) {
+  scopeEndCurrentPos    = pos;
+  scopeEndCurrentCardId = cardId;
+
+  document.getElementById('scopeEndPosLabel').textContent = pos;
+  document.getElementById('scopeEndStatus').textContent   = '';
+  document.getElementById('scopeEndCurrentVal').textContent = '';
+
+  // Populate FileList pattern dropdown from cachedFields
+  if (!cachedFields) await reloadFields();
+  const sel = document.getElementById('scopeEndPatternSelect');
+  const flPatterns = (cachedFields || [])
+    .flatMap(f => (f.patterns || [])
+      .filter(p => p.type === 'FileList')
+      .map(p => ({ patId: p.id, fieldName: f.fieldName, scopeEndPosition: p.scopeEndPosition ?? 0 })));
+
+  if (flPatterns.length === 0) {
+    sel.innerHTML = '<option value="">— no FileList patterns found —</option>';
+  } else {
+    sel.innerHTML = flPatterns.map(p =>
+      `<option value="${p.patId}" data-cur="${p.scopeEndPosition}">
+        ${h(p.fieldName)} (current: ${p.scopeEndPosition})
+      </option>`).join('');
+    updateScopeCurrentVal();
+  }
+
+  document.getElementById('setScopeEndModal').style.display = 'flex';
+}
+
+function closeSetScopeEnd() {
+  document.getElementById('setScopeEndModal').style.display = 'none';
+}
+
+function updateScopeCurrentVal() {
+  const sel = document.getElementById('scopeEndPatternSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const cur = opt ? opt.dataset.cur : null;
+  document.getElementById('scopeEndCurrentVal').textContent =
+    cur != null ? `Current value: ${cur} → will be updated to ${scopeEndCurrentPos}` : '';
+}
+
+async function submitSetScopeEnd() {
+  const sel       = document.getElementById('scopeEndPatternSelect');
+  const patternId = +sel.value;
+  if (!patternId) { setScopeEndStatus('Select a pattern first.', 'error'); return; }
+
+  setScopeEndStatus('Saving…', 'info');
+  const r = await apiPost('/admin/tester?handler=SetScopeEndPosition',
+    { patternId, position: scopeEndCurrentPos });
+
+  if (r.ok) {
+    setScopeEndStatus(`✓ Saved. Scope End Position set to ${scopeEndCurrentPos}.`, 'ok');
+    cachedFields = null;   // invalidate cache so next open shows fresh values
+
+    // Draw the marker in the card that was right-clicked
+    if (scopeEndCurrentCardId) {
+      const s = cardStates.get(scopeEndCurrentCardId);
+      if (s) {
+        s.scopeEndPos = scopeEndCurrentPos;
+        const pane = document.getElementById(scopeEndCurrentCardId + '-ocrPane');
+        if (pane) insertScopeEndMarker(pane, scopeEndCurrentPos);
+      }
+    }
+    setTimeout(closeSetScopeEnd, 1200);
+  } else {
+    setScopeEndStatus('Error: ' + (r.error || 'unknown'), 'error');
+  }
+}
+
+function setScopeEndStatus(msg, type) {
+  const el  = document.getElementById('scopeEndStatus');
+  const clr = type === 'error' ? '#ff4d4f' : type === 'ok' ? '#52c41a' : '#1677ff';
+  el.style.color   = clr;
+  el.textContent   = msg;
+}
+
+/**
+ * Insert (or refresh) a visible dashed "Scope End" line in the OCR pane at
+ * the given character offset.  Walks text nodes, splits the node at the right
+ * spot, and inserts a .scope-end-line <span> — works both with and without
+ * posMode.  Replaces any previously inserted line first.
+ */
+function insertScopeEndMarker(pane, pos) {
+  // Remove any existing marker
+  pane.querySelectorAll('.scope-end-line').forEach(el => el.remove());
+  if (!pos || pos <= 0) return;
+
+  const walker = document.createTreeWalker(pane, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.parentElement?.closest('.pos-mark,.scope-end-line')
+      ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+  });
+
+  let count = 0, node;
+  while ((node = walker.nextNode())) {
+    const len = node.textContent.length;
+    if (count + len >= pos) {
+      const offset = pos - count;
+      const after  = node.splitText(offset);
+      const marker = document.createElement('span');
+      marker.className    = 'scope-end-line';
+      marker.dataset.label = `◀ Scope End [${pos}]`;
+      node.parentNode.insertBefore(marker, after);
+      return;
+    }
+    count += len;
+  }
+  // pos is beyond all text — append at the end of the pane
+  const marker = document.createElement('span');
+  marker.className    = 'scope-end-line';
+  marker.dataset.label = `◀ Scope End [${pos}]`;
+  pane.appendChild(marker);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADD VALUE MODAL  (Redact / Preserve)
+// ═══════════════════════════════════════════════════════════════════
+let addPiiMode = 'redact';   // 'redact' | 'preserve'
+
+async function openAddPii(text, mode) {
+  addPiiMode        = mode || 'redact';
+  addPiiCurrentText = text;
+
+  const isPreserve  = addPiiMode === 'preserve';
+  document.getElementById('addPiiTitle').textContent =
+    isPreserve ? '🛡 Add Value to Preserve' : '🔒 Add Value to Redact';
+  document.getElementById('addPiiText').textContent = text;
+  document.getElementById('addPiiStatus').textContent = '';
+
+  // Show / hide Replace-with row (not needed for preserve)
+  document.getElementById('addReplaceRow').style.display = isPreserve ? 'none' : '';
+
+  // Reset combine checkbox (will be shown if field has ConstList after dropdown populates)
+  document.getElementById('addCombineRow').style.display = 'none';
+  document.getElementById('addCombineChk').checked = true;
+
+  // Reset to "existing" mode
+  document.querySelector('input[name="addMode"][value="existing"]').checked = true;
+  addModeChange();
+
+  document.getElementById('addPiiModal').style.display = 'flex';
+  syncTesterPresets();
+
+  if (!cachedFields) await reloadFields();
+  else populateFieldSelect();
+}
+
+function closeAddPii() { document.getElementById('addPiiModal').style.display = 'none'; }
+
+function addModeChange() {
+  const mode = document.querySelector('input[name="addMode"]:checked')?.value || 'existing';
+  document.getElementById('addExistingSection').style.display = mode === 'existing' ? '' : 'none';
+  document.getElementById('addNewSection').style.display      = mode === 'new'      ? '' : 'none';
+
+  // Hide combine row when switching to "new" — re-evaluated on field select change
+  if (mode === 'new') document.getElementById('addCombineRow').style.display = 'none';
+  else                onFieldSelectChange();   // re-check current selection
+
+  const accent = '#1677ff';
+  document.getElementById('addModeExistingLbl').style.borderColor = mode === 'existing' ? accent : 'var(--border2)';
+  document.getElementById('addModeNewLbl').style.borderColor      = mode === 'new'      ? accent : 'var(--border2)';
+}
+
+// Show the "combine" checkbox whenever the selected field has at least one ConstList pattern
+function onFieldSelectChange() {
+  const sel      = document.getElementById('addFieldSelect');
+  const fieldId  = sel ? +sel.value : 0;
+  const field    = (cachedFields || []).find(f => f.id === fieldId);
+  const hasCL    = field && field.patterns && field.patterns.some(p => p.type === 'ConstList');
+  const row      = document.getElementById('addCombineRow');
+  row.style.display = (hasCL && fieldId) ? 'flex' : 'none';
+  if (hasCL) document.getElementById('addCombineChk').checked = true;
+}
+
+async function reloadFields() {
+  try {
+    const r = await fetch('/admin/tester?handler=Fields');
+    cachedFields = await r.json();
+    populateFieldSelect();
+  } catch (e) {
+    setAddPiiStatus('Could not load fields: ' + e.message, 'error');
+  }
+}
+
+function populateFieldSelect() {
+  const isPreserve = addPiiMode === 'preserve';
+  const filtered   = (cachedFields || []).filter(f => !!f.isPreserve === isPreserve);
+  const sel        = document.getElementById('addFieldSelect');
+  sel.innerHTML = '<option value="">— select a field —</option>'
+    + filtered.map(f => {
+        const hasCL   = f.patterns && f.patterns.some(p => p.type === 'ConstList');
+        const clHint  = hasCL ? ' ⊕' : '';
+        const label   = isPreserve
+          ? h(f.fieldName) + clHint
+          : `${h(f.fieldName)} → ${h(f.replaceWith)}${clHint}`;
+        return `<option value="${f.id}">${label}</option>`;
+      }).join('');
+  // Re-evaluate combine checkbox for current selection (auto-selects first if any)
+  onFieldSelectChange();
+}
+
+async function submitAddToExisting() {
+  const fieldId = document.getElementById('addFieldSelect').value;
+  if (!fieldId) { setAddPiiStatus('Please select a field.', 'error'); return; }
+
+  const combineChk = document.getElementById('addCombineChk');
+  const combine    = combineChk && combineChk.checked && combineChk.closest('#addCombineRow').style.display !== 'none';
+
+  setAddPiiStatus('Saving…', 'info');
+
+  let r;
+  if (combine) {
+    // Append value to the existing ConstList (or create one if none exists)
+    r = await apiPost('/admin/tester?handler=AppendToConstList',
+      { fieldId: +fieldId, value: addPiiCurrentText });
+    if (r.ok) {
+      setAddPiiStatus('✓ Combined into ConstList.', 'ok');
+      cachedFields = null;
+    } else {
+      setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
+    }
+  } else {
+    r = await apiPost('/admin/tester?handler=AddPattern',
+      { fieldId: +fieldId, patternType: 'WholeWord', pattern: addPiiCurrentText });
+    if (r.ok) {
+      setAddPiiStatus('✓ Added as Whole Word pattern.', 'ok');
+      cachedFields = null;
+    } else {
+      setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
+    }
+  }
+}
+
+async function submitAddNewField() {
+  const name       = document.getElementById('addNewName').value.trim();
+  const replaceRaw = document.getElementById('addNewReplace').value.trim();
+  const replace    = replaceRaw.length > 0 ? replaceRaw[0] : '█';
+  const isPreserve = addPiiMode === 'preserve';
+
+  if (!name) { setAddPiiStatus('Field name is required.', 'error'); return; }
+
+  setAddPiiStatus('Creating field…', 'info');
+  const r = await apiPost('/admin/tester?handler=CreateField', {
+    fieldName:   name,
+    replaceWith: isPreserve ? '—' : replace,
+    patternType: 'WholeWord',
+    pattern:     addPiiCurrentText,
+    isPreserve
+  });
+  if (r.ok) {
+    setAddPiiStatus(`✓ Field "${h(name)}" created.`, 'ok');
+    cachedFields = null;
+  } else {
+    setAddPiiStatus('Error: ' + (r.error || 'unknown'), 'error');
+  }
+}
+
+function setAddPiiStatus(msg, type) {
+  const el  = document.getElementById('addPiiStatus');
+  const clr = type === 'error' ? '#ff4d4f' : type === 'ok' ? '#52c41a' : '#1677ff';
+  el.style.color   = clr;
+  el.textContent   = msg;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════
+function overlayClose(e, id) {
+  if (e.target.id === id) document.getElementById(id).style.display = 'none';
+}
+
+function syncTesterPresets() {
+  const val = (document.getElementById('addNewReplace')?.value || '').trim();
+  const presets = ['█','*','-','#','?','•','_','×'];
+  presets.forEach(c => {
+    const el = document.getElementById('tp-' + c.charCodeAt(0));
+    if (!el) return;
+    const sel = c === val;
+    el.style.borderColor  = sel ? '#fa8c16' : 'var(--border2)';
+    el.style.color        = sel ? '#fa8c16' : 'var(--text)';
+    el.style.background   = sel ? 'rgba(250,140,22,.12)' : 'var(--surface)';
+    el.style.fontWeight   = sel ? '700' : '';
+  });
+}
+
+function detectDir(text) {
+  if (!text) return 'ltr';
+  const heb = (text.match(/[֐-׿]/g) || []).length;
+  return heb / text.length > 0.12 ? 'rtl' : 'ltr';
+}
+
+function h(s)   { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function ha(s)  { return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function ea(s)  { return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtSize(b) {
+  if (b < 1024)    return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+function getToken() {
+  const el = document.querySelector('#__AntiForgery input[name="__RequestVerificationToken"]');
+  return el ? el.value : '';
+}
+async function apiPost(url, body) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': getToken() },
+      body: JSON.stringify(body)
+    });
+    return await r.json();
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── Download redacted text as a .txt file ────────────────────────────────
+function downloadRedacted(cardId, originalName) {
+  const s = cardStates.get(cardId);
+  if (!s || !s.redactedText) {
+    alert('No redacted text available for this file.');
+    return;
+  }
+  const baseName = (originalName || 'document').replace(/\.[^.]+$/, '');
+  const fileName = 'redacted_' + baseName + '.txt';
+  const blob = new Blob([s.redactedText], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+</script>

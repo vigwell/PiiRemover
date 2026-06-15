@@ -1,0 +1,67 @@
+@page "/admin/health"
+@model PiiRemover.Api.Pages.Admin.HealthModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Health Check";
+    ViewData["Nav"] = "health";
+}
+
+<h1 class="page-title">Health Check</h1>
+
+<div class="card" style="max-width:600px">
+    <h3>API Status</h3>
+
+    <div id="result" style="display:none;margin-bottom:16px"></div>
+
+    <button class="btn btn-primary" id="checkBtn" onclick="runCheck()">Run Health Check</button>
+    <span id="spinner" style="display:none;margin-left:12px;color:#888;font-size:13px">Checking…</span>
+</div>
+
+<script>
+async function runCheck() {
+    const btn     = document.getElementById('checkBtn');
+    const spinner = document.getElementById('spinner');
+    const result  = document.getElementById('result');
+
+    btn.disabled = true;
+    spinner.style.display = 'inline';
+    result.style.display  = 'none';
+
+    try {
+        const resp = await fetch('/api/v1/health');
+        const data = await resp.json();
+        const ok   = resp.ok;
+
+        const statusClass = ok ? 'alert-success' : 'alert-danger';
+        const statusIcon  = ok ? '✅' : '❌';
+
+        const daysLeft = data.license?.daysLeft;
+        const licBadge = data.license?.status === 'ok'            ? '<span class="badge badge-green">Valid</span>'
+                       : data.license?.status === 'expiring_soon' ? `<span class="badge badge-blue">Expires in ${daysLeft}d</span>`
+                       : data.license?.status === 'expired'       ? '<span class="badge badge-red">Expired</span>'
+                                                                   : '<span class="badge badge-red">Missing</span>';
+
+        result.innerHTML = `
+            <div class="alert ${statusClass}">${statusIcon} Status: <strong>${data.status}</strong></div>
+            <table>
+                <tr><td>Version</td><td><span class="mono">${data.version}</span></td></tr>
+                <tr><td>Uptime</td><td>${fmtUptime(data.uptimeSeconds)}</td></tr>
+                <tr><td>Database</td><td>${data.db === 'ok' ? '<span class="badge badge-green">OK</span>' : '<span class="badge badge-red">Error</span>'}</td></tr>
+                <tr><td>License</td><td>${licBadge}${data.license?.expiry ? ' — expires ' + data.license.expiry : ''}</td></tr>
+                <tr><td>HTTP Status</td><td><span class="mono">${resp.status}</span></td></tr>
+            </table>`;
+    } catch (e) {
+        result.innerHTML = `<div class="alert alert-danger">❌ Request failed: ${e.message}</div>`;
+    }
+
+    result.style.display = 'block';
+    spinner.style.display = 'none';
+    btn.disabled = false;
+}
+
+function fmtUptime(s) {
+    if (s < 60)   return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+    return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+</script>

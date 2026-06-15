@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PiiRemover — Enterprise PII Redaction Platform</title>
+<style>
+/* ═══════════════════════════════════ FLYER SHELL ═══════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#1677ff;--blue2:#4a90d9;--green:#52c41a;--amber:#faad14;
+  --red:#ff4d4f;--purple:#722ed1;
+  --bg:#080c14;--s1:#0d1117;--s2:#161b22;--s3:#1c2128;
+  --border:rgba(255,255,255,.09);--border2:rgba(255,255,255,.15);
+  --t1:#e6edf3;--t2:#adbac7;--t3:#636e7b;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);line-height:1.6;overflow-x:hidden}
+.W{max-width:1180px;margin:0 auto;padding:0 32px}
+
+/* ── TYPOGRAPHY UTILS ── */
+.gt{background:linear-gradient(120deg,#60a5fa,#a78bfa 45%,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 14px;border-radius:20px}
+.tag-b{background:rgba(22,119,255,.14);color:#60a5fa;border:1px solid rgba(22,119,255,.28)}
+.tag-g{background:rgba(52,196,26,.12);color:#6abe39;border:1px solid rgba(52,196,26,.25)}
+.tag-p{background:rgba(114,46,209,.14);color:#a78bfa;border:1px solid rgba(114,46,209,.28)}
+.tag-o{background:rgba(250,173,20,.12);color:#faad14;border:1px solid rgba(250,173,20,.25)}
+.sec-eye{text-align:center;margin-bottom:14px}
+.sec-h{text-align:center;font-size:clamp(26px,3.8vw,46px);font-weight:800;letter-spacing:-.025em;line-height:1.1;margin-bottom:16px}
+.sec-s{text-align:center;font-size:16px;color:var(--t2);max-width:580px;margin:0 auto 52px}
+
+/* ── BUTTONS ── */
+.btn-p{display:inline-flex;align-items:center;gap:8px;padding:13px 28px;background:linear-gradient(135deg,#1677ff,#7c5cf6);border-radius:10px;font-weight:700;font-size:15px;color:#fff;text-decoration:none;box-shadow:0 8px 28px rgba(22,119,255,.35);transition:all .2s}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(22,119,255,.5)}
+.btn-g{display:inline-flex;align-items:center;gap:8px;padding:13px 28px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:10px;font-weight:600;font-size:15px;color:var(--t1);text-decoration:none;transition:all .2s}
+.btn-g:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
+
+/* ═══════════ REAL APP CHROME — shared styles for embedded panels ═══════════ */
+.app-window{border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 32px 80px rgba(0,0,0,.7)}
+.app-chrome{height:36px;background:#090d13;display:flex;align-items:center;padding:0 14px;gap:6px;border-bottom:1px solid rgba(255,255,255,.07)}
+.app-dot{width:11px;height:11px;border-radius:50%}
+.app-dot-r{background:#ff5f57}.app-dot-y{background:#febc2e}.app-dot-g{background:#28c840}
+.app-url{flex:1;margin:0 12px;height:22px;background:rgba(255,255,255,.06);border-radius:5px;display:flex;align-items:center;padding:0 10px;font-size:10px;color:#636e7b;font-family:monospace}
+/* Real app nav */
+.r-nav{background:#090d13;padding:0 18px;display:flex;align-items:center;height:46px;gap:18px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0}
+.r-nav .brand{color:#fff;font-size:14px;font-weight:600;letter-spacing:.4px;white-space:nowrap}
+.r-nav a{color:#adbac7;font-size:11px;white-space:nowrap;text-decoration:none;padding:3px 0}
+.r-nav a.active{color:#e6edf3;font-weight:600}
+.r-nav .sp{flex:1}
+.r-ver{color:#636e7b;font-size:10px;font-weight:600;border:1px solid #444c56;border-radius:8px;padding:1px 7px;white-space:nowrap}
+.r-bg{background:#0d1117}
+.r-surface{background:#161b22}
+.r-surface2{background:#1c2128}
+.r-border{border-color:#30363d}
+.r-text{color:#e6edf3}.r-text2{color:#adbac7}.r-text3{color:#636e7b}
+.r-page{padding:18px 20px;background:#0d1117}
+
+/* ═══════════════════════════════════ HERO ═══════════════════════════════════ */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;overflow:hidden;padding:80px 0}
+.hero-bg{position:absolute;inset:0;background:
+  radial-gradient(ellipse 800px 500px at 65% 35%,rgba(22,119,255,.1) 0%,transparent 70%),
+  radial-gradient(ellipse 500px 400px at 20% 65%,rgba(114,46,209,.07) 0%,transparent 65%),
+  radial-gradient(ellipse 400px 300px at 80% 75%,rgba(52,196,26,.05) 0%,transparent 60%)}
+.hero-grid{position:absolute;inset:0;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+  background-size:55px 55px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black 20%,transparent 100%)}
+.hero-inner{position:relative;display:grid;grid-template-columns:1fr 1.05fr;gap:56px;align-items:center}
+.hero h1{font-size:clamp(34px,4.8vw,60px);font-weight:900;line-height:1.07;letter-spacing:-.03em;margin-bottom:20px}
+.hero-sub{font-size:17px;color:var(--t2);line-height:1.75;margin-bottom:32px;max-width:460px}
+.hero-cta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:40px}
+.hero-kpis{display:flex;gap:28px;padding-top:28px;border-top:1px solid var(--border)}
+.kpi-num{font-size:26px;font-weight:900;color:var(--blue);line-height:1}
+.kpi-lbl{font-size:11px;color:var(--t3);margin-top:3px}
+
+/* ═══════════════════════════════════ TESTER EMBED ═══════════════════════════════════ */
+.tester-embed{position:relative}
+.te-glow{position:absolute;inset:-50px;background:radial-gradient(ellipse at center,rgba(22,119,255,.12) 0%,transparent 65%);pointer-events:none}
+/* Real tester pane styles */
+.te-body{background:#0d1117}
+.te-drop{border:2px dashed #444c56;border-radius:8px;padding:18px 16px;text-align:center;background:#1c2128;font-size:12px;color:#636e7b;margin-bottom:10px}
+.te-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.te-chip{display:inline-flex;align-items:center;gap:4px;background:#161b22;border:1px solid #444c56;border-radius:14px;padding:2px 9px;font-size:11px;color:#adbac7}
+.te-chip-ext{background:rgba(22,119,255,.18);color:#4a90d9;border-radius:2px;padding:1px 4px;font-size:9px;font-weight:700;text-transform:uppercase}
+.te-run-bar{display:flex;align-items:center;gap:8px;margin-top:10px}
+.te-run-btn{background:#1677ff;color:#fff;border:none;padding:6px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer}
+/* toolbar */
+.te-toolbar{display:flex;align-items:center;gap:5px;padding:6px 12px;border-bottom:1px solid #30363d;background:#1c2128;flex-wrap:wrap}
+.te-tb{background:#161b22;border:1px solid #444c56;color:#adbac7;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap}
+.te-tb.pos-active{background:rgba(250,140,22,.15);border-color:#fa8c16;color:#fa8c16;font-weight:700}
+.te-tb.grid-active{background:rgba(22,119,255,.15);border-color:#1677ff;color:#60a5fa;font-weight:700}
+.te-pos-hint{font-size:11px;font-family:monospace;color:#60a5fa;font-weight:700;padding:0 4px}
+.te-sep{width:1px;height:16px;background:#444c56;flex-shrink:0}
+/* split pane */
+.te-split{display:grid;grid-template-columns:1fr 1fr;height:200px}
+.te-pane{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid #30363d}
+.te-pane:last-child{border-right:none}
+.te-pane-hdr{padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.3px;flex-shrink:0;border-bottom:1px solid #30363d}
+.te-pane-hdr.ocr{background:rgba(22,119,255,.08);color:#4a90d9}
+.te-pane-hdr.rdc{background:rgba(82,196,26,.07);color:#52c41a}
+.te-pane-body{flex:1;overflow:hidden;padding:8px 10px;font-family:'Cascadia Code','Consolas',monospace;font-size:10.5px;line-height:1.8;color:#adbac7;background:#1c2128;white-space:pre-wrap}
+.hi-a{background:rgba(250,173,20,.22);color:#faad14;border-radius:2px;padding:0 1px}
+.hi-g{background:rgba(82,196,26,.2);color:#52c41a;border-radius:2px;padding:0 1px;font-weight:700}
+.gl-num{display:inline-block;width:40px;text-align:right;font-size:9px;color:rgba(96,165,250,.8);background:rgba(96,165,250,.07);padding-right:5px;margin-right:7px;border-right:2px solid rgba(96,165,250,.25);font-weight:700}
+.te-fields{padding:5px 12px 8px;display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid #30363d;background:#161b22}
+.te-field-chip{background:rgba(22,119,255,.14);color:#4a90d9;border:1px solid rgba(22,119,255,.22);border-radius:3px;padding:1px 7px;font-size:10px;font-weight:600}
+
+/* ═══════════════════════════════════ STATS BAND ═══════════════════════════════════ */
+.stats-band{background:linear-gradient(135deg,rgba(22,119,255,.07),rgba(114,46,209,.05));border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:52px 0}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+.stat-item{text-align:center;padding:0 20px;position:relative}
+.stat-item+.stat-item::before{content:'';position:absolute;left:0;top:15%;bottom:15%;width:1px;background:var(--border)}
+.stat-num{font-size:46px;font-weight:900;line-height:1;letter-spacing:-.04em}
+.stat-lbl{font-size:14px;color:var(--t2);margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t3);margin-top:3px}
+
+/* ═══════════════════════════════════ FIELDS EMBED ═══════════════════════════════════ */
+.fe-page{background:#0d1117;padding:14px 16px}
+.fe-title{font-size:14px;font-weight:700;color:#e6edf3;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.fe-actions{display:flex;gap:6px;margin-left:auto}
+.fe-action-btn{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;background:#161b22;border:1px solid #444c56;border-radius:6px;font-size:11px;color:#e6edf3;cursor:pointer}
+.fe-action-btn:hover{border-color:#1677ff}
+.fe-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.fe-card{background:#161b22;border:1px solid #30363d;border-radius:7px;padding:12px 14px}
+.fe-card-title{font-size:12px;font-weight:700;color:#e6edf3;margin-bottom:8px;padding-bottom:7px;border-bottom:1px solid #30363d}
+.fe-card.preserve{border-color:rgba(82,196,26,.3);background:rgba(82,196,26,.03)}
+.fe-form-row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.fe-input{background:#0d1117;color:#e6edf3;border:1px solid #444c56;border-radius:4px;padding:5px 8px;font-size:11px;width:100%}
+.fe-label{font-size:10px;color:#636e7b;display:block;margin-bottom:3px}
+.fe-presets{display:flex;gap:3px}
+.fe-preset{width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-family:monospace;border:1px solid #444c56;border-radius:4px;background:#0d1117;color:#e6edf3;cursor:pointer}
+.fe-preset.sel{border-color:#fa8c16;color:#fa8c16;background:rgba(250,140,22,.1);font-weight:700}
+.fe-btn{padding:5px 12px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer}
+.fe-btn-blue{background:#1677ff;color:#fff}
+.fe-btn-green{background:#52c41a;color:#fff}
+/* Field list rows */
+.fe-field-list{background:#161b22;border:1px solid #30363d;border-radius:7px;overflow:hidden}
+.fe-field-hdr{background:#1c2128;padding:7px 12px;display:grid;grid-template-columns:2fr 1fr 80px 90px 80px;gap:8px;font-size:10px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #30363d}
+.fe-field-row{padding:8px 12px;display:grid;grid-template-columns:2fr 1fr 80px 90px 80px;gap:8px;align-items:center;border-bottom:1px solid #30363d;font-size:11px;color:#adbac7}
+.fe-field-row:last-child{border-bottom:none}
+.fe-field-name{font-weight:600;color:#e6edf3}
+.fe-field-repl{font-family:monospace;font-size:15px;font-weight:700;color:#faad14}
+.fe-patterns-badge{background:rgba(22,119,255,.15);color:#4a90d9;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700}
+.fe-preserve-badge{background:rgba(82,196,26,.15);color:#52c41a;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700}
+.fe-priority{font-size:10px;color:#636e7b}
+.fe-edit-btn{padding:2px 8px;border-radius:3px;font-size:10px;background:#1c2128;border:1px solid #444c56;color:#adbac7;cursor:pointer}
+
+/* ═══════════════════════════════════ PATTERN TABLE ═══════════════════════════════════ */
+.pt-wrap{background:#161b22;border:1px solid #30363d;border-radius:7px;overflow:hidden}
+.pt-hdr{background:#1c2128;padding:8px 14px;font-size:10px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #30363d;display:grid;grid-template-columns:1.2fr 1.6fr 1.4fr 80px;gap:10px}
+.pt-row{padding:9px 14px;display:grid;grid-template-columns:1.2fr 1.6fr 1.4fr 80px;gap:10px;align-items:center;border-bottom:1px solid #30363d;font-size:11px}
+.pt-row:last-child{border-bottom:none}
+.pt-row:hover{background:#1c2128}
+.pt-type{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.pt-regex{background:rgba(22,119,255,.15);color:#4a90d9}
+.pt-filelist{background:rgba(114,46,209,.15);color:#a78bfa}
+.pt-afterlabel{background:rgba(250,173,20,.15);color:#faad14}
+.pt-constlist{background:rgba(82,196,26,.15);color:#52c41a}
+.pt-numseq{background:rgba(255,77,79,.12);color:#ff7875}
+.pt-scope{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#fa8c16;background:rgba(250,140,22,.1);border-radius:10px;padding:1px 7px;border:1px solid rgba(250,140,22,.25)}
+.pt-code{font-family:monospace;font-size:10px;color:#adbac7;background:#0d1117;padding:2px 6px;border-radius:3px}
+.pt-match-count{font-size:11px;color:#52c41a;font-weight:700}
+
+/* ═══════════════════════════════════ GETTING STARTED EMBED ═══════════════════════════════════ */
+.gs-embed{background:#0d1117;padding:16px 18px}
+.gs-nav-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px}
+.gs-pill{font-size:10px;padding:3px 10px;border:1px solid #444c56;border-radius:14px;color:#adbac7;background:#161b22;white-space:nowrap}
+.gs-pill:hover{border-color:#1677ff;color:#1677ff}
+.gs-step-row{display:flex;gap:14px;margin-bottom:20px;align-items:flex-start}
+.gs-num-badge{flex-shrink:0;width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1677ff,#0958d9);color:#fff;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(22,119,255,.4)}
+.gs-body-card{flex:1;background:#161b22;border:1px solid #30363d;border-radius:7px;padding:12px 14px}
+.gs-step-title{font-size:13px;font-weight:700;color:#e6edf3;margin-bottom:7px}
+.gs-step-desc{font-size:11.5px;color:#adbac7;line-height:1.65;margin-bottom:10px}
+.gs-ba{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:10px}
+.gs-ba-arrow{font-size:18px;color:#1677ff;text-align:center}
+.gs-doc{background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:10px 12px;font-family:'Cascadia Code','Consolas',monospace;font-size:10px;line-height:1.9;color:#adbac7;white-space:pre}
+.gs-doc .orig-hi{background:rgba(255,77,79,.2);color:inherit;border-radius:2px;padding:0 2px}
+.gs-doc .rdc-hi{background:rgba(82,196,26,.15);color:#52c41a;border-radius:2px;padding:0 2px;font-family:monospace}
+.gs-doclabel{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#636e7b;margin-bottom:4px}
+.gs-tip{display:flex;gap:8px;padding:8px 10px;background:rgba(22,119,255,.06);border:1px solid rgba(22,119,255,.2);border-radius:5px;font-size:11px;color:#adbac7;margin-top:8px}
+.gs-tip-warn{background:rgba(250,173,20,.06);border-color:rgba(250,173,20,.25)}
+.gs-tip-good{background:rgba(82,196,26,.05);border-color:rgba(82,196,26,.25)}
+.gs-action{display:flex;gap:7px;align-items:center;padding:8px 10px;background:rgba(22,119,255,.05);border:1px solid rgba(22,119,255,.15);border-radius:5px;margin-top:10px;flex-wrap:wrap}
+.gs-action .lbl{font-size:10px;color:#636e7b}
+.gs-action .btn{padding:3px 9px;border-radius:4px;font-size:10px;font-weight:600;border:none;cursor:pointer}
+.gs-action .btn-blue{background:#1677ff;color:#fff}
+.gs-action .btn-default{background:#1c2128;border:1px solid #444c56;color:#adbac7}
+.pt-chips-row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.pt-chip{display:flex;flex-direction:column;gap:2px;background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:7px 10px;font-size:10px;min-width:110px}
+.pt-chip .pt-ch-name{font-weight:700;color:#e6edf3}
+.pt-chip .pt-ch-eg{font-family:monospace;color:#1677ff;font-size:9px}
+.pt-chip .pt-ch-use{color:#636e7b;font-size:9px}
+.pt-chip.rec{border-color:#1677ff;background:rgba(22,119,255,.05)}
+.gs-connector{width:2px;height:20px;background:linear-gradient(to bottom,rgba(22,119,255,.3),transparent);margin:3px 0 3px 17px}
+.gs-api-box{background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:10px 12px;font-family:monospace;font-size:10px;line-height:1.75;overflow-x:auto;white-space:pre}
+.gs-api-box .kw{color:#faad14}.gs-api-box .str{color:#6ab04c}.gs-api-box .cmt{color:#636e7b}
+.gs-quick-ref{background:#0d1117;border:1px solid #30363d;border-radius:5px;overflow:hidden}
+.gs-qr-hdr{background:#1c2128;padding:7px 12px;font-size:10px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;display:grid;grid-template-columns:1.5fr 1fr 80px 1.5fr 50px;gap:8px;border-bottom:1px solid #30363d}
+.gs-qr-row{padding:7px 12px;display:grid;grid-template-columns:1.5fr 1fr 80px 1.5fr 50px;gap:8px;align-items:center;border-bottom:1px solid #30363d;font-size:10px;color:#adbac7}
+.gs-qr-row:last-child{border-bottom:none}
+.gs-qr-row:hover{background:#1c2128}
+.gs-badge{display:inline-block;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:700}
+.gs-badge-blue{background:rgba(22,119,255,.15);color:#4a90d9;border:1px solid rgba(22,119,255,.2)}
+.gs-badge-green{background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.2)}
+.gs-mono{font-family:monospace;font-size:9px;color:#adbac7;background:#1c2128;padding:1px 5px;border-radius:3px}
+
+/* ═══════════════════════════════════ SECTIONS ═══════════════════════════════════ */
+section{padding:88px 0}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.feat-card{background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:26px;transition:all .2s;position:relative;overflow:hidden}
+.feat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:14px 14px 0 0;opacity:0;transition:opacity .2s}
+.feat-card:hover{transform:translateY(-3px);border-color:rgba(22,119,255,.3)}
+.feat-card:hover::after{opacity:1;background:linear-gradient(90deg,#1677ff,#a78bfa)}
+.feat-icon{font-size:28px;margin-bottom:14px}
+.feat-card h3{font-size:16px;font-weight:700;margin-bottom:9px}
+.feat-card p{font-size:13px;color:var(--t2);line-height:1.65}
+.feat-ul{margin-top:10px;display:flex;flex-direction:column;gap:4px}
+.feat-ul li{font-size:12px;color:var(--t2);list-style:none;display:flex;align-items:flex-start;gap:5px}
+.feat-ul li::before{content:'✓';color:var(--green);flex-shrink:0;margin-top:1px;font-weight:700}
+
+/* ═══════════════════════════════════ API SECTION ═══════════════════════════════════ */
+.api-wrap{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+.code-win{background:#090d13;border:1px solid var(--border);border-radius:12px;overflow:hidden;font-family:'Cascadia Code','Consolas',monospace;font-size:12px}
+.code-bar{background:rgba(255,255,255,.04);padding:9px 14px;display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--border);font-size:10px;color:var(--t3)}
+.code-bar .method{background:rgba(22,119,255,.15);color:#60a5fa;border-radius:8px;padding:1px 8px;font-weight:700;margin-left:auto}
+.code-body{padding:18px;line-height:1.75;color:#e6edf3}
+.c-cmd{color:#fb923c}.c-str{color:#34d399}.c-key{color:#60a5fa}.c-val{color:#e879f9}.c-num{color:#fb923c}.c-cmt{color:#636e7b}
+.api-points{display:flex;flex-direction:column;gap:18px}
+.api-pt{display:flex;gap:12px}
+.api-pt-ic{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.api-pt h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.api-pt p{font-size:12.5px;color:var(--t2)}
+
+/* ═══════════════════════════════════ FOOTER ═══════════════════════════════════ */
+footer{padding:44px 0;border-top:1px solid var(--border);text-align:center}
+.footer-logo{font-size:26px;font-weight:900;letter-spacing:-.03em;margin-bottom:7px}
+footer p{color:var(--t3);font-size:12px}
+.footer-links{display:flex;justify-content:center;gap:18px;margin-top:20px;flex-wrap:wrap}
+.footer-links a{color:var(--t3);text-decoration:none;font-size:12px;transition:color .15s}
+.footer-links a:hover{color:var(--blue)}
+
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes float2{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.float{animation:float 4.5s ease-in-out infinite}
+.float2{animation:float2 5s ease-in-out 1s infinite}
+
+@media(max-width:960px){
+  .hero-inner,.api-wrap{grid-template-columns:1fr}
+  .features-grid{grid-template-columns:repeat(2,1fr)}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .fe-grid,.te-split{grid-template-columns:1fr}
+  .fe-field-hdr,.fe-field-row{grid-template-columns:2fr 50px 70px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════ HERO ══════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="W">
+    <div class="hero-inner">
+
+      <!-- Copy -->
+      <div>
+        <div style="margin-bottom:16px"><span class="tag tag-b">🔒 On-Premise Enterprise PII Redaction</span></div>
+        <h1>Redact Every Name,<br>ID &amp; Number —<br><span class="gt">Automatically.</span></h1>
+        <p class="hero-sub">PiiRemover surgically removes PII from any document — PDFs, scanned images, plain text — using a stacked engine of 11 detection strategies. 100% on your servers. Zero cloud exposure.</p>
+        <div class="hero-cta">
+          <a href="https://localhost:7049/admin/getting-started" class="btn-p">🚀 Start Here</a>
+          <a href="https://localhost:7049/admin" class="btn-g">📊 Open Dashboard →</a>
+        </div>
+        <div class="hero-kpis">
+          <div><div class="kpi-num">11</div><div class="kpi-lbl">Pattern Engines</div></div>
+          <div><div class="kpi-num" style="color:#a78bfa">∞</div><div class="kpi-lbl">PII Field Types</div></div>
+          <div><div class="kpi-num" style="color:#34d399">100%</div><div class="kpi-lbl">On-Premise</div></div>
+          <div><div class="kpi-num" style="color:#fb923c">0</div><div class="kpi-lbl">Cloud Calls</div></div>
+        </div>
+      </div>
+
+      <!-- Real Tester panel -->
+      <div class="tester-embed float">
+        <div class="te-glow"></div>
+        <div class="app-window">
+          <div class="app-chrome">
+            <div class="app-dot app-dot-r"></div><div class="app-dot app-dot-y"></div><div class="app-dot app-dot-g"></div>
+            <div class="app-url">🔒 localhost:7049/admin/tester</div>
+          </div>
+          <!-- Real nav -->
+          <div class="r-nav">
+            <span class="brand">🔒 PiiRemover</span>
+            <a href="#">Dashboard</a>
+            <a href="#" class="active">🔍 Tester &amp; Debug</a>
+            <a href="#">Clients</a>
+            <a href="#">PII Fields</a>
+            <a href="#">Logs</a>
+            <a href="#">⚙ Settings</a>
+            <span class="sp"></span>
+            <span class="r-ver">v3.0.11</span>
+          </div>
+          <!-- Tester body -->
+          <div style="padding:12px 14px;background:#0d1117">
+            <div class="te-drop">
+              <div style="font-size:15px;margin-bottom:2px">📂 Drop files here or click to select</div>
+              <div>PDF · Image · TXT · DOCX — up to 50 MB</div>
+              <div class="te-chips">
+                <span class="te-chip"><span class="te-chip-ext">PDF</span> patient_record.pdf</span>
+                <span class="te-chip"><span class="te-chip-ext">PDF</span> discharge_summary.pdf</span>
+              </div>
+            </div>
+            <div class="te-run-bar">
+              <button class="te-run-btn">▶ Analyze All (2 files)</button>
+              <span style="font-size:11px;color:#636e7b">OCR + Redact pipeline · same engine as the API</span>
+            </div>
+          </div>
+          <!-- Result card -->
+          <div style="margin:0 14px 14px;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #30363d;background:#1c2128">
+              <span style="width:8px;height:8px;border-radius:50%;background:#52c41a"></span>
+              <span style="font-size:10px;color:#4a90d9;font-weight:700">PDF</span>
+              <span style="font-size:11px;font-weight:700;color:#e6edf3">patient_record.pdf</span>
+              <span style="font-size:10px;color:#636e7b;margin-left:4px">128 KB</span>
+              <span style="margin-left:auto;font-size:10px;color:#636e7b">📍OCR: 312ms · ✓ 5 matches</span>
+            </div>
+            <!-- Stats bar -->
+            <div style="display:flex;gap:0;padding:5px 12px;border-bottom:1px solid #30363d;font-size:10px;color:#adbac7;background:#161b22">
+              <span style="padding-right:10px;margin-right:10px;border-right:1px solid #30363d">📝 OCR <strong style="color:#1677ff">312ms</strong></span>
+              <span style="padding-right:10px;margin-right:10px;border-right:1px solid #30363d">🔍 <strong style="color:#faad14">5 matches</strong></span>
+              <span style="padding-right:10px;margin-right:10px;border-right:1px solid #30363d">🏷 <strong style="color:#52c41a">3 fields</strong></span>
+              <span>⚡ Total <strong style="color:#e6edf3">448ms</strong></span>
+            </div>
+            <!-- Fields chips -->
+            <div class="te-fields">
+              <span class="te-field-chip">Patient Name</span>
+              <span class="te-field-chip">Israeli ID</span>
+              <span class="te-field-chip">Phone</span>
+            </div>
+            <!-- Toolbar -->
+            <div class="te-toolbar">
+              <span class="te-tb">← RTL</span>
+              <span class="te-sep"></span>
+              <span class="te-tb">A−</span>
+              <span style="font-size:10px;color:#636e7b;font-family:monospace;min-width:28px;text-align:center">11.5px</span>
+              <span class="te-tb">A+</span>
+              <span class="te-sep"></span>
+              <span class="te-tb pos-active">📍 Pos</span>
+              <span class="te-tb grid-active">⊞ Grid</span>
+              <span class="te-pos-hint">Ln 2, Col 4 · Pos 22</span>
+              <span class="te-sep"></span>
+              <span class="te-tb" style="margin-left:auto">🔍 Search…</span>
+              <span class="te-tb">⬇ Redacted</span>
+            </div>
+            <!-- Split panes -->
+            <div class="te-split">
+              <div class="te-pane">
+                <div class="te-pane-hdr ocr">📝 Original — PII highlighted</div>
+                <div class="te-pane-body"><span class="gl-num">00000</span>Patient: <span class="hi-a">David Cohen</span>
+<span class="gl-num">00022</span>ID: <span class="hi-a">IL-1234567</span>
+<span class="gl-num">00035</span>DOB: <span class="hi-a">1985-03-14</span>
+<span class="gl-num">00049</span>Phone: <span class="hi-a">050-123-4567</span>
+<span class="gl-num">00065</span>Diagnosis: Hypertension
+<span class="gl-num">00087</span>Attending: <span class="hi-a">Dr. Sarah Levy</span></div>
+              </div>
+              <div class="te-pane">
+                <div class="te-pane-hdr rdc">🔒 Redacted Output <span style="margin-left:auto;font-weight:400;font-size:9px;color:#636e7b">⏱ 136ms</span></div>
+                <div class="te-pane-body"><span class="gl-num">00000</span>Patient: <span class="hi-g">XXXXXXXXXXX</span>
+<span class="gl-num">00022</span>ID: <span class="hi-g">XXXXXXXXXX</span>
+<span class="gl-num">00035</span>DOB: <span class="hi-g">XXXXXXXXXX</span>
+<span class="gl-num">00049</span>Phone: <span class="hi-g">XXXXXXXXXXXX</span>
+<span class="gl-num">00065</span>Diagnosis: Hypertension
+<span class="gl-num">00087</span>Attending: <span class="hi-g">XXXXXXXXXXXXXX</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ STATS ══════════════════════════════════ -->
+<div class="stats-band">
+  <div class="W">
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-num gt">11</div>
+        <div class="stat-lbl">Detection Engines</div>
+        <div class="stat-sub">Regex · FileList · LLM · AfterLabel · and more</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" style="color:#a78bfa">5</div>
+        <div class="stat-lbl">Admin Accounts</div>
+        <div class="stat-sub">Per installation, independent credentials</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" style="color:#34d399">PDF+OCR</div>
+        <div class="stat-lbl">Multi-Format Pipeline</div>
+        <div class="stat-sub">Scanned images · Embedded text · Plain text</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" style="color:#fb923c">∞</div>
+        <div class="stat-lbl">Custom PII Fields</div>
+        <div class="stat-sub">Stack multiple engines per field</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════ PII FIELDS PAGE ══════════════════════════════════ -->
+<section>
+  <div class="W">
+    <div class="sec-eye"><span class="tag tag-p">PII Fields Configuration</span></div>
+    <h2 class="sec-h">Define What Gets Redacted.<br><span class="gt">In Full Detail.</span></h2>
+    <p class="sec-s">The Fields page is where you create and tune every detection rule — fields, patterns, preserve lists, and name dictionaries. The real admin UI, exactly as it looks.</p>
+
+    <div class="app-window float2" style="max-width:960px;margin:0 auto">
+      <div class="app-chrome">
+        <div class="app-dot app-dot-r"></div><div class="app-dot app-dot-y"></div><div class="app-dot app-dot-g"></div>
+        <div class="app-url">🔒 localhost:7049/admin/fields</div>
+      </div>
+      <div class="r-nav">
+        <span class="brand">🔒 PiiRemover</span>
+        <a href="#">Dashboard</a>
+        <a href="#">🔍 Tester</a>
+        <a href="#" class="active">PII Fields</a>
+        <a href="#">Logs</a>
+        <a href="#">⚙ Settings</a>
+        <a href="#">🚀 Getting Started</a>
+        <span class="sp"></span>
+        <span class="r-ver">v3.0.11</span>
+      </div>
+      <div class="fe-page">
+        <div class="fe-title">
+          PII Fields &amp; Patterns
+          <span style="font-size:11px;color:#1677ff;font-weight:400;margin-left:4px">📖 Pattern Help</span>
+          <div class="fe-actions" style="margin-left:auto">
+            <div class="fe-action-btn"><span style="font-size:16px">💾</span><span style="display:flex;flex-direction:column;line-height:1.3"><span style="font-size:11px;font-weight:600">Save Backup</span><span style="font-size:9px;color:#636e7b">Download fields as JSON</span></span></div>
+            <div class="fe-action-btn"><span style="font-size:16px">📂</span><span style="display:flex;flex-direction:column;line-height:1.3"><span style="font-size:11px;font-weight:600">Load Backup</span><span style="font-size:9px;color:#636e7b">Restore from JSON file</span></span></div>
+          </div>
+        </div>
+
+        <div class="fe-grid">
+          <!-- Add Field card -->
+          <div class="fe-card">
+            <div class="fe-card-title">Add PII Field <span style="font-size:9px;font-weight:400;color:#636e7b">(redact matches)</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+              <div style="flex:1;min-width:130px"><div class="fe-label">Field name</div><input class="fe-input" value="Patient Name" style="max-width:180px"></div>
+              <div><div class="fe-label">Replacement char × match length</div>
+                <div style="display:flex;gap:5px;align-items:center">
+                  <input class="fe-input" value="█" style="width:40px;font-size:18px;text-align:center;font-family:monospace;padding:2px">
+                  <div class="fe-presets">
+                    <div class="fe-preset sel">█</div>
+                    <div class="fe-preset">*</div>
+                    <div class="fe-preset">-</div>
+                    <div class="fe-preset">#</div>
+                    <div class="fe-preset">•</div>
+                    <div class="fe-preset">×</div>
+                  </div>
+                </div>
+              </div>
+              <button class="fe-btn fe-btn-blue">Add Field</button>
+            </div>
+          </div>
+          <!-- Preserve field card -->
+          <div class="fe-card preserve">
+            <div class="fe-card-title">🛡 Add Preserve Field <span style="font-size:9px;font-weight:400;color:#636e7b">(never redacted)</span></div>
+            <p style="font-size:11px;color:#636e7b;margin-bottom:8px">Terms listed here <strong style="color:#52c41a">override all rules</strong> — institution names, medicine names, etc.</p>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end">
+              <div style="flex:1;min-width:120px"><div class="fe-label">Field name</div><input class="fe-input" value="Medical Terms"></div>
+              <div style="flex:2;min-width:180px"><div class="fe-label">Initial terms (pipe-separated)</div><input class="fe-input" value="Ibuprofen|Metformin|Aspirin|MRI"></div>
+              <button class="fe-btn fe-btn-green">🛡 Create</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Field list -->
+        <div class="fe-field-list" style="margin-bottom:10px">
+          <div class="fe-field-hdr">
+            <span>Field Name</span><span>Replace</span><span>Patterns</span><span>Priority</span><span>Actions</span>
+          </div>
+          <div class="fe-field-row">
+            <span><span class="fe-field-name">Patient Name</span></span>
+            <span class="fe-field-repl">█</span>
+            <span><span class="fe-patterns-badge">3 patterns</span></span>
+            <span class="fe-priority">10</span>
+            <span><button class="fe-edit-btn">✏ Edit</button></span>
+          </div>
+          <div class="fe-field-row">
+            <span><span class="fe-field-name">Israeli ID</span></span>
+            <span class="fe-field-repl">█</span>
+            <span><span class="fe-patterns-badge">2 patterns</span></span>
+            <span class="fe-priority">20</span>
+            <span><button class="fe-edit-btn">✏ Edit</button></span>
+          </div>
+          <div class="fe-field-row">
+            <span><span class="fe-field-name">Phone Number</span></span>
+            <span class="fe-field-repl">*</span>
+            <span><span class="fe-patterns-badge">1 pattern</span></span>
+            <span class="fe-priority">30</span>
+            <span><button class="fe-edit-btn">✏ Edit</button></span>
+          </div>
+          <div class="fe-field-row">
+            <span><span class="fe-field-name">🛡 Medical Terms</span></span>
+            <span>—</span>
+            <span><span class="fe-preserve-badge">Preserve</span></span>
+            <span class="fe-priority">1</span>
+            <span><button class="fe-edit-btn">✏ Edit</button></span>
+          </div>
+          <div class="fe-field-row">
+            <span><span class="fe-field-name">Names Dictionary</span></span>
+            <span class="fe-field-repl">█</span>
+            <span><span class="fe-patterns-badge">FileList</span></span>
+            <span class="fe-priority">5</span>
+            <span><button class="fe-edit-btn">✏ Edit</button></span>
+          </div>
+        </div>
+
+        <!-- Pattern table for expanded field -->
+        <div style="background:#161b22;border:1px solid rgba(22,119,255,.3);border-radius:7px;padding:10px 12px;margin-bottom:4px">
+          <div style="font-size:11px;font-weight:700;color:#4a90d9;margin-bottom:8px">▾ Patterns for: Patient Name</div>
+          <div class="pt-wrap">
+            <div class="pt-hdr"><span>Type</span><span>Pattern</span><span>Notes</span><span>Scope / Matches</span></div>
+            <div class="pt-row">
+              <span><span class="pt-type pt-afterlabel">AfterLabel</span></span>
+              <span class="pt-code">Patient:|שם מלא:</span>
+              <span style="font-size:10px;color:#636e7b">Value after label</span>
+              <span class="pt-match-count">✓ 1 hit</span>
+            </div>
+            <div class="pt-row">
+              <span><span class="pt-type pt-filelist">FileList</span></span>
+              <span class="pt-code">names_il.dat (84,320)</span>
+              <span><span class="pt-scope">🎯 Scope: pos 0–500</span></span>
+              <span class="pt-match-count">✓ 2 hits</span>
+            </div>
+            <div class="pt-row">
+              <span><span class="pt-type pt-constlist">ConstList</span></span>
+              <span class="pt-code">Dr. Cohen|Dr. Levy</span>
+              <span style="font-size:10px;color:#636e7b">Known doctors</span>
+              <span class="pt-match-count">✓ 1 hit</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="fe-btn fe-btn-blue" style="font-size:10px">+ Add Pattern</button>
+            <button class="fe-btn" style="background:#1c2128;border:1px solid #444c56;color:#adbac7;font-size:10px">📁 Import File List</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ GETTING STARTED ══════════════════════════════════ -->
+<section style="background:linear-gradient(180deg,transparent,rgba(22,119,255,.04),transparent)">
+  <div class="W">
+    <div class="sec-eye"><span class="tag tag-g">Getting Started Guide</span></div>
+    <h2 class="sec-h">Zero to First Redaction<br><span class="gt">in 5 Minutes.</span></h2>
+    <p class="sec-s">The built-in guide — live in your browser — walks every step with real before/after examples and direct links to each section.</p>
+
+    <div class="app-window" style="max-width:960px;margin:0 auto">
+      <div class="app-chrome">
+        <div class="app-dot app-dot-r"></div><div class="app-dot app-dot-y"></div><div class="app-dot app-dot-g"></div>
+        <div class="app-url">🔒 localhost:7049/admin/getting-started</div>
+      </div>
+      <div class="r-nav">
+        <span class="brand">🔒 PiiRemover</span>
+        <a href="#">Dashboard</a>
+        <a href="#">🔍 Tester</a>
+        <a href="#">PII Fields</a>
+        <a href="#">Logs</a>
+        <a href="#">⚙ Settings</a>
+        <a href="#" class="active">🚀 Getting Started</a>
+        <span class="sp"></span>
+        <span class="r-ver">v3.0.11</span>
+      </div>
+      <div class="gs-embed">
+        <div style="padding:14px 16px;background:#0d1117;border-bottom:1px solid #30363d">
+          <div style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:6px">🚀 Getting Started</div>
+          <div style="font-size:11px;color:#636e7b;margin-bottom:12px">From zero to your first redacted document in under 5 minutes.</div>
+          <div class="gs-nav-pills">
+            <span class="gs-pill">① Define a PII Field</span>
+            <span class="gs-pill">② Add a Pattern</span>
+            <span class="gs-pill">③ Test in Live Tester</span>
+            <span class="gs-pill">④ Protect specific terms</span>
+            <span class="gs-pill">⑤ Call the API</span>
+            <span class="gs-pill">⑥ Name Lists &amp; Scope</span>
+          </div>
+        </div>
+
+        <!-- Step 1 -->
+        <div style="padding:14px 16px;background:#0d1117">
+          <div class="gs-step-row">
+            <div class="gs-num-badge">1</div>
+            <div class="gs-body-card">
+              <div class="gs-step-title">Define a PII Field — what should be redacted?</div>
+              <div class="gs-step-desc">A <strong>PII Field</strong> is a named category (e.g. "Israeli ID", "Phone", "Patient Name"). Each field has a <strong>replacement character</strong> that fills the redacted space, preserving document length.</div>
+              <div class="gs-ba">
+                <div>
+                  <div class="gs-doclabel">📄 Input document</div>
+                  <div class="gs-doc">Patient: <span class="orig-hi">David Cohen</span>
+ID:      <span class="orig-hi">123456789</span>
+Phone:   <span class="orig-hi">050-1234567</span>
+Complaint: Chest pain</div>
+                </div>
+                <div class="gs-ba-arrow">→</div>
+                <div>
+                  <div class="gs-doclabel">✅ After redaction</div>
+                  <div class="gs-doc">Patient: <span class="rdc-hi">███████████</span>
+ID:      <span class="rdc-hi">█████████</span>
+Phone:   <span class="rdc-hi">███████████</span>
+Complaint: Chest pain</div>
+                </div>
+              </div>
+              <div class="gs-tip gs-tip-good"><span>💡</span><span>Replacement char <strong>█</strong> repeats to match original text length — positional layout is preserved. Use <code>*</code>, <code>-</code>, <code>#</code> or any single character.</span></div>
+              <div class="gs-action"><span class="lbl">→ Create a field now:</span><button class="btn btn-blue">🔧 Open PII Fields</button><span class="lbl">Fill in field name → click <strong>Add Field</strong>.</span></div>
+            </div>
+          </div>
+          <div class="gs-connector"></div>
+
+          <!-- Step 2 -->
+          <div class="gs-step-row">
+            <div class="gs-num-badge">2</div>
+            <div class="gs-body-card">
+              <div class="gs-step-title">Add a Pattern — how should the field find its data?</div>
+              <div class="gs-step-desc">Every field needs at least one <strong>pattern</strong>. Pick the simplest type — you can stack multiple patterns on one field.</div>
+              <div class="pt-chips-row">
+                <div class="pt-chip rec"><span class="pt-ch-name">🔤 WholeWord</span><span class="pt-ch-eg">"David Cohen"</span><span class="pt-ch-use">Exact names</span></div>
+                <div class="pt-chip rec"><span class="pt-ch-name">📋 ConstList</span><span class="pt-ch-eg">Cohen|Levy|Sharon</span><span class="pt-ch-use">Fixed term list</span></div>
+                <div class="pt-chip rec"><span class="pt-ch-name">🔢 NumberSeq</span><span class="pt-ch-eg">length=9</span><span class="pt-ch-use">Israeli ID digits</span></div>
+                <div class="pt-chip"><span class="pt-ch-name">🏷 AfterLabel</span><span class="pt-ch-eg">"Patient:"</span><span class="pt-ch-use">Value after label</span></div>
+                <div class="pt-chip"><span class="pt-ch-name">🔍 Regex</span><span class="pt-ch-eg">\b\d{9}\b</span><span class="pt-ch-use">Complex patterns</span></div>
+                <div class="pt-chip"><span class="pt-ch-name">📁 FileList</span><span class="pt-ch-eg">names.dat</span><span class="pt-ch-use">Large dictionaries</span></div>
+                <div class="pt-chip"><span class="pt-ch-name">🎯 BetweenMarkers</span><span class="pt-ch-eg">[START]..[END]</span><span class="pt-ch-use">Bracketed values</span></div>
+                <div class="pt-chip"><span class="pt-ch-name">↩ BeginsWith</span><span class="pt-ch-eg">+972</span><span class="pt-ch-use">Prefix matching</span></div>
+              </div>
+              <div class="gs-tip"><span>📖</span><span>Full reference for all 11 engines at <a href="https://localhost:7049/admin/pattern-help" style="color:#1677ff">📖 Pattern Help</a></span></div>
+            </div>
+          </div>
+          <div class="gs-connector"></div>
+
+          <!-- Step 3 -->
+          <div class="gs-step-row">
+            <div class="gs-num-badge">3</div>
+            <div class="gs-body-card">
+              <div class="gs-step-title">Test in the Live Tester — verify before production</div>
+              <div class="gs-step-desc">Upload a real document, run the engine, inspect matches visually. The Tester runs the exact same engine as the API.</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;color:#adbac7;line-height:1.8">
+                <div>
+                  <div class="gs-doclabel">📤 Upload &amp; Analyze</div>
+                  ① Drag a file onto the drop zone<br>② Click <strong>Analyze All</strong><br>③ OCR pane = raw extracted text<br>④ Redact pane = replacements in <span style="color:#52c41a">green</span>
+                </div>
+                <div>
+                  <div class="gs-doclabel">🔍 Toolbar tools</div>
+                  <strong>📍 Pos</strong> — character position markers<br>
+                  <strong>⊞ Grid</strong> — offset gutter per line<br>
+                  <strong>⬇ Redacted</strong> — download as .txt<br>
+                  <strong>Right-click</strong> → Set Scope End / report miss
+                </div>
+              </div>
+              <div class="gs-action"><button class="btn btn-blue">🔍 Open Live Tester</button></div>
+            </div>
+          </div>
+          <div class="gs-connector"></div>
+
+          <!-- Step 4 -->
+          <div class="gs-step-row">
+            <div class="gs-num-badge">4</div>
+            <div class="gs-body-card" style="border-color:rgba(82,196,26,.3);background:rgba(82,196,26,.03)">
+              <div class="gs-step-title">🛡 Protect specific terms — Preserve Fields</div>
+              <div class="gs-step-desc"><strong>Preserve Fields</strong> are a whitelist — any listed term is <em>never</em> redacted, regardless of other rules. Hospital names, medicine names, city names.</div>
+              <div class="gs-ba">
+                <div>
+                  <div class="gs-doclabel">⚠ Without Preserve</div>
+                  <div class="gs-doc">Admitted to <span class="rdc-hi">███████ ██████</span> Hospital
+Dr. <span class="rdc-hi">████████</span>: Atrial Fibrillation</div>
+                </div>
+                <div class="gs-ba-arrow">→</div>
+                <div>
+                  <div class="gs-doclabel">✅ With Preserve: "Hadassah"</div>
+                  <div class="gs-doc">Admitted to Hadassah Hospital
+Dr. <span class="rdc-hi">████████</span>: Atrial Fibrillation</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="gs-connector"></div>
+
+          <!-- Step 5 - API -->
+          <div class="gs-step-row">
+            <div class="gs-num-badge">5</div>
+            <div class="gs-body-card">
+              <div class="gs-step-title">Call the API from your application</div>
+              <div class="gs-api-box"><span class="cmt"># Upload any file, get redacted text + match positions</span>
+<span class="kw">curl</span> -X POST https://your-server/api/v1/redact/redact \
+  -H <span class="str">"X-Api-Key: YOUR_KEY_HERE"</span> \
+  -F <span class="str">"file=@patient_record.pdf"</span>
+
+<span class="cmt">// Response</span>
+{ <span class="str">"matchCount"</span>: 5, <span class="str">"fieldsHit"</span>: [<span class="str">"Patient Name"</span>, <span class="str">"Israeli ID"</span>, <span class="str">"Phone"</span>],
+  <span class="str">"matches"</span>: [{ <span class="str">"startIndex"</span>: 9, <span class="str">"length"</span>: 11,
+    <span class="str">"fieldName"</span>: <span class="str">"Patient Name"</span>, <span class="str">"matchedText"</span>: <span class="str">"David Cohen"</span>,
+    <span class="str">"replacement"</span>: <span class="str">"███████████"</span> }] }</div>
+            </div>
+          </div>
+
+          <!-- Quick reference -->
+          <div style="margin-top:16px">
+            <div style="font-size:11px;font-weight:700;color:#636e7b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">📋 Common Field Configurations</div>
+            <div class="gs-quick-ref">
+              <div class="gs-qr-hdr"><span>What to redact</span><span>Field</span><span>Engine</span><span>Pattern</span><span>Replace</span></div>
+              <div class="gs-qr-row"><span>Israeli ID (9 digits)</span><span>Israeli ID</span><span><span class="gs-badge gs-badge-blue">Regex</span></span><span class="gs-mono">\b[0-9]{9}\b</span><span class="fe-field-repl" style="font-size:13px">█</span></div>
+              <div class="gs-qr-row"><span>Israeli mobile</span><span>Phone</span><span><span class="gs-badge gs-badge-blue">Regex</span></span><span class="gs-mono">0[5-9]\d[-\s]?\d{7}</span><span class="fe-field-repl" style="font-size:13px">█</span></div>
+              <div class="gs-qr-row"><span>Email address</span><span>Email</span><span><span class="gs-badge gs-badge-blue">Regex</span></span><span class="gs-mono">[a-z0-9.]+@[a-z]+\.[a-z]{2,}</span><span class="fe-field-repl" style="font-size:13px">█</span></div>
+              <div class="gs-qr-row"><span>Patient from label</span><span>Patient Name</span><span><span class="gs-badge gs-badge-blue">AfterLabel</span></span><span class="gs-mono">Patient:|שם:</span><span class="fe-field-repl" style="font-size:13px">█</span></div>
+              <div class="gs-qr-row"><span>Institution (keep)</span><span>🛡 Institutions</span><span><span class="gs-badge gs-badge-green">Preserve</span></span><span class="gs-mono">Hadassah|Ichilov</span><span style="font-size:10px;color:#636e7b">never</span></div>
+              <div class="gs-qr-row"><span>Drug names (keep)</span><span>🛡 Medical Terms</span><span><span class="gs-badge gs-badge-green">Preserve</span></span><span class="gs-mono">Aspirin|Warfarin</span><span style="font-size:10px;color:#636e7b">never</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ FEATURES ══════════════════════════════════ -->
+<section>
+  <div class="W">
+    <div class="sec-eye"><span class="tag tag-b">Why PiiRemover</span></div>
+    <h2 class="sec-h">Everything Compliance Needs.<br><span class="gt">Nothing It Doesn't.</span></h2>
+    <p class="sec-s">Built for healthcare, legal, and financial teams who process sensitive documents at scale.</p>
+
+    <div class="features-grid">
+      <div class="feat-card">
+        <div class="feat-icon">🏗</div>
+        <h3>Flexible Field Architecture</h3>
+        <p>Define any number of PII field types. Each gets its own name, replace char, priority, and stacked patterns.</p>
+        <ul class="feat-ul">
+          <li>Unlimited custom field types</li>
+          <li>Stack 11 engine types per field</li>
+          <li>Per-field replacement strategy (█, *, #…)</li>
+          <li>Preserve whitelist overrides everything</li>
+        </ul>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🔐</div>
+        <h3>Zero Cloud Exposure</h3>
+        <p>Runs entirely on your infrastructure. No document ever leaves your network.</p>
+        <ul class="feat-ul">
+          <li>100% air-gappable deployment</li>
+          <li>SQLite — no external DB needed</li>
+          <li>API key auth per client system</li>
+          <li>Up to 5 independent admin accounts</li>
+        </ul>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">📄</div>
+        <h3>Multi-Format OCR Pipeline</h3>
+        <p>From clean digital PDFs to scanned paper. Dual OCR with automatic fallback.</p>
+        <ul class="feat-ul">
+          <li>PDF with embedded text</li>
+          <li>Scanned PDF → dual OCR engines</li>
+          <li>Image files (JPEG, PNG, TIFF)</li>
+          <li>Hebrew + English + mixed</li>
+        </ul>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🗄</div>
+        <h3>Auto-Backup &amp; Recovery</h3>
+        <p>Scheduled backups run in the background. Browse, download, or restore any point instantly.</p>
+        <ul class="feat-ul">
+          <li>Schedule: every 6h → weekly</li>
+          <li>Keep-last-N pruning</li>
+          <li>One-click restore with safety copy</li>
+          <li>Manual backup on demand</li>
+        </ul>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">📊</div>
+        <h3>Live Dashboard &amp; Audit Log</h3>
+        <p>Every API call logged. 30-day call chart, top matched fields, per-client breakdown.</p>
+        <ul class="feat-ul">
+          <li>30-day bar chart with today highlighted</li>
+          <li>Top PII fields by hit count</li>
+          <li>Error rate &amp; avg duration KPIs</li>
+          <li>Filterable full audit log + CSV export</li>
+        </ul>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🎯</div>
+        <h3>Scope &amp; Name Dictionaries</h3>
+        <p>Import 80,000+ name lists. Scope limits matching to the document header — no false positives in body text.</p>
+        <ul class="feat-ul">
+          <li>Upload .dat/.txt name files</li>
+          <li>ScopeEndPosition per pattern</li>
+          <li>Scope End Markers (text triggers)</li>
+          <li>Right-click in Tester to set scope</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ API ══════════════════════════════════ -->
+<section style="padding-top:0">
+  <div class="W">
+    <div class="sec-eye"><span class="tag tag-p">REST API</span></div>
+    <h2 class="sec-h">One Endpoint.<br><span class="gt">Infinite Integration.</span></h2>
+    <p class="sec-s">POST a file, receive sanitized text with full match metadata. Any language, any platform.</p>
+
+    <div class="api-wrap">
+      <div class="code-win">
+        <div class="code-bar">🖥 Terminal — POST /api/v1/redact/redact<span class="method">REST</span></div>
+        <div class="code-body">
+<span class="c-cmd">curl</span> -X POST https://your-server/api/v1/redact/redact \<br>
+&nbsp; <span class="c-key">-H</span> <span class="c-str">"X-Api-Key: <span style="color:#a78bfa">sk-••••••••••••</span>"</span> \<br>
+&nbsp; <span class="c-key">-F</span> <span class="c-str">"file=@patient_record.pdf"</span><br>
+<br>
+<span class="c-cmt">// 200 OK — full match metadata in response</span><br>
+{<br>
+&nbsp;&nbsp;<span class="c-key">"ocr"</span>: { <span class="c-key">"text"</span>: <span class="c-str">"Patient: David Cohen\n..."</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"durationMs"</span>: <span class="c-num">312</span> },<br>
+&nbsp;&nbsp;<span class="c-key">"redact"</span>: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"matchCount"</span>: <span class="c-num">5</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"fieldsHit"</span>: [<span class="c-str">"Patient Name"</span>, <span class="c-str">"Israeli ID"</span>],<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"matches"</span>: [{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"startIndex"</span>: <span class="c-num">9</span>, <span class="c-key">"length"</span>: <span class="c-num">11</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"fieldName"</span>: <span class="c-str">"Patient Name"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"matchedText"</span>: <span class="c-str">"David Cohen"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-key">"replacement"</span>: <span class="c-str">"███████████"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;}]<br>
+&nbsp;&nbsp;}<br>
+}
+        </div>
+      </div>
+      <div class="api-points">
+        <div class="api-pt">
+          <div class="api-pt-ic" style="background:rgba(22,119,255,.12)">🔑</div>
+          <div><h4>Per-Client API Keys</h4><p>Issue separate keys for every system. Revoke, rotate, or audit each client independently from the admin panel.</p></div>
+        </div>
+        <div class="api-pt">
+          <div class="api-pt-ic" style="background:rgba(52,196,26,.1)">📍</div>
+          <div><h4>Exact Match Positions</h4><p>Every response includes <code style="color:#60a5fa">startIndex</code>, <code style="color:#60a5fa">length</code>, field name, matched text, and replacement — your systems know exactly what and where.</p></div>
+        </div>
+        <div class="api-pt">
+          <div class="api-pt-ic" style="background:rgba(114,46,209,.12)">📈</div>
+          <div><h4>Quota &amp; Full Audit Trail</h4><p>Set per-client request quotas. Every call logged with filename, duration, matches, and timestamp. Filter &amp; export CSV for compliance.</p></div>
+        </div>
+        <div class="api-pt">
+          <div class="api-pt-ic" style="background:rgba(250,173,20,.1)">⚡</div>
+          <div><h4>Swagger / OpenAPI Built-in</h4><p>Interactive API documentation at <code style="color:#60a5fa">/swagger</code> — auto-generated, always accurate, no external dependency.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ FOOTER ══════════════════════════════════ -->
+<footer>
+  <div class="W">
+    <div class="footer-logo"><span class="gt">PiiRemover</span></div>
+    <p style="margin-bottom:6px">Enterprise On-Premise PII Redaction Platform · v3.0.11</p>
+    <p>Protected by design. Every document. Every time.</p>
+    <p style="margin-top:10px">
+      <a href="mailto:Info@medilis.com" style="color:var(--blue2);text-decoration:none;font-size:13px">✉ Info@medilis.com</a>
+    </p>
+    <div class="footer-links">
+      <a href="https://localhost:7049/admin">📊 Dashboard</a>
+      <a href="https://localhost:7049/admin/fields">🏷 PII Fields</a>
+      <a href="https://localhost:7049/admin/tester">🔍 Tester</a>
+      <a href="https://localhost:7049/admin/clients">🔑 Clients</a>
+      <a href="https://localhost:7049/admin/logs">📋 Logs</a>
+      <a href="https://localhost:7049/admin/settings">⚙ Settings</a>
+      <a href="https://localhost:7049/admin/getting-started">🚀 Getting Started</a>
+      <a href="https://localhost:7049/swagger" target="_blank">📖 API Docs</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
