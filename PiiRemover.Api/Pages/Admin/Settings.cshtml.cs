@@ -79,7 +79,7 @@ public class SettingsModel : AdminPageModel
 
     // ── AI Extraction Engine ────────────────────────────────────────────
     [BindProperty] public bool   AiEnabled { get; set; } = false;
-    [BindProperty] public string AiBaseUrl { get; set; } = "http://localhost:11434";
+    [BindProperty] public string AiBaseUrl { get; set; } = "http://localhost";
     [BindProperty] public string AiModel   { get; set; } = "mistral:latest";
     [BindProperty] public int    AiTimeout { get; set; } = 15;
 
@@ -386,7 +386,7 @@ public class SettingsModel : AdminPageModel
         try
         {
             var http    = HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient();
-            var baseUrl = await _settings.GetAsync("ai:baseUrl") ?? "http://localhost:11434";
+            var baseUrl = await _settings.GetAsync("ai:baseUrl") ?? "http://localhost";
             http.Timeout = TimeSpan.FromSeconds(5);
             var resp = await http.GetAsync($"{baseUrl.TrimEnd('/')}/api/tags");
             if (!resp.IsSuccessStatusCode)
@@ -422,7 +422,7 @@ public class SettingsModel : AdminPageModel
         try
         {
             var http = HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient();
-            var baseUrl = await _settings.GetAsync("ai:baseUrl") ?? "http://localhost:11434";
+            var baseUrl = await _settings.GetAsync("ai:baseUrl") ?? "http://localhost";
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var resp = await http.GetAsync($"{baseUrl.TrimEnd('/')}/api/tags");
             sw.Stop();
