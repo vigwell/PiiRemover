@@ -51,7 +51,8 @@
 
 /* ── Upload card collapsed ─────────────────────────────────────── */
 .upload-collapsed .drop-zone,
-.upload-collapsed .file-preview { display:none !important; }
+.upload-collapsed .file-preview,
+.upload-collapsed .file-chips { display:none !important; }
 .upload-collapsed { padding:8px 14px !important; }
 .upload-collapsed .upload-title { display:none; }
 .upload-mini-bar { display:none;align-items:center;gap:8px;flex-wrap:wrap; }
@@ -541,7 +542,7 @@ mark.search-hit.active {
   <div class="upload-mini-bar">
     <span style="font-size:12px;font-weight:600;color:var(--text2)">📄</span>
     <div class="file-chips" id="fileChipsMini" style="margin:0;min-height:0"></div>
-    <button class="upload-expand-btn" onclick="expandUpload()">⊕ Change files</button>
+    <button class="upload-expand-btn" onclick="expandUploadAndClear()">⊕ Change files</button>
     <button class="btn-run" id="runBtnMini" style="padding:4px 14px;font-size:12px" onclick="runFileAnalysis()">
       <span>▶</span> Re-run File
     </button>
@@ -645,6 +646,82 @@ mark.search-hit.active {
        style="color:#fa8c16">📍 Set Scope End position here…</div>
 </div>
 
+
+<!-- ── AI Tester modal ───────────────────────────────────────────────────── -->
+<div id="aiTesterModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeAiTester()">
+  <div class="modal-box modal-wide" style="max-width:760px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header" style="display:flex;align-items:center;gap:8px">
+      <span style="flex:1">🤖 AI Extraction Tester</span>
+      <button class="modal-close" onclick="closeAiTester()">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto">
+
+      <!-- Prompt row -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          <label style="font-weight:600;font-size:13px;white-space:nowrap">Extraction prompt</label>
+          <select id="aiTesterSuggest" onchange="applyAiTesterSuggestion()"
+                  style="flex:1;min-width:180px;max-width:340px;padding:3px 8px;font-size:12px;
+                         border:1px solid rgba(22,119,255,.35);border-radius:5px;
+                         background:var(--bg2);color:var(--text)">
+            <option value="">— sample prompts —</option>
+          </select>
+        </div>
+        <input id="aiTesterPrompt" type="text" placeholder="e.g. patient full name"
+               onkeydown="if(event.key==='Enter')runAiTesterExtraction()"
+               style="width:100%;box-sizing:border-box;padding:7px 10px;font-size:14px;
+                      border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text)"/>
+      </div>
+
+      <!-- Model selector -->
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label style="font-weight:600;font-size:13px;white-space:nowrap">AI Model</label>
+        <select id="aiTesterModel"
+                style="flex:1;min-width:200px;max-width:360px;padding:4px 8px;font-size:12px;
+                       border:1px solid var(--border);border-radius:5px;
+                       background:var(--bg2);color:var(--text)">
+          <option value="">— configured model (default) —</option>
+        </select>
+        <span id="aiTesterModelStatus" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+
+      <!-- Text area -->
+      <div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">Document text <span style="font-weight:400;color:var(--text3);font-size:11px">(pre-filled from OCR — editable)</span></div>
+        <textarea id="aiTesterText" rows="8"
+                  style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:13px;
+                         border:1px solid var(--border);border-radius:6px;
+                         background:var(--bg2);color:var(--text);resize:vertical;
+                         font-family:monospace;white-space:pre-wrap"></textarea>
+      </div>
+
+      <!-- Prompt preview (shown after run) -->
+      <div id="aiTesterPromptLog" style="display:none">
+        <div style="font-weight:600;font-size:12px;color:var(--text3);margin-bottom:4px">Prompt sent to AI engine:</div>
+        <pre id="aiTesterPromptPreview"
+             style="font-size:11px;background:var(--surface2);border:1px solid var(--border);
+                    border-radius:5px;padding:8px 10px;overflow-x:auto;white-space:pre-wrap;
+                    max-height:180px;overflow-y:auto;margin:0"></pre>
+      </div>
+
+      <!-- Results -->
+      <div id="aiTesterResult" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-weight:600;font-size:13px">Results</span>
+          <span id="aiTesterLatency" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+        <div id="aiTesterMatchesBox"
+             style="border:1px solid var(--border);border-radius:6px;padding:8px 12px;
+                    background:var(--surface2);min-height:40px"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="aiTesterRunBtn" class="btn btn-primary btn-sm" onclick="runAiTesterExtraction()">▶ Run Extraction</button>
+      <button class="btn btn-sm" onclick="closeAiTester()">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Set Scope End Position modal ─────────────────────────────────────── -->
 <div id="setScopeEndModal" class="modal-overlay" style="display:none" onclick="overlayClose(event,'setScopeEndModal')">
@@ -1010,6 +1087,13 @@ function expandUpload() {
   document.getElementById('uploadCard').classList.remove('upload-collapsed');
 }
 
+function expandUploadAndClear() {
+  selectedFiles = [];
+  renderChips();
+  clearResultsOnly();
+  expandUpload();
+}
+
 async function runFileAnalysis() {
   if (!selectedFiles.length) return;
   const ocrOnly = document.querySelector('input[name="fileMode"]:checked')?.value === 'ocr-only';
@@ -1062,7 +1146,7 @@ async function uploadAnalyze(file, token, ocrOnly) {
   return body;
 }
 
-function clearResults() {
+function clearResultsOnly() {
   document.getElementById('results').innerHTML = '';
   document.getElementById('clearBtn').style.display     = 'none';
   document.getElementById('clearBtnMini').style.display = 'none';
@@ -1070,6 +1154,10 @@ function clearResults() {
   document.getElementById('runStatusMini').textContent  = '';
   document.getElementById('textRunStatus').textContent  = '';
   cardStates.clear();
+}
+
+function clearResults() {
+  clearResultsOnly();
   expandUpload();
 }
 
@@ -1209,6 +1297,8 @@ function renderResultText(id, inputText, data, redactOnly = false) {
   <span class="tb-sep"></span>
   <button class="tb-btn" id="${id}-posBtn" onclick="togglePositions('${id}')" title="Show character position markers — helps set ScopeEndPosition">📍 Pos</button>
   <button class="tb-btn" id="${id}-gridBtn" onclick="toggleGrid('${id}')" title="Show character offset gutter (line-by-line position map)">⊞ Grid</button>
+  <button class="tb-btn" id="${id}-copyBtn" onclick="copyOcrText('${id}')" title="Copy OCR text to clipboard">📋 Copy</button>
+  <button class="tb-btn" onclick="openAiTester('${id}')" title="Test AI extraction prompts on this OCR text">🤖 AI Test</button>
   <span class="pos-indicator" id="${id}-posHint" style="display:none">pos: —</span>
   <span class="tb-sep"></span>
   <div class="search-wrap">
@@ -1344,6 +1434,8 @@ ${fieldsRow}
   <span class="tb-sep"></span>
   <button class="tb-btn" id="${id}-posBtn" onclick="togglePositions('${id}')" title="Show character position markers — helps set ScopeEndPosition">📍 Pos</button>
   <button class="tb-btn" id="${id}-gridBtn" onclick="toggleGrid('${id}')" title="Show character offset gutter (line-by-line position map)">⊞ Grid</button>
+  <button class="tb-btn" id="${id}-copyBtn" onclick="copyOcrText('${id}')" title="Copy OCR text to clipboard">📋 Copy</button>
+  <button class="tb-btn" onclick="openAiTester('${id}')" title="Test AI extraction prompts on this OCR text">🤖 AI Test</button>
   <span class="pos-indicator" id="${id}-posHint" style="display:none">pos: —</span>
   <span class="tb-sep"></span>
   <div class="search-wrap">
@@ -1667,6 +1759,27 @@ function toggleGrid(id) {
     document.getElementById(id + sfx)?.classList.toggle('grid-active', s.gridMode);
   }
   refreshPanes(id);
+}
+
+// ── Copy OCR text ─────────────────────────────────────────────────────
+async function copyOcrText(id) {
+  const s = cardStates.get(id);
+  if (!s?.ocrText) return;
+  try {
+    await navigator.clipboard.writeText(s.ocrText);
+    const btn = document.getElementById(id + '-copyBtn');
+    if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => { btn.textContent = '📋 Copy'; }, 1500); }
+  } catch {
+    // fallback for non-secure contexts
+    const ta = document.createElement('textarea');
+    ta.value = s.ocrText;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById(id + '-copyBtn');
+    if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => { btn.textContent = '📋 Copy'; }, 1500); }
+  }
 }
 
 /** Attach hover-position listener to the OCR pane (call once after card render). */
@@ -2247,6 +2360,178 @@ async function apiPost(url, body) {
     });
     return await r.json();
   } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── AI Tester modal ──────────────────────────────────────────────────────
+let _aiTesterCardId = null;
+let _aiSuggestions  = null; // cached from server
+
+async function openAiTester(cardId) {
+  const s = cardStates.get(cardId);
+  if (!s?.ocrText) return;
+  _aiTesterCardId = cardId;
+
+  // Pre-fill text
+  document.getElementById('aiTesterText').value = s.ocrText;
+  document.getElementById('aiTesterText').dir =
+    /[֐-׿יִ-ﭏ]/.test(s.ocrText) ? 'rtl' : 'ltr';
+
+  // Reset state
+  document.getElementById('aiTesterPrompt').value = '';
+  document.getElementById('aiTesterResult').style.display = 'none';
+  document.getElementById('aiTesterPromptLog').style.display = 'none';
+  document.getElementById('aiTesterRunBtn').disabled = false;
+
+  document.getElementById('aiTesterModal').style.display = 'flex';
+
+  // Load suggestions + models in parallel (suggestions cached, models always fresh)
+  const tasks = [];
+  if (!_aiSuggestions) tasks.push(loadAiTesterSuggestions());
+  tasks.push(loadAiTesterModels());
+  await Promise.all(tasks);
+}
+
+function closeAiTester() {
+  document.getElementById('aiTesterModal').style.display = 'none';
+  _aiTesterCardId = null;
+}
+
+async function loadAiTesterSuggestions() {
+  try {
+    const r = await fetch('/admin/settings?handler=AiPromptSuggestions');
+    if (!r.ok) return;
+    _aiSuggestions = await r.json();
+    const sel = document.getElementById('aiTesterSuggest');
+    sel.innerHTML = '<option value="">— sample prompts —</option>';
+    const groups = {};
+    _aiSuggestions.forEach(s => {
+      if (!groups[s.group]) groups[s.group] = [];
+      groups[s.group].push(s);
+    });
+    Object.entries(groups).forEach(([grp, items]) => {
+      const og = document.createElement('optgroup');
+      og.label = grp;
+      items.forEach(item => {
+        const o = document.createElement('option');
+        o.value = item.prompt;
+        o.textContent = (item.existing ? '✓ ' : '') + item.label;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
+  } catch { /* suggestions are optional */ }
+}
+
+async function loadAiTesterModels() {
+  const sel    = document.getElementById('aiTesterModel');
+  const status = document.getElementById('aiTesterModelStatus');
+  sel.innerHTML = '<option value="">— configured model (default) —</option>';
+  status.textContent = 'Loading…';
+  try {
+    const r = await fetch('/admin/settings?handler=ListAiModels');
+    if (!r.ok) { status.textContent = ''; return; }
+    const data = await r.json();
+    if (!data.ok || !data.models?.length) {
+      status.textContent = data.ok ? 'No models installed' : '⚠ Cannot reach AI engine';
+      return;
+    }
+    data.models.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m;
+      o.textContent = m;
+      sel.appendChild(o);
+    });
+    // Pre-select the currently configured model
+    if (data.currentModel) sel.value = data.currentModel;
+    status.textContent = `${data.models.length} model${data.models.length > 1 ? 's' : ''} available`;
+  } catch { status.textContent = ''; }
+}
+
+function applyAiTesterSuggestion() {
+  const sel = document.getElementById('aiTesterSuggest');
+  if (sel.value) {
+    document.getElementById('aiTesterPrompt').value = sel.value;
+    sel.value = '';
+  }
+}
+
+async function runAiTesterExtraction() {
+  const prompt = document.getElementById('aiTesterPrompt').value.trim();
+  const text   = document.getElementById('aiTesterText').value;
+  const model  = document.getElementById('aiTesterModel').value;
+  if (!prompt) { document.getElementById('aiTesterPrompt').focus(); return; }
+
+  const btn = document.getElementById('aiTesterRunBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running…';
+
+  const resultBox = document.getElementById('aiTesterResult');
+  resultBox.style.display = 'none';
+
+  // Build and show prompt preview immediately (mirrors server-side BuildPrompt)
+  const chunk = text.length > 3000 ? text.slice(0, 3000) : text;
+  const builtPrompt =
+`You are a data extraction tool. Extract exact text values from the document.
+
+STRICT RULES — follow exactly:
+- Output ONLY the raw values copied from the document, one per line
+- Do NOT write sentences, explanations, labels, or commentary
+- Do NOT rephrase or translate — copy the exact text as it appears
+- If not found: write exactly NONE
+
+What to extract: ${prompt}
+
+Examples of correct output:
+  Query: 'patient full name'  →  ליליינטל, אורה
+  Query: 'phone number'       →  053-5619240
+  Query: 'date of birth'      →  20/08/1955
+  Query: 'doctor name'        →  Dr. Sarah Levy
+
+---
+${chunk}
+---
+
+${prompt}:`;
+  document.getElementById('aiTesterPromptPreview').textContent = builtPrompt;
+  document.getElementById('aiTesterPromptLog').style.display = 'block';
+
+  try {
+    const fd = new FormData();
+    fd.append('sampleText',   text);
+    fd.append('samplePrompt', prompt);
+    if (model) fd.append('testModel', model);
+    const r = await fetch('/admin/settings?handler=TestAiExtraction', {
+      method: 'POST',
+      headers: { 'RequestVerificationToken': getToken() },
+      body: fd
+    });
+    const data = await r.json();
+
+    const modelLabel = data.modelUsed ? `<span style="font-size:11px;color:var(--text3);margin-left:4px">model: ${escHtml(data.modelUsed)}</span>` : '';
+    const latencyLabel = data.latencyMs ? `${data.latencyMs} ms` : '';
+
+    const matchesHtml = data.ok && data.matches?.length
+      ? data.matches.map(m =>
+          `<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span style="font-family:monospace;background:rgba(255,77,79,.12);color:#ff4d4f;padding:2px 6px;border-radius:4px">${escHtml(m.matchedText ?? m.value ?? String(m))}</span>
+            <span style="font-size:11px;color:var(--text3)">pos ${m.startIndex ?? '?'}</span>
+          </div>`).join('')
+      : data.ok
+        ? '<span style="color:var(--text3);font-size:13px">No matches found.</span>'
+        : `<span style="color:#ff4d4f;font-size:13px">⚠ ${escHtml(data.error ?? 'Unknown error')}</span>`;
+
+    document.getElementById('aiTesterMatchesBox').innerHTML = matchesHtml;
+    document.getElementById('aiTesterLatency').textContent  = latencyLabel;
+    document.getElementById('aiTesterLatency').insertAdjacentHTML('afterend', modelLabel);
+    resultBox.style.display = 'block';
+  } catch (e) {
+    document.getElementById('aiTesterMatchesBox').innerHTML =
+      `<span style="color:#ff4d4f;font-size:13px">⚠ ${escHtml(e.message)}</span>`;
+    resultBox.style.display = 'block';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '▶ Run Extraction';
+  }
 }
 
 // ── Download redacted text as a .txt file ────────────────────────────────

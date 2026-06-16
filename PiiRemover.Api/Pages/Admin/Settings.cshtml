@@ -635,16 +635,49 @@
             <div id="ai-model-hint" style="font-size:11px;color:var(--text3);margin-top:4px">
               Click 🔄 to load installed models, or type a model name manually.
             </div>
+            <div style="font-size:11px;margin-top:6px;padding:6px 10px;background:rgba(82,196,26,.08);border:1px solid rgba(82,196,26,.25);border-radius:6px;color:var(--text2)">
+              ⭐ Recommended: <strong>qwen2.5:3b</strong> — fast, low RAM (~2 GB). For better Hebrew accuracy use <strong>aya-expanse:8b</strong> (~5 GB). For max accuracy use <strong>aya-expanse:32b</strong> (~20 GB).
+              See <em>📥 Install AI Engine</em> below to download.
+            </div>
           </div>
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text2)">Timeout (seconds)</label>
             <input name="AiTimeout" type="number" min="5" max="120" value="@Model.AiTimeout"
                    class="ctrl" style="width:100%;margin-top:6px" />
-            <div style="font-size:11px;color:var(--text3);margin-top:4px">Default: 15 s per document chunk</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">How long to wait for the model to respond (60 s recommended for first call)</div>
           </div>
         </div>
 
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <!-- Keep LLM Warm -->
+        <div style="margin-top:16px;padding:14px 16px;border:1px solid var(--border);border-radius:8px;background:rgba(22,119,255,.03)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
+              <input type="checkbox" name="AiWarmupEnabled" value="true" @(Model.AiWarmupEnabled ? "checked" : "")
+                     id="aiWarmupCheck" onchange="toggleWarmupInterval()" />
+              🔥 Keep model warm
+            </label>
+            <span style="font-size:12px;color:var(--text3)">— prevents cold-start delay on first call</span>
+          </div>
+          <div id="warmupIntervalRow" style="display:@(Model.AiWarmupEnabled ? "flex" : "none");align-items:center;gap:10px;flex-wrap:wrap">
+            <label style="font-size:12px;color:var(--text2);white-space:nowrap">Ping every</label>
+            <input name="AiWarmupIntervalMinutes" type="number" min="1" max="30" value="@Model.AiWarmupIntervalMinutes"
+                   class="ctrl" style="width:80px" />
+            <span style="font-size:12px;color:var(--text2)">minutes</span>
+            <span style="font-size:11px;color:var(--text3)">(Ollama unloads models after 5 min idle — use 4 or less)</span>
+          </div>
+          @if (!string.IsNullOrWhiteSpace(Model.AiWarmupLastAt) && DateTime.TryParse(Model.AiWarmupLastAt, out var lastWarm))
+          {
+            <div style="margin-top:8px;font-size:11px;color:var(--text3)">
+              Last warmed: @lastWarm.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+            </div>
+          }
+          <div style="margin-top:8px;font-size:11px;color:var(--text3)">
+            ℹ️ A minimal 1-token request is sent every N minutes to keep the model loaded in memory.
+            Only active when AI engine is enabled and Ollama is reachable.
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;margin-top:16px;margin-bottom:16px">
           <button type="button" class="btn btn-sm btn-outline-primary"
                   onclick="testAiConnection()" id="aiTestBtn">
             🔍 Test AI Connection
@@ -671,9 +704,10 @@
           <span style="display:flex;gap:6px">
             <button type="button" class="btn btn-xs btn-outline-secondary" onclick="loadAiSample('en')">🇬🇧 English</button>
             <button type="button" class="btn btn-xs btn-outline-secondary" onclick="loadAiSample('he')">🇮🇱 Hebrew</button>
+            <button type="button" class="btn btn-xs btn-outline-secondary" id="aiPasteBtn" onclick="pasteToAiSample()" title="Paste clipboard text into sample area">📋 Paste</button>
           </span>
         </div>
-        <textarea id="aiTestSampleText" rows="6" dir="ltr" style="width:100%;box-sizing:border-box;font-size:13px;font-family:monospace;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);resize:vertical">Patient: David Cohen
+        <textarea id="aiTestSampleText" rows="14" dir="ltr" style="width:100%;box-sizing:border-box;font-size:13px;font-family:monospace;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);resize:vertical;min-height:200px">Patient: David Cohen
 Date of Birth: 15/03/1982
 ID: 034567891
 Doctor: Dr. Sarah Levy
@@ -681,7 +715,13 @@ Phone: 052-1234567
 Diagnosis: Hypertension, Type 2 Diabetes</textarea>
       </div>
       <div>
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Extraction Prompt</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <label style="font-size:12px;font-weight:600;color:var(--text2)">Extraction Prompt</label>
+          <select id="aiPromptSuggestions" onchange="applyAiPromptSuggestion()"
+                  style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--bg2);color:var(--text2);max-width:240px">
+            <option value="">💡 Sample prompts…</option>
+          </select>
+        </div>
         <input id="aiTestPrompt" type="text" value="patient name"
                style="width:100%;box-sizing:border-box;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text)"
                placeholder="e.g. patient full name, phone number, Israeli ID number" />
@@ -694,8 +734,19 @@ Diagnosis: Hypertension, Type 2 Diabetes</textarea>
         <span id="aiExtractLatency" style="display:none;font-size:12px;color:var(--text2)"></span>
       </div>
       <div id="aiExtractResult" style="display:none;margin-top:4px">
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Extracted Entities</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="font-size:12px;font-weight:600;color:var(--text2)">Extracted Entities</label>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="aiEditPrompt()" title="Change prompt and run again">✏️ Edit prompt</button>
+        </div>
         <div id="aiExtractEntities" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:monospace;min-height:40px;white-space:pre-wrap"></div>
+      </div>
+      <div id="aiPromptLog" style="display:none;margin-top:10px">
+        <details>
+          <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);user-select:none">
+            🪵 Prompt sent to model
+          </summary>
+          <pre id="aiPromptLogText" style="margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;font-family:monospace;white-space:pre-wrap;overflow-x:auto;color:var(--text2)"></pre>
+        </details>
       </div>
     </div>
   </div>
@@ -724,33 +775,40 @@ Diagnosis: Hypertension, Type 2 Diabetes</textarea>
               <th style="padding:8px 12px;text-align:left">Install command (Command Prompt)</th>
               <th style="padding:8px 12px;text-align:left">Notes</th>
             </tr>
-            <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:9px 12px;font-weight:600;color:var(--text)">⚡ Fast pilot / low-RAM server</td>
-              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">phi3.5:latest</span></td>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(82,196,26,.04)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">⚡ Fast &amp; light <span style="font-size:11px;font-weight:600;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);border-radius:10px;padding:2px 8px;white-space:nowrap">⭐ Recommended</span></td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">qwen2.5:3b</span></td>
               <td style="padding:9px 12px"><span class="badge badge-green">~2 GB</span></td>
-              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull phi3.5:latest</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">CPU-only, no GPU needed. Good for English names, IDs, phones. Limited Hebrew.</td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull qwen2.5:3b</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">3B multilingual model. Good Hebrew + English extraction. ~2–3× faster than 8B. <strong>Default model.</strong></td>
             </tr>
             <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:9px 12px;font-weight:600;color:var(--text)">📄 General / legacy</td>
-              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">mistral:latest</span></td>
-              <td style="padding:9px 12px"><span class="badge badge-blue">~5 GB</span></td>
-              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull mistral:latest</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">7B model. Decent general accuracy. Weak Hebrew morphology.</td>
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🦙 General purpose</td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">llama2:latest</span></td>
+              <td style="padding:9px 12px"><span class="badge badge-green">~4 GB</span></td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull llama2</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">Meta Llama 2 7B. Solid English extraction. Good fallback if qwen2.5:3b is not available.</td>
             </tr>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(22,119,255,.04)">
-              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🎯 Hebrew + English production</td>
-              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">qwen2.5:7b</span></td>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🌍 Best Hebrew balance</td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">aya-expanse:8b</span></td>
               <td style="padding:9px 12px"><span class="badge badge-blue">~5 GB</span></td>
-              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull qwen2.5:7b</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">Strong multilingual model. Best Hebrew + English PII accuracy on ~5 GB RAM.</td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull aya-expanse:8b</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">Cohere multilingual model (23 languages incl. Hebrew). Better Hebrew accuracy than qwen2.5:3b.</td>
             </tr>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(22,119,255,.04)">
-              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🏆 Best accuracy / high-RAM server <span style="font-size:11px;font-weight:600;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);border-radius:10px;padding:2px 8px;white-space:nowrap">⭐ Recommended</span></td>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🎯 Higher accuracy</td>
               <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">qwen2.5:14b</span></td>
               <td style="padding:9px 12px"><span class="badge badge-blue">~9 GB</span></td>
               <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull qwen2.5:14b</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">14B model. Noticeably better on complex Hebrew medical documents, free-form addresses, and ambiguous context. <strong>Default model.</strong></td>
+              <td style="padding:9px 12px;color:var(--text3)">14B multilingual model. Better on ambiguous or complex documents.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🏆 Max accuracy</td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">aya-expanse:32b</span></td>
+              <td style="padding:9px 12px"><span class="badge badge-blue">~20 GB</span></td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull aya-expanse:32b</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">32B model. Highest Hebrew medical PII accuracy. Requires a high-RAM server.</td>
             </tr>
           </table>
         </div>
@@ -769,8 +827,8 @@ Diagnosis: Hypertension, Type 2 Diabetes</textarea>
           </li>
           <li>
             <strong>Open a Command Prompt</strong> and download the model you chose above, e.g.:<br/>
-            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull qwen2.5:14b</code>
-            <span style="font-size:11px;color:var(--text3);margin-left:8px">(recommended — or <code>ollama pull qwen2.5:7b</code> for ~5 GB RAM, <code>ollama pull phi3.5:latest</code> for low-RAM)</span>
+            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull qwen2.5:3b</code>
+            <span style="font-size:11px;color:var(--text3);margin-left:8px">(recommended — or <code>ollama pull aya-expanse:8b</code> for better Hebrew accuracy, <code>ollama pull aya-expanse:32b</code> for max accuracy)</span>
           </li>
         </ol>
 
@@ -779,7 +837,7 @@ Diagnosis: Hypertension, Type 2 Diabetes</textarea>
         <ol style="padding-left:20px;line-height:2.4;margin-bottom:16px">
           <li>Toggle <strong>Enable AI Extraction Engine</strong> ON.</li>
           <li>Set <strong>AI Engine URL</strong> to <code>http://localhost:11434</code> (default — leave as-is unless the server runs remotely).</li>
-          <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>qwen2.5:7b</code>, <code>qwen2.5:14b</code>, <code>mistral:latest</code>, or <code>phi3.5:latest</code>).</li>
+          <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>qwen2.5:3b</code>, <code>llama2:latest</code>, <code>aya-expanse:8b</code>, <code>qwen2.5:14b</code>, <code>aya-expanse:32b</code>).</li>
           <li>Click <strong>🔍 Test AI Connection</strong> — you should see a green "Connected" message with the model name and response time.</li>
           <li>Click <strong>Save AI Settings</strong>.</li>
         </ol>
@@ -962,10 +1020,11 @@ async function loadAiModels() {
 
       // Known model descriptions
       const desc = {
-        'phi3.5:latest':  '⚡ phi3.5 — fast, ~2 GB RAM (low-resource pilot)',
-        'mistral:latest': '📄 mistral — general, ~5 GB RAM (weak Hebrew)',
-        'qwen2.5:7b':     '🎯 qwen2.5:7b — Hebrew + English, ~5 GB RAM',
-        'qwen2.5:14b':    '🏆 qwen2.5:14b — best accuracy, ~9 GB RAM ⭐ Recommended',
+        'qwen2.5:3b':     '⚡ qwen2.5:3b — fast, ~2 GB RAM ⭐ Recommended',
+        'llama2:latest':  '🦙 llama2 — general purpose, ~4 GB RAM',
+        'aya-expanse:8b': '🌍 aya-expanse:8b — best Hebrew balance, ~5 GB RAM',
+        'qwen2.5:14b':    '🎯 qwen2.5:14b — higher accuracy, ~9 GB RAM',
+        'aya-expanse:32b':'🏆 aya-expanse:32b — max accuracy, ~20 GB RAM',
       };
 
       data.models.forEach(m => {
@@ -1003,6 +1062,12 @@ async function loadAiModels() {
 
   btn.style.display = 'inline';
   loading.style.display = 'none';
+}
+
+function toggleWarmupInterval() {
+  const checked = document.getElementById('aiWarmupCheck')?.checked;
+  const row = document.getElementById('warmupIntervalRow');
+  if (row) row.style.display = checked ? 'flex' : 'none';
 }
 
 async function testAiConnection() {
@@ -1053,6 +1118,65 @@ Diagnosis: Hypertension, Type 2 Diabetes`,
   }
 };
 
+async function pasteToAiSample() {
+  const btn = document.getElementById('aiPasteBtn');
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) return;
+    const ta = document.getElementById('aiTestSampleText');
+    ta.value = text;
+    ta.dir = /[֐-׿יִ-פֿ]/.test(text) ? 'rtl' : 'ltr';
+    document.getElementById('aiExtractResult').style.display = 'none';
+    if (btn) { btn.textContent = '✓ Pasted'; setTimeout(() => { btn.textContent = '📋 Paste'; }, 1500); }
+  } catch {
+    if (btn) { btn.textContent = '⚠ Allow clipboard'; setTimeout(() => { btn.textContent = '📋 Paste'; }, 2000); }
+  }
+}
+
+function aiEditPrompt() {
+  document.getElementById('aiExtractResult').style.display = 'none';
+  const promptEl = document.getElementById('aiTestPrompt');
+  promptEl.focus();
+  promptEl.select();
+}
+
+function applyAiPromptSuggestion() {
+  const sel = document.getElementById('aiPromptSuggestions');
+  if (!sel.value) return;
+  document.getElementById('aiTestPrompt').value = sel.value;
+  sel.value = ''; // reset so same item can be re-selected
+  document.getElementById('aiExtractResult').style.display = 'none';
+}
+
+(async function loadAiPromptSuggestions() {
+  try {
+    const resp = await fetch('/admin/settings?handler=AiPromptSuggestions');
+    if (!resp.ok) return;
+    const items = await resp.json();
+    const sel = document.getElementById('aiPromptSuggestions');
+    if (!items.length) return;
+
+    // Group by field name
+    const groups = {};
+    for (const item of items) {
+      if (!groups[item.group]) groups[item.group] = [];
+      groups[item.group].push(item);
+    }
+
+    for (const [groupName, entries] of Object.entries(groups)) {
+      const og = document.createElement('optgroup');
+      og.label = groupName;
+      for (const e of entries) {
+        const opt = document.createElement('option');
+        opt.value = e.prompt;
+        opt.textContent = (e.existing ? '✓ ' : '') + e.label;
+        og.appendChild(opt);
+      }
+      sel.appendChild(og);
+    }
+  } catch { /* ignore — combo just stays empty */ }
+})();
+
 function loadAiSample(lang) {
   const s = aiSamples[lang];
   if (!s) return;
@@ -1077,6 +1201,26 @@ async function runAiExtraction() {
   latency.style.display = 'none';
   resultEl.style.display = 'none';
 
+  // Show prompt immediately — before the fetch — so a timeout still reveals it
+  const chunk = text.length > 3000 ? text.slice(0, 3000) : text;
+  const builtPrompt =
+`You extract personal data from Hebrew and English documents.
+Find all occurrences of: '${prompt}'
+Return ONLY the extracted values, one per line, no explanations, no numbering.
+
+Examples:
+- Query: 'patient full name'    Text: 'Patient: David Cohen'   → David Cohen
+- Query: 'Israeli ID number'    Text: 'ת.ז. 123456789'         → 123456789
+- Query: 'phone number'         Text: 'טל: 050-1234567'        → 050-1234567
+- Query: 'doctor name'          Text: 'Dr. Sarah Levy'         → Sarah Levy
+
+Text:
+${chunk}
+
+Extracted:`;
+  document.getElementById('aiPromptLogText').textContent = builtPrompt;
+  document.getElementById('aiPromptLog').style.display = 'block';
+
   const fd = new FormData();
   fd.append('sampleText',  text);
   fd.append('samplePrompt', prompt);
@@ -1094,15 +1238,12 @@ async function runAiExtraction() {
         entities.textContent = '(no matches found)';
         entities.style.color = 'var(--text2)';
       } else {
-        entities.innerHTML = data.matches.map(m => {
-          const caseNote = m.matchedText !== m.aiReturned
-            ? ` <span style="color:var(--text2);font-size:11px">(AI returned: "${m.aiReturned}")</span>`
-            : '';
-          return `<div style="padding:4px 0;border-bottom:1px solid var(--border)">` +
-            `<span style="color:#52c41a;font-weight:600">"${escHtml(m.matchedText)}"</span>${caseNote}` +
-            `<span style="margin-left:12px;color:var(--text2);font-size:11px">pos&nbsp;${m.startIndex}&nbsp;·&nbsp;len&nbsp;${m.length}</span>` +
-            `</div>`;
-        }).join('');
+        entities.innerHTML = data.matches.map(m =>
+          `<div style="padding:4px 0;border-bottom:1px solid var(--border)">` +
+          `<span style="color:#52c41a;font-weight:600">"${escHtml(m.matchedText)}"</span>` +
+          `<span style="margin-left:12px;color:var(--text2);font-size:11px">pos&nbsp;${m.startIndex}&nbsp;·&nbsp;len&nbsp;${m.length}</span>` +
+          `</div>`
+        ).join('');
         entities.style.color = 'var(--text)';
       }
       latency.textContent = `${data.latencyMs} ms`;

@@ -1,7 +1,4 @@
-using System.Collections.Concurrent;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PiiRemover.Core.Engines;
@@ -29,15 +26,18 @@ public class OllamaService : IAiService
     public const string KeyTimeoutSecs = "ai:timeoutSeconds";
 
     // Hard-coded defaults — seeded into DB on first use
-    public const string DefaultBaseUrl     = "http://localhost:11434";
-    public const string DefaultModel       = "qwen2.5:14b";
-    public const string DefaultTimeoutSecs = "10";  // tighter default: fail fast if AI is slow
+    public const string DefaultBaseUrl              = "http://localhost:11434";
+    public const string DefaultModel                = "qwen2.5:3b";
+    public const string DefaultTimeoutSecs          = "60";  // LLM can take 20-40 s on cold model load
+    public const string KeyWarmupEnabled            = "ai:warmupEnabled";
+    public const string KeyWarmupIntervalMinutes    = "ai:warmupIntervalMinutes";
+    public const string KeyWarmupLastAt             = "ai:warmupLastAt";
+    public const string DefaultWarmupIntervalMinutes = "4";  // just under Ollama's 5-min default keep_alive
 
-    // In-memory result cache: SHA256(text)+description → entities
-    // Bounded at 500 entries; evicts oldest 50 when full.
-    private readonly ConcurrentDictionary<string, (List<string> entities, long tick)> _cache = new();
-    private const int CacheMax   = 500;
-    private const int CacheEvict = 50;
+    // Per-request scope: flows with the async execution context via AsyncLocal.
+    // Set by PrefetchAsync (before first await), read by ExtractEntitiesAsync, cleared by ClearScope().
+    // AsyncLocal ensures each concurrent request has its own isolated scope without any thread-ID tricks.
+    private static readonly AsyncLocal<Dictionary<string, List<string>>?> _requestScope = new();
 
     // Enabled-flag cache — avoids a DB hit on every redaction call.
     // Invalidated explicitly when settings are saved; falls back to TTL as a safety net.
@@ -81,9 +81,10 @@ public class OllamaService : IAiService
         // Skip trivially short text — nothing meaningful to find
         if (text.Length < 20) return [];
 
-        var cacheKey = BuildCacheKey(text, description);
-        if (_cache.TryGetValue(cacheKey, out var hit))
-            return hit.entities;
+        // Check request scope — read AsyncLocal value before any await
+        var reqScope = _requestScope.Value;
+        if (reqScope != null && reqScope.TryGetValue(description, out var scoped))
+            return scoped;
 
         var baseUrl    = await GetSettingAsync(KeyBaseUrl,     DefaultBaseUrl);
         var model      = await GetSettingAsync(KeyModel,       DefaultModel);
@@ -94,41 +95,196 @@ public class OllamaService : IAiService
         cts.CancelAfter(TimeSpan.FromSeconds(timeout));
 
         var results = new List<string>();
-        foreach (var chunk in ChunkText(text, 3000, 200))
+        foreach (var chunk in ChunkText(text, 2000, 150))
         {
             var chunkResults = await CallAiAsync(baseUrl, model, chunk, description, cts.Token);
             results.AddRange(chunkResults);
         }
 
-        var entities = results
+        return results
             .Select(s => s.Trim())
             .Where(s => s.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-
-        StoreInCache(cacheKey, entities);
-        return entities;
     }
 
-    private static string BuildCacheKey(string text, string description)
-    {
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
-        return $"{hash}|{description}";
-    }
+    /// <summary>Clears the per-request result scope. Called by RedactionOrchestrator after Redact() completes.</summary>
+    public void ClearScope() => _requestScope.Value = null;
 
-    private void StoreInCache(string key, List<string> entities)
+    /// <summary>
+    /// Extracts all requested entity types in a single batched Ollama call and pre-populates the cache.
+    /// Called by RedactionOrchestrator before the per-pattern loop so that N LlmPrompt fields cost one
+    /// AI round-trip instead of N.
+    /// </summary>
+    public async Task PrefetchAsync(string text, IList<string> descriptions, CancellationToken ct = default)
     {
-        if (_cache.Count >= CacheMax)
+        // Create the scope dictionary BEFORE the first await so it is set in the calling
+        // execution context and remains visible after GetAwaiter().GetResult() returns.
+        // AsyncLocal flows DOWN into async continuations; mutations to the dict are shared.
+        var scope = _requestScope.Value
+                    ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        _requestScope.Value = scope;
+
+        if (!await IsEnabledAsync()) return;
+        if (descriptions == null || descriptions.Count == 0) return;
+
+        // Skip descriptions already in scope for this request
+        var pending = descriptions
+            .Where(d => !string.IsNullOrWhiteSpace(d) && !scope.ContainsKey(d))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (pending.Count == 0) return;
+
+        // Load settings in parallel — three independent DB reads
+        var baseUrlTask    = GetSettingAsync(KeyBaseUrl,     DefaultBaseUrl);
+        var modelTask      = GetSettingAsync(KeyModel,       DefaultModel);
+        var timeoutStrTask = GetSettingAsync(KeyTimeoutSecs, DefaultTimeoutSecs);
+        await Task.WhenAll(baseUrlTask, modelTask, timeoutStrTask).ConfigureAwait(false);
+        var baseUrl    = await baseUrlTask;
+        var model      = await modelTask;
+        var timeoutStr = await timeoutStrTask;
+        var timeout    = int.TryParse(timeoutStr, out var t) ? t : 60;
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeout));
+
+        foreach (var chunk in ChunkText(text, 2000, 150))
         {
-            // Evict the oldest CacheEvict entries by tick
-            var oldest = _cache
-                .OrderBy(kv => kv.Value.tick)
-                .Take(CacheEvict)
-                .Select(kv => kv.Key)
-                .ToList();
-            foreach (var k in oldest) _cache.TryRemove(k, out _);
+            var results = await CallBatchAiAsync(baseUrl, model, chunk, pending, cts.Token).ConfigureAwait(false);
+            for (int i = 0; i < pending.Count; i++)
+            {
+                var entities = (i < results.Count ? results[i] : [])
+                    .Select(s => s.Trim())
+                    .Where(s => s.Length > 0)
+                    .ToList();
+                var desc = pending[i];
+                if (scope.TryGetValue(desc, out var existing))
+                    entities = existing.Concat(entities)
+                        .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                scope[desc] = entities;
+            }
         }
-        _cache[key] = (entities, Environment.TickCount64);
+    }
+
+
+    private async Task<List<List<string>>> CallBatchAiAsync(
+        string baseUrl, string model, string textChunk, IList<string> descriptions, CancellationToken ct)
+    {
+        var numbered = string.Join("\n", descriptions.Select((d, i) => $"{i + 1}. {d}"));
+        var prompt = $"""
+You are a data extraction tool. From the document below, extract exact values for each numbered category.
+
+STRICT OUTPUT FORMAT — no deviations:
+- Under each category heading write the raw value copied from the document, one per line
+- Do NOT write sentences, explanations, labels, or commentary of any kind
+- Do NOT rephrase, summarize, or translate — copy text exactly as it appears
+- Write NONE if a category is not found in the document
+
+Categories:
+{numbered}
+
+---
+{textChunk}
+---
+
+Results (EXACT FORMAT — number, category, colon, then values):
+""";
+
+
+        var requestBody = new OllamaGenerateRequest
+        {
+            Model      = model,
+            Prompt     = prompt,
+            Stream     = false,
+            NumPredict = Math.Max(60, 40 * descriptions.Count)
+        };
+
+        var result = new List<List<string>>(descriptions.Count);
+        for (int i = 0; i < descriptions.Count; i++) result.Add([]);
+
+        try
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"{baseUrl.TrimEnd('/')}/api/generate", requestBody, ct);
+            if (!response.IsSuccessStatusCode) return result;
+
+            var generated = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(
+                cancellationToken: ct);
+            if (generated?.Response is null) return result;
+
+            // Line-by-line parser — handles both:
+            //   "1. category: value"   (inline value)
+            //   "1. category:\nvalue"  (value on next line)
+            var headerRx = new System.Text.RegularExpressions.Regex(@"^(\d+)\.\s*(.*)");
+            int currentIdx = -1;
+            foreach (var rawLine in generated.Response.Split('\n'))
+            {
+                var line = rawLine.Trim();
+                if (line.Length == 0) continue;
+
+                var hm = headerRx.Match(line);
+                if (hm.Success && int.TryParse(hm.Groups[1].Value, out var n))
+                {
+                    currentIdx = n - 1; // 1-based → 0-based
+                    if (currentIdx < 0 || currentIdx >= descriptions.Count) { currentIdx = -1; continue; }
+
+                    // Extract inline value after colon, if present
+                    var rest = hm.Groups[2].Value;
+                    var colon = rest.IndexOf(':');
+                    var inline = (colon >= 0 ? rest[(colon + 1)..] : rest).Trim()
+                                    .TrimStart('-', '*', '•', '·').Trim();
+                    if (inline.Length > 1 && !inline.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+                        result[currentIdx].Add(inline);
+                    continue;
+                }
+
+                // Value line following a section header
+                if (currentIdx >= 0)
+                {
+                    var val = line.TrimStart('-', '*', '•', '·').Trim();
+                    if (val.Length > 1 && !val.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+                        result[currentIdx].Add(val);
+                }
+            }
+        }
+        catch { /* graceful — each description stays empty */ }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Sends a minimal single-token request to keep the model loaded in Ollama memory.
+    /// Sets keep_alive to (intervalMinutes + 2) so the model stays hot between ticks.
+    /// Returns true on success, false on any error.
+    /// </summary>
+    public async Task<bool> WarmupAsync(int intervalMinutes = 4, CancellationToken ct = default)
+    {
+        try
+        {
+            var baseUrl = await GetSettingAsync(KeyBaseUrl, DefaultBaseUrl).ConfigureAwait(false);
+            var model   = await GetSettingAsync(KeyModel,   DefaultModel).ConfigureAwait(false);
+
+            // keep_alive expressed as "<n>m" — model stays loaded this long after each ping.
+            var keepAlive = $"{intervalMinutes + 2}m";
+
+            var requestBody = new OllamaGenerateRequest
+            {
+                Model      = model,
+                Prompt     = "hi",   // minimal prompt — just enough to confirm the model is loaded
+                Stream     = false,
+                NumPredict = 1,
+                KeepAlive  = keepAlive,
+            };
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(90)); // generous — cold load can be slow
+
+            var response = await _http.PostAsJsonAsync(
+                $"{baseUrl.TrimEnd('/')}/api/generate", requestBody, cts.Token).ConfigureAwait(false);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch { return false; }
     }
 
     /// <summary>Pings the AI engine and returns status info for the admin health card.</summary>
@@ -159,6 +315,41 @@ public class OllamaService : IAiService
             sw.Stop();
             return new OllamaHealthResult { Ok = false, Error = ex.Message };
         }
+    }
+
+    /// <summary>
+    /// Direct extraction call for the admin tester — bypasses the scope/prefetch mechanism
+    /// and accepts an explicit model name so the tester can compare different models.
+    /// </summary>
+    public async Task<(List<string> Values, string PromptSent)> TestExtractAsync(
+        string text, string description, string? modelOverride = null, CancellationToken ct = default)
+    {
+        if (text.Length < 5) return ([], "");
+        var baseUrl    = await GetSettingAsync(KeyBaseUrl,     DefaultBaseUrl).ConfigureAwait(false);
+        var model      = modelOverride ?? await GetSettingAsync(KeyModel, DefaultModel).ConfigureAwait(false);
+        var timeoutStr = await GetSettingAsync(KeyTimeoutSecs, DefaultTimeoutSecs).ConfigureAwait(false);
+        var timeout    = int.TryParse(timeoutStr, out var t) ? t : 60;
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeout));
+
+        var firstChunk   = text.Length > 3000 ? text[..3000] : text;
+        var promptSent   = BuildPrompt(firstChunk, description);
+        var allValues    = new List<string>();
+
+        foreach (var chunk in ChunkText(text, 2000, 150))
+        {
+            var vals = await CallAiAsync(baseUrl, model, chunk, description, cts.Token).ConfigureAwait(false);
+            allValues.AddRange(vals);
+        }
+
+        var distinct = allValues
+            .Select(s => s.Trim())
+            .Where(s => s.Length > 0 && !s.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return (distinct, promptSent);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -197,21 +388,28 @@ public class OllamaService : IAiService
         }
     }
 
-    private static string BuildPrompt(string text, string description) => $"""
-You extract personal data from Hebrew and English documents.
-Find all occurrences of: '{description}'
-Return ONLY the extracted values, one per line, no explanations, no numbering.
+    public static string BuildPrompt(string text, string description) => $"""
+You are a data extraction tool. Extract exact text values from the document.
 
-Examples:
-- Query: 'patient full name'    Text: 'Patient: David Cohen'   → David Cohen
-- Query: 'Israeli ID number'    Text: 'ת.ז. 123456789'         → 123456789
-- Query: 'phone number'         Text: 'טל: 050-1234567'        → 050-1234567
-- Query: 'doctor name'          Text: 'Dr. Sarah Levy'         → Sarah Levy
+STRICT RULES — follow exactly:
+- Output ONLY the raw values copied from the document, one per line
+- Do NOT write sentences, explanations, labels, or commentary
+- Do NOT rephrase or translate — copy the exact text as it appears
+- If not found: write exactly NONE
 
-Text:
+What to extract: {description}
+
+Examples of correct output:
+  Query: 'patient full name'  →  ליליינטל, אורה
+  Query: 'phone number'       →  053-5619240
+  Query: 'date of birth'      →  20/08/1955
+  Query: 'doctor name'        →  Dr. Sarah Levy
+
+---
 {text}
+---
 
-Extracted:
+{description}:
 """;
 
     private static IEnumerable<string> ChunkText(string text, int chunkSize, int overlap)
@@ -239,11 +437,15 @@ Extracted:
 
 internal sealed class OllamaGenerateRequest
 {
-    [JsonPropertyName("model")]       public string Model       { get; set; } = "";
-    [JsonPropertyName("prompt")]      public string Prompt      { get; set; } = "";
-    [JsonPropertyName("stream")]      public bool   Stream      { get; set; } = false;
-    [JsonPropertyName("temperature")] public double Temperature { get; set; } = 0.05;
-    [JsonPropertyName("num_predict")] public int    NumPredict  { get; set; } = 200;
+    [JsonPropertyName("model")]       public string  Model       { get; set; } = "";
+    [JsonPropertyName("prompt")]      public string  Prompt      { get; set; } = "";
+    [JsonPropertyName("stream")]      public bool    Stream      { get; set; } = false;
+    [JsonPropertyName("temperature")] public double  Temperature { get; set; } = 0.0;
+    [JsonPropertyName("seed")]        public int     Seed        { get; set; } = 42;
+    [JsonPropertyName("num_predict")] public int     NumPredict  { get; set; } = 60;
+    [JsonPropertyName("num_ctx")]     public int     NumCtx      { get; set; } = 2048;
+    [JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("keep_alive")]  public string? KeepAlive   { get; set; }
 }
 
 internal sealed class OllamaGenerateResponse

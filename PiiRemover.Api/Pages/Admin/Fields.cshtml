@@ -199,13 +199,17 @@
     🛡 Preserve <span class="ftab-count">@preserveCount</span>
   </button>
   <span style="flex:1"></span>
+  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text2);user-select:none">
+    <input type="checkbox" id="show-inactive" onchange="applyFieldVisibility()" style="cursor:pointer">
+    Show inactive
+  </label>
   <span id="filter-status" style="font-size:11px;color:var(--text3)"></span>
 </div>
 
 @foreach (var f in Model.Fields)
 {
     var cardBorder = f.IsPreserve ? "border:1px solid rgba(82,196,26,.4);background:rgba(82,196,26,.03)" : "";
-    <div class="card field-card" data-kind="@(f.IsPreserve ? "preserve" : "redact")"
+    <div class="card field-card" data-kind="@(f.IsPreserve ? "preserve" : "redact")" data-active="@(f.IsActive ? "1" : "0")"
          style="@(f.IsActive ? "" : "opacity:.65") @cardBorder">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)">
             @if (f.IsPreserve)
@@ -633,21 +637,36 @@
                        oninput="" />
                 <div id="ai-hint-@f.Id" style="display:none;width:100%;margin-top:8px;padding:10px 14px;
                      background:rgba(22,119,255,.05);border:1px solid rgba(22,119,255,.2);border-radius:6px;font-size:12px;color:var(--text2)">
-                  <strong style="color:#1677ff">🤖 AI Extraction — describe what to redact in plain English or Hebrew</strong><br/>
+                  <strong style="color:#1677ff">🤖 AI Extraction — describe what to redact in plain English</strong><br/>
                   <span style="color:var(--text3)">The AI reads the document and extracts all matching values automatically.</span>
-                  <div style="margin-top:8px">
-                    <strong>Examples:</strong>
-                    <ul style="margin:4px 0 0 16px;padding:0;line-height:1.9">
-                      <li>patient full name</li>
-                      <li>Israeli national ID (9-digit number)</li>
-                      <li>doctor name after "Dr." or "ד"ר"</li>
-                      <li>phone number starting with 05 or +972</li>
-                      <li>date of birth in any format</li>
-                    </ul>
+                  <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <label style="font-weight:600;color:var(--text2);white-space:nowrap">💡 Sample prompts:</label>
+                    <select id="aiSuggest-@f.Id" onchange="applyAiSuggest('@f.Id')"
+                            style="flex:1;min-width:220px;max-width:400px;padding:4px 8px;font-size:12px;border:1px solid rgba(22,119,255,.35);border-radius:5px;background:var(--bg2);color:var(--text)">
+                      <option value="">— choose a sample prompt —</option>
+                        <option value="patient full name">patient full name</option>
+                        <option value="doctor full name">doctor full name</option>
+                        <option value="therapist or caregiver name">therapist or caregiver name</option>
+                        <option value="Israeli ID number (9 digits)">Israeli ID number (9 digits)</option>
+                        <option value="passport number">passport number</option>
+                        <option value="date of birth">date of birth</option>
+                        <option value="phone number">phone number</option>
+                        <option value="mobile phone number">mobile phone number</option>
+                        <option value="full street address">full street address</option>
+                        <option value="email address">email address</option>
+                        <option value="health insurance number">health insurance number</option>
+                        <option value="medical diagnosis or condition">medical diagnosis or condition</option>
+                        <option value="name in signature">name in signature</option>
+                        <option value="employer or workplace name">employer or workplace name</option>
+                        <option value="bank account number">bank account number</option>
+                        <option value="credit card number">credit card number</option>
+                        <option value="national insurance number">national insurance number</option>
+                        <option value="patient age in years">patient age in years</option>
+                    </select>
                   </div>
                   <div style="margin-top:8px;color:var(--text3)">
-                    ℹ️ Be specific. Enable the AI engine in
-                    <a href="/admin/settings?tab=ai" style="color:#1677ff">Settings → AI Extraction Engine</a>.
+                    ℹ️ Be specific — "patient full name" is better than "name". Enable the AI engine in
+                    <a href="/admin/settings" style="color:#1677ff">Settings → AI Extraction Engine</a>.
                   </div>
                 </div>
                 <input name="priority" type="number" value="100" style="width:80px" title="Priority (higher = first)" />
@@ -658,6 +677,15 @@
 }
 
 <script>
+// ── AI prompt suggestion picker ────────────────────────────────────────────
+function applyAiSuggest(fieldId) {
+  const sel = document.getElementById('aiSuggest-' + fieldId);
+  if (!sel || !sel.value) return;
+  const inp = document.getElementById('patternInput-' + fieldId);
+  if (inp) inp.value = sel.value;
+  sel.value = ''; // reset so same item can be re-selected
+}
+
 // ── AI pattern type hint ───────────────────────────────────────────────────
 document.querySelectorAll('select[name=patternType]').forEach(function(sel) {
   sel.addEventListener('change', function() {
@@ -941,25 +969,44 @@ function setFilter(kind) {
     b.style.color         = isActive ? (kind === 'preserve' ? '#52c41a' : kind === 'redact' ? '#1677ff' : 'var(--text)') : 'var(--text2)';
   });
 
-  // show/hide cards
+  applyFieldVisibility();
+}
+
+function applyFieldVisibility() {
+  const showInactive = document.getElementById('show-inactive')?.checked ?? false;
+  sessionStorage.setItem('fields-show-inactive', showInactive ? '1' : '0');
+
   let visible = 0;
   document.querySelectorAll('.field-card').forEach(card => {
-    const show = kind === 'all' || card.dataset.kind === kind;
+    const kindMatch   = currentFilter === 'all' || card.dataset.kind === currentFilter;
+    const activeMatch = showInactive || card.dataset.active === '1';
+    const show = kindMatch && activeMatch;
     card.style.display = show ? '' : 'none';
     if (show) visible++;
   });
 
-  // status label
   const status = document.getElementById('filter-status');
-  if (status) status.textContent = kind === 'all' ? '' : `Showing ${visible} field${visible !== 1 ? 's' : ''}`;
+  if (status) {
+    const hiddenInactive = !showInactive
+      ? document.querySelectorAll('.field-card[data-active="0"]').length : 0;
+    const parts = [];
+    if (currentFilter !== 'all') parts.push(`${visible} field${visible !== 1 ? 's' : ''}`);
+    if (hiddenInactive > 0) parts.push(`${hiddenInactive} inactive hidden`);
+    status.textContent = parts.join(' · ');
+  }
 }
 
-// keep filter active after page reload (TempData redirects)
+// keep filter + inactive toggle active after page reload
 (function() {
-  const saved = sessionStorage.getItem('fields-filter');
-  if (saved && saved !== 'all') setFilter(saved);
+  const savedFilter   = sessionStorage.getItem('fields-filter');
+  const savedInactive = sessionStorage.getItem('fields-show-inactive');
+  const cb = document.getElementById('show-inactive');
+  // default: hide inactive (only show if explicitly saved as '1')
+  if (cb) cb.checked = savedInactive === '1';
+  if (savedFilter && savedFilter !== 'all') setFilter(savedFilter);
+  else applyFieldVisibility();
 })();
-// save on click
+// save filter on click
 document.querySelectorAll('.filter-tab').forEach(b =>
   b.addEventListener('click', () => sessionStorage.setItem('fields-filter', b.id.replace('filter-', '')))
 );

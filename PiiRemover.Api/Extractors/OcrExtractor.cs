@@ -37,6 +37,7 @@ public class OcrExtractor : ITextExtractor
     private readonly OcrOptions _opts;
     private readonly SemaphoreSlim _gate;
 
+
     public OcrExtractor(OcrOptions opts)
     {
         _opts = opts;

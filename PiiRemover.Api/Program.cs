@@ -64,6 +64,7 @@ builder.Services.AddSingleton<IPiiLogger>(_ => new WindowsEventLogger(logSourceN
 builder.Services.AddHostedService<LogCleanupService>();
 builder.Services.AddSingleton<IBackupService, BackupService>();
 builder.Services.AddHostedService<AutoBackupService>();
+builder.Services.AddHostedService<OllamaWarmupService>();
 
 // ── Detection engine ──────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IPatternEngine, RegexPatternEngine>();
@@ -82,7 +83,9 @@ builder.Services.AddSingleton<IPatternEngine, NumberSequenceEngine>();
 builder.Services.AddSingleton<IPatternEngine, FileListEngine>();
 builder.Services.AddSingleton<IPatternEngine, WholeLineEngine>();
 builder.Services.AddSingleton<RedactionOrchestrator>(sp =>
-    new RedactionOrchestrator(sp.GetServices<IPatternEngine>()));
+    new RedactionOrchestrator(
+        sp.GetServices<IPatternEngine>(),
+        sp.GetRequiredService<IAiService>()));
 
 // ── Fields cache (avoids DB hit on every redaction request) ───────────────────
 builder.Services.AddSingleton<FieldsCache>();

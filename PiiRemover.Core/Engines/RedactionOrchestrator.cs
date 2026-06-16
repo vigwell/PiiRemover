@@ -7,16 +7,37 @@ namespace PiiRemover.Core.Engines;
 public class RedactionOrchestrator
 {
     private readonly Dictionary<PatternType, IPatternEngine> _engines;
+    private readonly IAiService? _ai;
 
-    public RedactionOrchestrator(IEnumerable<IPatternEngine> engines)
+    public RedactionOrchestrator(IEnumerable<IPatternEngine> engines, IAiService? ai = null)
     {
         _engines = engines.ToDictionary(e => e.SupportedType);
+        _ai      = ai;
     }
 
     public RedactResult Redact(string text, IEnumerable<PiiField> fields)
     {
         var sw         = Stopwatch.StartNew();
         var activeFields = fields.Where(f => f.IsActive).ToList();
+
+        // ── Prefetch: batch all LlmPrompt descriptions into one AI call ───────
+        // Pre-populates the OllamaService scope so each subsequent FindMatches()
+        // call returns instantly instead of making its own HTTP round-trip.
+        if (_ai != null)
+        {
+            var llmDescs = activeFields
+                .Where(f => !f.IsPreserve)
+                .SelectMany(f => f.Patterns)
+                .Where(p => p.PatternType == PatternType.LlmPrompt
+                         && !string.IsNullOrWhiteSpace(p.Pattern))
+                .Select(p => p.Pattern!)
+                .Distinct()
+                .ToList();
+            if (llmDescs.Count > 0)
+                _ai.PrefetchAsync(text, llmDescs).GetAwaiter().GetResult();
+        }
+        try
+        {
 
         // ── Step 1: collect PRESERVE (whitelist) regions ──────────────────────
         // These are spans that must never be touched, regardless of other rules.
@@ -65,11 +86,6 @@ public class RedactionOrchestrator
         var deduped = DeduplicateOverlaps(allMatches);
 
         // ── Step 5: apply right-to-left so indices remain valid ───────────────
-        // When the replacement template is a single character (e.g. "█") we fill
-        // each position individually, preserving structural whitespace (\n, \r, \t)
-        // at their exact positions so document line breaks and indentation survive.
-        //   "David Cohen\n"  →  "███████████\n"   (not "████████████")
-        //   "0501234567\r\n" →  "██████████\r\n"
         var sb = new StringBuilder(text);
         foreach (var match in deduped.OrderByDescending(m => m.StartIndex))
         {
@@ -77,7 +93,6 @@ public class RedactionOrchestrator
             var replacement = match.Replacement.Length == 1
                 ? BuildStructureAwareReplacement(match.MatchedText, match.Replacement[0])
                 : match.Replacement;
-            // Keep the stored Replacement in sync so the Tester UI shows the right value
             match.Replacement = replacement;
             sb.Remove(match.StartIndex, match.Length);
             sb.Insert(match.StartIndex, replacement);
@@ -90,22 +105,14 @@ public class RedactionOrchestrator
             Matches = deduped,
             DurationMs = sw.ElapsedMilliseconds
         };
+        }
+        finally
+        {
+            // Release per-request AI results — PII must not persist in memory after this call.
+            _ai?.ClearScope();
+        }
     }
 
-    /// <summary>
-    /// Applies ScopeStart / ScopeEnd markers to slice the document text to the region
-    /// where this pattern should fire.
-    ///
-    /// ScopeStart — newline-separated plain-text markers (case-insensitive).
-    ///   Of all markers that appear in the text, pick the one whose match starts EARLIEST;
-    ///   the scope begins at the END of that match (i.e. after the marker itself).
-    ///
-    /// ScopeEnd — newline-separated plain-text markers (case-insensitive).
-    ///   Of all markers that appear in the text, pick the one whose match starts EARLIEST;
-    ///   the scope ends at the START of that match (i.e. the marker itself is not redacted).
-    ///
-    /// Returns (slicedText, offsetIntoOriginal).
-    /// </summary>
     private static (string ScopedText, int Offset) ApplyScope(string text, PiiPattern pattern)
     {
         int start = 0;
@@ -116,7 +123,6 @@ public class RedactionOrchestrator
             var markers = pattern.ScopeStart
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            // Find the earliest-starting marker; scope begins at the end of it
             int bestPos = -1, bestEnd = -1;
             foreach (var m in markers)
             {
@@ -130,14 +136,12 @@ public class RedactionOrchestrator
             if (bestEnd >= 0) start = bestEnd;
         }
 
-        // ScopeEnd: try text markers first; fall back to ScopeEndPosition if none match.
         bool markerFound = false;
         if (!string.IsNullOrWhiteSpace(pattern.ScopeEnd))
         {
             var markers = pattern.ScopeEnd
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            // Find the earliest-starting marker within [start..text.Length]; scope ends before it
             int bestPos = -1;
             foreach (var m in markers)
             {
@@ -152,25 +156,17 @@ public class RedactionOrchestrator
             }
         }
 
-        // Position fallback: if no marker matched AND ScopeEndPosition > 0, cap the scope there.
         if (!markerFound && pattern.ScopeEndPosition > 0)
             end = Math.Min(end, start + pattern.ScopeEndPosition);
 
         if (start == 0 && end == text.Length)
-            return (text, 0); // no scope applied
+            return (text, 0);
 
         start = Math.Max(0, Math.Min(start, text.Length));
         end   = Math.Max(start, Math.Min(end, text.Length));
         return (text.Substring(start, end - start), start);
     }
 
-    /// <summary>
-    /// Builds a replacement string for a single-char replacement token.
-    /// Structural whitespace characters (\r, \n, \t) are copied from the original
-    /// matched text verbatim; every other character is replaced by <paramref name="replacementChar"/>.
-    /// This guarantees that line endings and indentation at the boundary of a match
-    /// survive redaction unchanged, keeping the document structure intact.
-    /// </summary>
     private static string BuildStructureAwareReplacement(string matchedText, char replacementChar)
     {
         if (string.IsNullOrEmpty(matchedText))
@@ -180,7 +176,6 @@ public class RedactionOrchestrator
         for (int i = 0; i < matchedText.Length; i++)
         {
             var c = matchedText[i];
-            // Preserve line endings and tabs; replace everything else
             chars[i] = c is '\n' or '\r' or '\t' ? c : replacementChar;
         }
         return new string(chars);
@@ -188,18 +183,13 @@ public class RedactionOrchestrator
 
     private static List<RedactMatch> DeduplicateOverlaps(List<RedactMatch> matches)
     {
-        // Sort by start position; within the same start prefer the longest match.
-        // When a later (shorter) match overlaps an already-accepted match it is dropped —
-        // the longer match always wins, even if the shorter one started slightly later.
         var sorted = matches.OrderBy(m => m.StartIndex).ThenByDescending(m => m.Length).ToList();
         var result = new List<RedactMatch>();
         int lastEnd = -1;
 
         foreach (var m in sorted)
         {
-            // Skip any match that overlaps (even partially) with an already-accepted match
             if (m.StartIndex < lastEnd) continue;
-
             result.Add(m);
             lastEnd = m.StartIndex + m.Length;
         }

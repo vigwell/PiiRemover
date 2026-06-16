@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using PiiRemover.Api.Services;
 using PiiRemover.Core.Engines;
 using PiiRemover.Core.Licensing;
+using PiiRemover.Core.Models;
 using PiiRemover.Data.Repositories;
 using static PiiRemover.Api.Pages.Admin.AdminAccountHelper;
 
@@ -17,12 +18,14 @@ public class SettingsModel : AdminPageModel
 {
     private const int MaxAdmins = 5;
 
-    private readonly ISettingsRepository _settings;
-    private readonly IQuotaRepository    _quota;
-    private readonly LicenseInfo         _license;
-    private readonly IConfiguration      _config;
-    private readonly IBackupService      _backup;
-    private readonly IAiService          _ai;
+    private readonly ISettingsRepository   _settings;
+    private readonly IQuotaRepository      _quota;
+    private readonly LicenseInfo           _license;
+    private readonly IConfiguration        _config;
+    private readonly IBackupService        _backup;
+    private readonly IAiService            _ai;
+    private readonly RedactionOrchestrator _orchestrator;
+    private readonly IFieldRepository      _fieldRepo;
 
     public LicenseInfo License => _license;
     public int DaysUntilExpiry => Math.Max(0,
@@ -80,10 +83,13 @@ public class SettingsModel : AdminPageModel
     };
 
     // ── AI Extraction Engine ────────────────────────────────────────────
-    [BindProperty] public bool   AiEnabled { get; set; } = false;
-    [BindProperty] public string AiBaseUrl { get; set; } = "http://localhost:11434";
-    [BindProperty] public string AiModel   { get; set; } = "qwen2.5:14b";
-    [BindProperty] public int    AiTimeout { get; set; } = 15;
+    [BindProperty] public bool   AiEnabled              { get; set; } = false;
+    [BindProperty] public string AiBaseUrl              { get; set; } = "http://localhost:11434";
+    [BindProperty] public string AiModel                { get; set; } = "aya-expanse:8b";
+    [BindProperty] public int    AiTimeout              { get; set; } = 60;
+    [BindProperty] public bool   AiWarmupEnabled        { get; set; } = true;
+    [BindProperty] public int    AiWarmupIntervalMinutes{ get; set; } = 4;
+    public string? AiWarmupLastAt { get; private set; }
 
     // ── Backup ──────────────────────────────────────────────────────────
     [BindProperty] public bool   BackupEnabled       { get; set; } = false;
@@ -108,14 +114,17 @@ public class SettingsModel : AdminPageModel
 
     public SettingsModel(ISettingsRepository settings, IQuotaRepository quota,
                          LicenseInfo license, IConfiguration config, IBackupService backup,
-                         IAiService ai)
+                         IAiService ai, RedactionOrchestrator orchestrator,
+                         IFieldRepository fieldRepo)
     {
-        _settings = settings;
-        _quota    = quota;
-        _license  = license;
-        _config   = config;
-        _backup   = backup;
-        _ai       = ai;
+        _settings     = settings;
+        _quota        = quota;
+        _license      = license;
+        _config       = config;
+        _backup       = backup;
+        _ai           = ai;
+        _orchestrator = orchestrator;
+        _fieldRepo    = fieldRepo;
     }
 
     public async Task OnGetAsync() => await LoadAsync();
@@ -413,10 +422,12 @@ public class SettingsModel : AdminPageModel
 
     public async Task<IActionResult> OnPostSaveAiSettingsAsync()
     {
-        await _settings.SetAsync("ai:enabled",       AiEnabled ? "true" : "false", "AI Extraction Engine enabled");
-        await _settings.SetAsync("ai:baseUrl",        AiBaseUrl,                   "AI engine base URL");
-        await _settings.SetAsync("ai:model",          AiModel,                     "AI model name");
-        await _settings.SetAsync("ai:timeoutSeconds", AiTimeout.ToString(),        "AI request timeout (seconds)");
+        await _settings.SetAsync("ai:enabled",              AiEnabled ? "true" : "false",        "AI Extraction Engine enabled");
+        await _settings.SetAsync("ai:baseUrl",               AiBaseUrl,                           "AI engine base URL");
+        await _settings.SetAsync("ai:model",                 AiModel,                             "AI model name");
+        await _settings.SetAsync("ai:timeoutSeconds",        AiTimeout.ToString(),                "AI request timeout (seconds)");
+        await _settings.SetAsync(OllamaService.KeyWarmupEnabled,         AiWarmupEnabled ? "true" : "false", "Keep LLM warm (background ping)");
+        await _settings.SetAsync(OllamaService.KeyWarmupIntervalMinutes, AiWarmupIntervalMinutes.ToString(), "LLM warmup ping interval (minutes)");
         // Flush the in-memory enabled cache so the next redaction reflects the new setting immediately.
         (_ai as OllamaService)?.InvalidateEnabledCache();
         TempData["SettingsSuccess"] = "AI settings saved.";
@@ -448,8 +459,83 @@ public class SettingsModel : AdminPageModel
         }
     }
 
+    public async Task<IActionResult> OnGetListAiModelsAsync()
+    {
+        var ollama = (OllamaService)_ai;
+        var healthTask = ollama.CheckHealthAsync();
+        var currentModelTask = _settings.GetAsync(OllamaService.KeyModel);
+        await Task.WhenAll(healthTask, currentModelTask);
+        var health = await healthTask;
+        var currentModel = await currentModelTask ?? OllamaService.DefaultModel;
+        return new JsonResult(new { ok = health.Ok, models = health.Models ?? [], currentModel });
+    }
+
+    public async Task<IActionResult> OnGetAiPromptSuggestionsAsync()
+    {
+        var fields = await _fieldRepo.GetFieldsWithPatternsAsync(null);
+        var suggestions = new List<object>();
+
+        foreach (var field in fields.Where(f => f.IsActive && !f.IsPreserve))
+        {
+            // Existing LlmPrompt patterns come first — they are already working prompts
+            foreach (var p in field.Patterns
+                .Where(p => p.PatternType == PatternType.LlmPrompt && !string.IsNullOrWhiteSpace(p.Pattern)))
+            {
+                suggestions.Add(new { group = field.FieldName, label = p.Pattern!, prompt = p.Pattern!, existing = true });
+            }
+
+            // Auto-generate English suggestions from field name
+            foreach (var (label, prompt) in GenerateAiPromptSuggestions(field.FieldName))
+                suggestions.Add(new { group = field.FieldName, label, prompt, existing = false });
+        }
+
+        return new JsonResult(suggestions);
+    }
+
+    private static readonly (string Key, string En)[] _promptMap =
+    [
+        ("patient",    "patient full name"),
+        ("client",     "client full name"),
+        ("doctor",     "doctor full name"),
+        ("physician",  "physician name"),
+        ("therapist",  "therapist name"),
+        ("name",       "full name"),
+        ("phone",      "phone number"),
+        ("mobile",     "mobile phone number"),
+        ("id",         "Israeli ID number (9 digits)"),
+        ("identity",   "identity document number"),
+        ("passport",   "passport number"),
+        ("birth",      "date of birth"),
+        ("dob",        "date of birth"),
+        ("age",        "patient age in years"),
+        ("address",    "full street address"),
+        ("email",      "email address"),
+        ("diagnosis",  "medical diagnosis or condition"),
+        ("condition",  "medical condition"),
+        ("insurance",  "health insurance number"),
+        ("policy",     "insurance policy number"),
+        ("license",    "professional license number"),
+        ("signature",  "name in signature"),
+        ("employer",   "employer or workplace name"),
+        ("bank",       "bank account number"),
+        ("credit",     "credit card number"),
+        ("national",   "national ID number"),
+        ("social",     "social security number"),
+    ];
+
+    private static List<(string Label, string Prompt)> GenerateAiPromptSuggestions(string fieldName)
+    {
+        var fn = fieldName.ToLowerInvariant();
+        foreach (var (key, en) in _promptMap)
+        {
+            if (fn.Contains(key))
+                return [(en, en)];
+        }
+        return [(fieldName, fieldName)];
+    }
+
     public async Task<IActionResult> OnPostTestAiExtractionAsync(
-        [FromForm] string sampleText, [FromForm] string samplePrompt)
+        [FromForm] string sampleText, [FromForm] string samplePrompt, [FromForm] string? testModel = null)
     {
         if (string.IsNullOrWhiteSpace(sampleText) || string.IsNullOrWhiteSpace(samplePrompt))
             return new JsonResult(new { ok = false, error = "Both sample text and prompt are required." });
@@ -458,40 +544,71 @@ public class SettingsModel : AdminPageModel
         if (!enabled)
             return new JsonResult(new { ok = false, error = "AI Extraction Engine is disabled. Enable it above and save settings first." });
 
+        var ollamaService = (OllamaService)_ai;
+        var prompt        = samplePrompt.Trim();
+        var firstChunk    = sampleText.Length > 3000 ? sampleText[..3000] : sampleText;
+        var promptPreview = OllamaService.BuildPrompt(firstChunk, prompt);
+
+        // When a specific model is requested use TestExtractAsync directly (bypasses scope mechanism).
+        // Otherwise run through the full orchestrator path so results match production behaviour.
+        if (!string.IsNullOrWhiteSpace(testModel))
+        {
+            var sw2 = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                var (values, _) = await ollamaService.TestExtractAsync(sampleText, prompt, testModel);
+                sw2.Stop();
+                // Map string values back to position matches by locating them in the text
+                var matches2 = values
+                    .Select(v => new { matchedText = v, startIndex = sampleText.IndexOf(v, StringComparison.OrdinalIgnoreCase), length = v.Length })
+                    .Where(m => m.startIndex >= 0)
+                    .ToList();
+                return new JsonResult(new { ok = true, matches = matches2, latencyMs = (int)sw2.ElapsedMilliseconds, promptPreview, modelUsed = testModel });
+            }
+            catch (Exception ex)
+            {
+                return new JsonResult(new { ok = false, error = ex.Message, promptPreview, modelUsed = testModel });
+            }
+        }
+
+        // Default path — full orchestrator (uses configured model from DB)
+        var field = new PiiField
+        {
+            FieldName   = "__tester__",
+            ReplaceWith = "█",
+            IsActive    = true,
+            Patterns    =
+            [
+                new PiiPattern
+                {
+                    PatternType      = PatternType.LlmPrompt,
+                    Pattern          = prompt,
+                    ScopeEndPosition = 0
+                }
+            ]
+        };
+
+        _ai.ClearScope();
+
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-            var entities = await _ai.ExtractEntitiesAsync(sampleText, samplePrompt, cts.Token);
+            var result = _orchestrator.Redact(sampleText, [field]);
             sw.Stop();
 
-            // Mirror exactly what LlmPromptEngine does: IndexOf scan → StartIndex + Length + MatchedText
-            var matches = new List<object>();
-            foreach (var entity in entities)
+            var matches = result.Matches.Select(m => new
             {
-                if (entity.Length == 0) continue;
-                var from = 0;
-                while (from < sampleText.Length)
-                {
-                    var idx = sampleText.IndexOf(entity, from, StringComparison.OrdinalIgnoreCase);
-                    if (idx < 0) break;
-                    matches.Add(new
-                    {
-                        matchedText = sampleText.Substring(idx, entity.Length),
-                        startIndex  = idx,
-                        length      = entity.Length,
-                        aiReturned  = entity
-                    });
-                    from = idx + entity.Length;
-                }
-            }
+                matchedText = m.MatchedText,
+                startIndex  = m.StartIndex,
+                length      = m.Length
+            }).ToList();
 
-            return new JsonResult(new { ok = true, matches, latencyMs = (int)sw.ElapsedMilliseconds });
+            return new JsonResult(new { ok = true, matches, latencyMs = (int)sw.ElapsedMilliseconds, promptPreview });
         }
         catch (Exception ex)
         {
             sw.Stop();
-            return new JsonResult(new { ok = false, error = ex.Message });
+            return new JsonResult(new { ok = false, error = ex.Message, promptPreview });
         }
     }
 
@@ -527,6 +644,11 @@ public class SettingsModel : AdminPageModel
         if (!string.IsNullOrWhiteSpace(aiModel)) AiModel = aiModel;
         var aiTo = await _settings.GetAsync("ai:timeoutSeconds");
         if (int.TryParse(aiTo, out var to) && to > 0) AiTimeout = to;
+        var warmupVal = await _settings.GetAsync(OllamaService.KeyWarmupEnabled);
+        AiWarmupEnabled = warmupVal == null || string.Equals(warmupVal, "true", StringComparison.OrdinalIgnoreCase);
+        var wInt = await _settings.GetAsync(OllamaService.KeyWarmupIntervalMinutes);
+        if (int.TryParse(wInt, out var wi) && wi >= 1) AiWarmupIntervalMinutes = wi;
+        AiWarmupLastAt = await _settings.GetAsync(OllamaService.KeyWarmupLastAt);
 
         // Backup settings
         BackupEnabled       = string.Equals(await _settings.GetAsync("Backup:Enabled"), "true", StringComparison.OrdinalIgnoreCase);
