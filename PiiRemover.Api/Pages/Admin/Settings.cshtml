@@ -636,7 +636,7 @@
               Click 🔄 to load installed models, or type a model name manually.
             </div>
             <div style="font-size:11px;margin-top:6px;padding:6px 10px;background:rgba(82,196,26,.08);border:1px solid rgba(82,196,26,.25);border-radius:6px;color:var(--text2)">
-              ⭐ Recommended: <strong>qwen2.5:3b</strong> — fast, low RAM (~2 GB). For better Hebrew accuracy use <strong>aya-expanse:8b</strong> (~5 GB). For max accuracy use <strong>aya-expanse:32b</strong> (~20 GB).
+              ⭐ Recommended: <strong>gemma3:1b</strong> — fastest, ~1 GB RAM. Step up to <strong>qwen2.5:3b</strong> (~2 GB) for complex documents, or <strong>aya-expanse:8b</strong> (~5 GB) for best Hebrew accuracy.
               See <em>📥 Install AI Engine</em> below to download.
             </div>
           </div>
@@ -776,11 +776,18 @@ Diagnosis: Hypertension, Type 2 Diabetes</textarea>
               <th style="padding:8px 12px;text-align:left">Notes</th>
             </tr>
             <tr style="border-bottom:1px solid var(--border);background:rgba(82,196,26,.04)">
-              <td style="padding:9px 12px;font-weight:600;color:var(--text)">⚡ Fast &amp; light <span style="font-size:11px;font-weight:600;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);border-radius:10px;padding:2px 8px;white-space:nowrap">⭐ Recommended</span></td>
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">🚀 Fastest — ultra light <span style="font-size:11px;font-weight:600;background:rgba(82,196,26,.15);color:#52c41a;border:1px solid rgba(82,196,26,.3);border-radius:10px;padding:2px 8px;white-space:nowrap">⭐ Recommended</span></td>
+              <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">gemma3:1b</span></td>
+              <td style="padding:9px 12px"><span class="badge badge-green">~1 GB</span></td>
+              <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull gemma3:1b</code></td>
+              <td style="padding:9px 12px;color:var(--text3)">Google Gemma 3 1B. Fastest inference, lowest RAM. Best choice for most use cases. <strong>Default model.</strong></td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:600;color:var(--text)">⚡ Fast &amp; light</td>
               <td style="padding:9px 12px"><span class="mono" style="font-size:12px;color:#faad14">qwen2.5:3b</span></td>
               <td style="padding:9px 12px"><span class="badge badge-green">~2 GB</span></td>
               <td style="padding:9px 12px"><code style="background:var(--surface2);padding:3px 8px;border-radius:4px">ollama pull qwen2.5:3b</code></td>
-              <td style="padding:9px 12px;color:var(--text3)">3B multilingual model. Good Hebrew + English extraction. ~2–3× faster than 8B. <strong>Default model.</strong></td>
+              <td style="padding:9px 12px;color:var(--text3)">3B multilingual model. Good Hebrew + English extraction. Step up from gemma3:1b for complex documents.</td>
             </tr>
             <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:9px 12px;font-weight:600;color:var(--text)">🦙 General purpose</td>
@@ -827,8 +834,8 @@ Diagnosis: Hypertension, Type 2 Diabetes</textarea>
           </li>
           <li>
             <strong>Open a Command Prompt</strong> and download the model you chose above, e.g.:<br/>
-            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull qwen2.5:3b</code>
-            <span style="font-size:11px;color:var(--text3);margin-left:8px">(recommended — or <code>ollama pull aya-expanse:8b</code> for better Hebrew accuracy, <code>ollama pull aya-expanse:32b</code> for max accuracy)</span>
+            <code style="background:var(--surface2);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:4px">ollama pull gemma3:1b</code>
+            <span style="font-size:11px;color:var(--text3);margin-left:8px">(recommended — or <code>ollama pull qwen2.5:3b</code> for complex documents, <code>ollama pull aya-expanse:8b</code> for best Hebrew accuracy)</span>
           </li>
         </ol>
 
@@ -837,7 +844,7 @@ Diagnosis: Hypertension, Type 2 Diabetes</textarea>
         <ol style="padding-left:20px;line-height:2.4;margin-bottom:16px">
           <li>Toggle <strong>Enable AI Extraction Engine</strong> ON.</li>
           <li>Set <strong>AI Engine URL</strong> to <code>http://localhost:11434</code> (default — leave as-is unless the server runs remotely).</li>
-          <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>qwen2.5:3b</code>, <code>llama2:latest</code>, <code>aya-expanse:8b</code>, <code>qwen2.5:14b</code>, <code>aya-expanse:32b</code>).</li>
+          <li>Set <strong>AI Model</strong> — click 🔄 to auto-load installed models, or type the model name you downloaded (<code>gemma3:1b</code>, <code>qwen2.5:3b</code>, <code>llama2:latest</code>, <code>aya-expanse:8b</code>, <code>qwen2.5:14b</code>, <code>aya-expanse:32b</code>).</li>
           <li>Click <strong>🔍 Test AI Connection</strong> — you should see a green "Connected" message with the model name and response time.</li>
           <li>Click <strong>Save AI Settings</strong>.</li>
         </ol>
@@ -1020,7 +1027,8 @@ async function loadAiModels() {
 
       // Known model descriptions
       const desc = {
-        'qwen2.5:3b':     '⚡ qwen2.5:3b — fast, ~2 GB RAM ⭐ Recommended',
+        'gemma3:1b':      '🚀 gemma3:1b — fastest, ~1 GB RAM ⭐ Recommended',
+        'qwen2.5:3b':     '⚡ qwen2.5:3b — fast, ~2 GB RAM',
         'llama2:latest':  '🦙 llama2 — general purpose, ~4 GB RAM',
         'aya-expanse:8b': '🌍 aya-expanse:8b — best Hebrew balance, ~5 GB RAM',
         'qwen2.5:14b':    '🎯 qwen2.5:14b — higher accuracy, ~9 GB RAM',

@@ -27,7 +27,7 @@ public class OllamaService : IAiService
 
     // Hard-coded defaults — seeded into DB on first use
     public const string DefaultBaseUrl              = "http://localhost:11434";
-    public const string DefaultModel                = "qwen2.5:3b";
+    public const string DefaultModel                = "gemma3:1b";
     public const string DefaultTimeoutSecs          = "60";  // LLM can take 20-40 s on cold model load
     public const string KeyWarmupEnabled            = "ai:warmupEnabled";
     public const string KeyWarmupIntervalMinutes    = "ai:warmupIntervalMinutes";
