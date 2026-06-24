@@ -40,10 +40,10 @@ public class VideoJobRepository : IVideoJobRepository
         await conn.ExecuteAsync("""
             INSERT INTO VideoJobs
                 (Id, ClientId, Status, VideoPath, AudioPath, OutputPath, VideoName, AudioName,
-                 TranscriptText, RedactPii, RedactAudioPii, CreatedAt)
+                 TranscriptText, TranscriptSegments, CreateCaptions, RedactPii, RedactAudioPii, CreatedAt)
             VALUES
                 (@Id, @ClientId, @Status, @VideoPath, @AudioPath, @OutputPath, @VideoName, @AudioName,
-                 @TranscriptText, @RedactPii, @RedactAudioPii, @CreatedAt)
+                 @TranscriptText, @TranscriptSegments, @CreateCaptions, @RedactPii, @RedactAudioPii, @CreatedAt)
             """, job);
     }
 

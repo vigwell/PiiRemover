@@ -11,8 +11,10 @@ public class VideoJob
     public string? VideoName { get; set; }
     public string? AudioName { get; set; }
     public string? TranscriptText { get; set; }
-    public bool RedactPii { get; set; }
-    public bool RedactAudioPii { get; set; }
+    public string? TranscriptSegments { get; set; }  // JSON [{text,startMs,endMs}] from live STT; null for file uploads
+    public bool CreateCaptions { get; set; }    // generate .vtt sidecar from TranscriptText
+    public bool RedactPii { get; set; }         // redact PII in the captions file
+    public bool RedactAudioPii { get; set; }    // mute PII words in the audio track
     public string CreatedAt { get; set; } = DateTime.UtcNow.ToString("o");
     public string? StartedAt { get; set; }
     public string? CompletedAt { get; set; }

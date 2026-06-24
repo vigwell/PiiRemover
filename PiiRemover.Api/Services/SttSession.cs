@@ -88,6 +88,7 @@ public class SttSession : IAsyncDisposable
                     ? l.GetString() ?? "en-US" : "en-US";
 
                 if (_current is not null) await _current.StopAsync();
+                _streamBaseMs = 0; // reset on explicit new session
                 _current = await StartGoogleStreamAsync(ct);
                 _started = true;
             }
@@ -99,6 +100,9 @@ public class SttSession : IAsyncDisposable
         }
         catch (Exception ex) { _logger.LogWarning(ex, "STT control message error"); }
     }
+
+    // Accumulated ms from all streams that have ended — so timestamps survive the 5-min restart
+    private long _streamBaseMs;
 
     private async Task<GoogleStream> StartGoogleStreamAsync(CancellationToken ct)
     {
@@ -115,11 +119,12 @@ public class SttSession : IAsyncDisposable
         var useMedical = _language.StartsWith("en", StringComparison.OrdinalIgnoreCase);
         var cfg = new RecognitionConfig
         {
-            Encoding              = RecognitionConfig.Types.AudioEncoding.Linear16,
-            SampleRateHertz       = 16000,
-            LanguageCode          = _language,
-            Model                 = useMedical ? "medical_dictation" : "default",
+            Encoding                   = RecognitionConfig.Types.AudioEncoding.Linear16,
+            SampleRateHertz            = 16000,
+            LanguageCode               = _language,
+            Model                      = useMedical ? "medical_dictation" : "default",
             EnableAutomaticPunctuation = true,
+            EnableWordTimeOffsets      = true,  // real per-word timestamps for VTT generation
         };
 
         await call.WriteAsync(new StreamingRecognizeRequest
@@ -129,29 +134,50 @@ public class SttSession : IAsyncDisposable
 
         _logger.LogInformation("Google STT started: language={Lang} model={Model}", _language, cfg.Model);
 
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var cts       = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var baseMs    = _streamBaseMs;
+        var streamSw  = System.Diagnostics.Stopwatch.StartNew();
 
         var responseTask = Task.Run(async () =>
         {
             try
             {
+                long lastEndMs = 0;
                 await foreach (var response in call.GetResponseStream().WithCancellation(cts.Token))
                 {
                     foreach (var r in response.Results)
                     {
                         if (r.Alternatives.Count == 0) continue;
-                        var text    = TranscriptProcessor.Process(r.Alternatives[0].Transcript);
+                        var alt     = r.Alternatives[0];
+                        var text    = TranscriptProcessor.Process(alt.Transcript);
                         var isFinal = r.IsFinal;
-                        if (!string.IsNullOrWhiteSpace(text))
+                        if (string.IsNullOrWhiteSpace(text)) continue;
+
+                        if (isFinal && alt.Words.Count > 0)
+                        {
+                            // Real per-word timestamps — used by the browser to build accurate VTT cues
+                            var startMs = baseMs + (long)alt.Words[0].StartTime.ToTimeSpan().TotalMilliseconds;
+                            var endMs   = baseMs + (long)alt.Words[^1].EndTime.ToTimeSpan().TotalMilliseconds;
+                            lastEndMs   = endMs - baseMs;
+                            await SendJsonAsync(
+                                new { type = "transcript", text, isFinal = true, startMs, endMs },
+                                CancellationToken.None);
+                        }
+                        else
+                        {
                             await SendJsonAsync(new { type = "transcript", text, isFinal }, CancellationToken.None);
+                        }
                     }
                 }
+                // Advance base for next stream restart — use last known result end or elapsed wall time
+                _streamBaseMs = baseMs + Math.Max(lastEndMs, streamSw.ElapsedMilliseconds);
             }
             catch (OperationCanceledException) { }
             catch (RpcException ex) when (ex.StatusCode is StatusCode.Cancelled) { }
             catch (RpcException ex) when (ex.StatusCode is StatusCode.OutOfRange or StatusCode.Unavailable)
             {
                 _logger.LogWarning("Google STT stream ended: {Status}", ex.StatusCode);
+                _streamBaseMs = baseMs + Math.Max(0, streamSw.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {

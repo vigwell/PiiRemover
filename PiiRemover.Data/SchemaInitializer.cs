@@ -139,6 +139,12 @@ public class SchemaInitializer
 
         // ── Migration: add RedactPii / RedactAudioPii to VideoJobs ────────────
         MigrateAddVideoJobPiiFlags(conn);
+
+        // ── Migration: add CreateCaptions to VideoJobs ───────────────────────
+        MigrateAddVideoJobCreateCaptions(conn);
+
+        // ── Migration: add TranscriptSegments to VideoJobs ───────────────────
+        MigrateAddVideoJobTranscriptSegments(conn);
     }
 
     /// <summary>
@@ -321,6 +327,26 @@ public class SchemaInitializer
             tx.Commit();
         }
         catch { tx.Rollback(); throw; }
+    }
+
+    /// <summary>Adds CreateCaptions column to VideoJobs if missing.</summary>
+    private static void MigrateAddVideoJobCreateCaptions(SqliteConnection conn)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name='VideoJobs'";
+        var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
+        if (!ddl.Contains("CreateCaptions", StringComparison.OrdinalIgnoreCase))
+            Execute(conn, "ALTER TABLE VideoJobs ADD COLUMN CreateCaptions INTEGER NOT NULL DEFAULT 0");
+    }
+
+    /// <summary>Adds TranscriptSegments column to VideoJobs if missing.</summary>
+    private static void MigrateAddVideoJobTranscriptSegments(SqliteConnection conn)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name='VideoJobs'";
+        var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
+        if (!ddl.Contains("TranscriptSegments", StringComparison.OrdinalIgnoreCase))
+            Execute(conn, "ALTER TABLE VideoJobs ADD COLUMN TranscriptSegments TEXT");
     }
 
     /// <summary>Adds RedactPii and RedactAudioPii columns to VideoJobs if missing.</summary>

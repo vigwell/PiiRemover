@@ -36,6 +36,8 @@ public class VideoController : ControllerBase
         IFormFile video,
         IFormFile? audio,
         [FromForm] string? transcriptText,
+        [FromForm] string? transcriptSegments,
+        [FromForm] bool createCaptions = false,
         [FromForm] bool redactPii = false,
         [FromForm] bool redactAudioPii = false,
         CancellationToken ct = default)
@@ -81,8 +83,10 @@ public class VideoController : ControllerBase
             OutputPath     = Path.Combine(outputPath, $"{jobId}.mp4"),
             VideoName      = video.FileName,
             AudioName      = audio?.FileName,
-            TranscriptText = transcriptText,
-            RedactPii      = redactPii,
+            TranscriptText     = transcriptText,
+            TranscriptSegments = transcriptSegments,
+            CreateCaptions     = createCaptions,
+            RedactPii      = createCaptions && redactPii,   // redactPii only meaningful when captions are created
             RedactAudioPii = redactAudioPii,
         };
 
@@ -92,6 +96,26 @@ public class VideoController : ControllerBase
             new { type = "job.queued", jobId, payload = new { } });
 
         return Ok(new { jobId });
+    }
+
+    // ── GET /api/v1/video/captions/{jobId} ───────────────────────────────────
+
+    [HttpGet("captions/{jobId}")]
+    public async Task<IActionResult> Captions(string jobId)
+    {
+        if (!CheckLicense(out var err)) return err!;
+        var clientId = GetClientId();
+
+        var job = await _jobs.GetAsync(jobId);
+        if (job is null)                                return NotFound(new { error = "Job not found." });
+        if (clientId != 0 && job.ClientId != clientId) return Forbid();
+        if (job.Status != "completed")                  return StatusCode(425, new { error = "Job not yet completed." });
+
+        var vttPath = Path.ChangeExtension(job.OutputPath, ".vtt");
+        if (!System.IO.File.Exists(vttPath))
+            return NotFound(new { error = "No captions file — job was processed without a transcript." });
+
+        return PhysicalFile(vttPath, "text/vtt", $"captions_{jobId}.vtt");
     }
 
     // ── GET /api/v1/video/download/{jobId} ────────────────────────────────────

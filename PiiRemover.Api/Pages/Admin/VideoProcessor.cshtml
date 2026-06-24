@@ -68,6 +68,19 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 <!-- ── Tab 1: Record & Test ─────────────────────────────────────────────────── -->
 <div class="tab-pane active" id="pane-record">
 
+  <!-- ── Live Transcript ───────────────────────────────────────────────────── -->
+  <div class="card" id="transcriptCard" style="display:none">
+    <h3>Live Transcript <span style="font-size:11px;font-weight:400;color:var(--text3)">(editable — saved as a captions .vtt file alongside the video)</span></h3>
+    <div id="sttInterimBar" style="display:none;font-size:12px;color:var(--text3);font-style:italic;
+         background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+         padding:6px 10px;margin-bottom:8px;min-height:24px">
+      <span id="sttInterimText">…</span>
+    </div>
+    <div class="form-group" style="margin:0">
+      <textarea id="sttTranscript" class="ctrl" placeholder="Transcript will appear here as you speak…&#10;&#10;Try saying something with PII — e.g. &quot;Patient name is Victor Cohen, ID 123456789&quot;&#10;If PII Redaction is enabled, the captions (.vtt) file will show: &quot;Patient name is ████████████, ID █████████&quot;&#10;You can edit this text before uploading. The MP4 video is never altered."></textarea>
+    </div>
+  </div>
+
   <!-- ── Job Progress — always visible at top ──────────────────────────────── -->
   <div class="card" id="progressCard">
     <h3>Job Progress</h3>
@@ -101,7 +114,19 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
         <div style="font-size:14px;font-weight:600;color:#6abe39">Your video is ready!</div>
         <div id="downloadMeta" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
       </div>
-      <a id="downloadLink" class="btn btn-primary" href="#" download>⬇ Download MP4</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <a id="downloadLink" class="btn btn-primary" href="#" download>⬇ Download MP4</a>
+        <a id="captionsLink" class="btn" href="#" download style="display:none">⬇ Captions (.vtt)</a>
+        <button class="btn" id="playBtn" onclick="togglePlayer()" style="display:none">▶ Play</button>
+      </div>
+    </div>
+
+    <!-- Inline player (shown when Play is clicked) -->
+    <div id="playerCard" style="display:none;margin-top:14px">
+      <video id="playerVideo" controls
+             style="width:100%;border-radius:6px;background:#000;max-height:420px;display:block">
+        Your browser does not support the video element.
+      </video>
     </div>
 
     <!-- Cancelled banner -->
@@ -142,45 +167,54 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
            style="width:100%;max-height:300px;border-radius:6px;background:#000;display:none"></video>
   </div>
 
-  <!-- ── Live Transcript ───────────────────────────────────────────────────── -->
-  <div class="card" id="transcriptCard" style="display:none">
-    <h3>Live Transcript <span style="font-size:11px;font-weight:400;color:var(--text3)">(editable — will be burned into the video)</span></h3>
-    <div id="sttInterimBar" style="display:none;font-size:12px;color:var(--text3);font-style:italic;
-         background:var(--surface2);border:1px solid var(--border);border-radius:4px;
-         padding:6px 10px;margin-bottom:8px;min-height:24px">
-      <span id="sttInterimText">…</span>
-    </div>
-    <div class="form-group" style="margin:0">
-      <textarea id="sttTranscript" class="ctrl" placeholder="Transcript will appear here as you speak…&#10;&#10;Try saying something with PII — e.g. &quot;Patient name is Victor Cohen, ID 123456789&quot;&#10;If PII Redaction is enabled, the text burned into the video overlay will show: &quot;Patient name is ████████████, ID █████████&quot;&#10;You can also edit this box before uploading."></textarea>
-    </div>
-  </div>
-
-  <!-- ── Shared PII flags ───────────────────────────────────────────────────── -->
+  <!-- ── Shared processing flags ─────────────────────────────────────────── -->
   <div class="card">
-    <h3 style="margin-bottom:12px">🔒 PII Redaction Options</h3>
-    <div style="display:flex;flex-wrap:wrap;gap:18px">
+    <h3 style="margin-bottom:14px">⚙ Processing Options</h3>
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <!-- Flag 1: Create Captions -->
       <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-        <input type="checkbox" id="chkRedactPii"
-               @(Model.VideoSettingsMap.TryGetValue("video:piiRedactionEnabled", out var rv) && rv == "true" ? "checked" : "")
+        <input type="checkbox" id="chkCreateCaptions" checked
+               onchange="onCreateCaptionsChange(this.checked)"
                style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
         <span>
-          <span style="font-size:13px;font-weight:600">🔒 Redact PII from Transcript</span>
-          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:360px">
-            Matched PII in the transcript (names, IDs, dates…) is replaced with █ in the video overlay. Applies to both recording and file upload.
+          <span style="font-size:13px;font-weight:600">📄 Create Captions (.vtt)</span>
+          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:440px">
+            Generates a WebVTT captions file from the transcript text. The video itself is not altered —
+            captions are a separate sidecar file you can play together with the MP4 or distribute independently.
+            Requires transcript text (spoken or typed above).
           </span>
         </span>
       </label>
+
+      <!-- Flag 2: Redact PII in Captions (sub-option, enabled only when createCaptions=true) -->
+      <div id="redactPiiRow" style="opacity:1;padding-left:26px;transition:opacity .2s">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+          <input type="checkbox" id="chkRedactPii" checked
+                 style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+          <span>
+            <span style="font-size:13px;font-weight:600">🔒 Redact PII in Captions</span>
+            <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:420px">
+              PII found in the transcript (names, IDs, dates…) is replaced with █ in the captions file.
+              The MP4 video is never modified — only the .vtt text is redacted.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Flag 3: Silence PII in Audio -->
       <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-        <input type="checkbox" id="chkRedactAudio"
-               @(Model.VideoSettingsMap.TryGetValue("video:piiAudioRedactionEnabled", out var av) && av == "true" ? "checked" : "")
+        <input type="checkbox" id="chkRedactAudio" checked
                style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
         <span>
-          <span style="font-size:13px;font-weight:600">🔇 Silence PII Words in Audio <span style="font-size:10px;background:#1677ff;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">NEW</span></span>
-          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:380px">
-            Silences moments in the MP4 where PII words were spoken — 100% on-premises. Applies to both recording and file upload.
+          <span style="font-size:13px;font-weight:600">🔇 Silence PII Words in Audio</span>
+          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:440px">
+            Runs offline speech recognition on the audio track to find exactly when PII words were spoken,
+            then mutes those moments in the output MP4 — 100% on-premises. Requires audio file to be provided.
           </span>
         </span>
       </label>
+
     </div>
   </div>
 
@@ -351,41 +385,63 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
                  value="@(Model.VideoSettingsMap.GetValueOrDefault("video:cleanupInputOlderThanHours","24"))" />
           <p class="hint">Delete input files for completed/failed jobs older than this many hours (runs hourly). Set to 0 to disable automatic cleanup.</p>
         </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Manual Input Cleanup</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+            <button type="button" class="btn btn-danger btn-sm" onclick="cleanInputNow()">🗑 Delete All Input Files Now</button>
+            <span id="cleanResult" style="font-size:12px;color:var(--text3)"></span>
+          </div>
+          <p class="hint">Immediately deletes every file in the <code>input/</code> folder (uploaded originals). Output MP4 and captions files are unaffected.</p>
+        </div>
       </div>
     </div>
 
     <div class="card">
-      <h3>🔒 PII Redaction</h3>
+      <h3>🔒 Processing Options Defaults</h3>
+      <p class="hint" style="margin-bottom:14px">
+        These are the default values pre-checked in the <strong>⚙ Processing Options</strong> panel on the Record &amp; Test tab.
+        Each flag is a per-request setting — users can override them before uploading.
+      </p>
 
       <div class="form-group">
-        <label>Redact PII from Transcript Before Video Overlay</label>
+        <label>📄 Create Captions (.vtt) — default</label>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
-          <input type="checkbox" name="piiRedactionEnabled" value="true"
-                 @(Model.VideoSettingsMap.GetValueOrDefault("video:piiRedactionEnabled","false")=="true"?"checked":"") />
-          Enable PII redaction on transcript text
+          <input type="checkbox" name="defaultCreateCaptions" value="true"
+                 @(Model.VideoSettingsMap.GetValueOrDefault("video:defaultCreateCaptions","true")!="false"?"checked":"") />
+          Pre-check "Create Captions" in the Processing Options panel
         </label>
         <p class="hint">
-          When enabled, the dictated transcript text is passed through the client's active PII field rules before being burned as a text overlay into the video.
-          Any matched PII (names, dates, IDs, etc.) will be replaced with the field's replacement character (e.g. <code>█</code>) in the video overlay.
-          The original transcript submitted by the user is not modified — only the overlay burned into the MP4 is redacted.
+          When checked, a WebVTT captions sidecar file (.vtt) is generated from the transcript text alongside the MP4.
+          The video itself is never altered — captions are a separate file you can play together with the MP4 or distribute independently.
+          Has no effect when no transcript text is provided.
         </p>
       </div>
 
       <div class="form-group" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-        <label>🔇 Silence PII Words in Audio Track <span style="background:rgba(255,77,79,.15);color:#ff7875;border:1px solid rgba(255,77,79,.3);font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:6px">NEW</span></label>
+        <label>🔒 Redact PII in Captions — default</label>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
-          <input type="checkbox" name="piiAudioRedactionEnabled" value="true"
-                 @(Model.VideoSettingsMap.GetValueOrDefault("video:piiAudioRedactionEnabled","false")=="true"?"checked":"") />
-          Silence PII words in the audio track of the final MP4
+          <input type="checkbox" name="piiRedactionEnabled" value="true"
+                 @(Model.VideoSettingsMap.GetValueOrDefault("video:piiRedactionEnabled","true")!="false"?"checked":"") />
+          Pre-check "Redact PII in Captions" in the Processing Options panel
         </label>
         <p class="hint">
-          Runs an offline speech recognition pass on the uploaded audio file at processing time.
-          Uses per-word timestamps (<code>GetAudioForWordRange</code>) to identify exactly <em>when</em> each PII word was spoken,
-          then instructs FFmpeg to mute those precise moments in the output MP4.
-          Example: if you say "patient name is Victor Cohen" the audio will be silent during "Victor Cohen"
-          while everything else remains audible — 100% on-premises, no cloud calls.
-          <strong>Recommended: also enable "Redact PII from Transcript" above for full text + audio protection.</strong>
-          Note: adds an extra offline STT pass proportional to audio length.
+          PII found in the transcript (names, IDs, dates…) is replaced with █ in the captions file.
+          The MP4 video is never modified — only the .vtt text is redacted.
+          Ignored (server-side) when <em>createCaptions</em> is false for that request.
+        </p>
+      </div>
+
+      <div class="form-group" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <label>🔇 Silence PII Words in Audio — default</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" name="piiAudioRedactionEnabled" value="true"
+                 @(Model.VideoSettingsMap.GetValueOrDefault("video:piiAudioRedactionEnabled","true")!="false"?"checked":"") />
+          Pre-check "Silence PII Words in Audio" in the Processing Options panel
+        </label>
+        <p class="hint">
+          Runs offline speech recognition on the audio track to find exactly when PII words were spoken,
+          then mutes those moments in the output MP4 via FFmpeg — 100% on-premises, no cloud calls.
+          Requires audio file to be provided. Enable alongside Redact PII in Captions for full text + audio protection.
         </p>
       </div>
     </div>
@@ -412,8 +468,42 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 <div class="tab-pane" id="pane-guide">
   <div class="card">
     <h3>Authentication</h3>
-    <p style="margin-bottom:10px;color:var(--text2);font-size:13px">All <code>/api/v1/*</code> endpoints require an <strong>X-Api-Key</strong> header. Obtain your key from the Clients page.</p>
+    <p style="margin-bottom:10px;color:var(--text2);font-size:13px">
+      All <code>/api/v1/*</code> endpoints require an <strong>X-Api-Key</strong> header. Obtain your key from the
+      <a href="/admin/clients">Clients page</a>. Admin sessions (cookie login) bypass the key requirement.
+    </p>
     <pre class="code-block">X-Api-Key: your-api-key-here</pre>
+  </div>
+
+  <div class="card">
+    <h3>How It Works — Video + Captions</h3>
+    <p style="color:var(--text2);font-size:13px;line-height:1.8;margin-bottom:10px">
+      PiiRemover processes video <strong>without burning any text into the video stream.</strong>
+      When you supply a <code>transcriptText</code> and set <code>createCaptions=true</code>,
+      the server generates a companion <strong>WebVTT captions file (.vtt)</strong> —
+      a standard sidecar format supported by all major video players and browsers.
+      The three per-request flags give you independent control over each protection layer:
+    </p>
+    <table style="margin-bottom:10px">
+      <thead><tr><th>Flag</th><th>Default</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>createCaptions</code></td><td>false</td><td>Generate .vtt captions file from transcriptText. No effect if transcriptText is empty.</td></tr>
+        <tr><td><code>redactPii</code></td><td>false</td><td>Replace PII in captions with █. Ignored when createCaptions=false.</td></tr>
+        <tr><td><code>redactAudioPii</code></td><td>false</td><td>Mute PII words in the MP4 audio track. Independent of captions. Requires audio file.</td></tr>
+      </tbody>
+    </table>
+    <table style="margin-bottom:0">
+      <thead><tr><th>What you get</th><th>File</th><th>Content</th></tr></thead>
+      <tbody>
+        <tr><td>🎬 Processed video</td><td><code>output_{'{'}jobId{'}'}.mp4</code></td><td>Re-encoded MP4, fps=10, 1280px wide. Audio PII silenced if enabled.</td></tr>
+        <tr><td>📄 Captions</td><td><code>captions_{'{'}jobId{'}'}.vtt</code></td><td>WebVTT with timed transcript segments (~4 s each, estimated at 150 wpm). PII-redacted if enabled.</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--text2);font-size:12px;margin-top:10px">
+      ✅ Play both together in any browser with the built-in <strong>▶ Play</strong> button — captions appear as standard subtitles.<br/>
+      ✅ Download and keep them side-by-side — VLC, Windows Media Player, and QuickTime all support .vtt sidecar files.<br/>
+      ✅ The original video quality is preserved; no text is ever baked into the pixels.
+    </p>
   </div>
 
   <div class="card">
@@ -422,12 +512,15 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
       <li>Issue a WebSocket token:<pre class="code-block" style="margin:6px 0">POST /api/v1/video/ws-token
 X-Api-Key: your-key
 
-Response: { "token": "abc123...", "wsUrl": "ws://host/ws/video?token=abc123..." }</pre></li>
-      <li>Connect the WebSocket:<pre class="code-block" style="margin:6px 0">const ws = new WebSocket(wsUrl);
+Response: { "token": "abc123...", "wsPath": "/ws/video?token=abc123..." }</pre></li>
+      <li>Connect the WebSocket (build wss:// or ws:// from the current page protocol):<pre class="code-block" style="margin:6px 0">const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+const ws = new WebSocket(`${'{'}proto{'}'}://${'{'}location.host{'}'}${'{'}data.wsPath{'}'}`);
 ws.onmessage = e => {
   const msg = JSON.parse(e.data);
   if (msg.type === 'job.completed') {
-    window.location = msg.payload.downloadUrl; // download MP4
+    // msg.payload.downloadUrl  — MP4
+    // msg.payload.captionsUrl  — .vtt (null if no transcript was supplied)
+    // msg.payload.durationMs   — processing time
   }
 };</pre></li>
       <li>Upload the video (multipart/form-data):<pre class="code-block" style="margin:6px 0">POST /api/v1/video/upload
@@ -435,21 +528,33 @@ X-Api-Key: your-key
 Content-Type: multipart/form-data
 
 Fields:
-  video          (File,   required) — screen recording WebM/MP4/MKV
-  audio          (File,   optional) — separate mic audio WebM
-  transcriptText (string, optional) — dictated text to burn as overlay
-  redactPii      (bool,   optional) — redact PII from transcript before overlay (default: false)
-                                      Matched names/IDs/dates replaced with █ in the video text
-  redactAudioPii (bool,   optional) — silence PII words in the audio track (default: false)
-                                      Runs offline STT, mutes exact timestamps where PII was spoken
-                                      Requires audio field to be provided
+  video          (File,   required) — screen recording WebM / MP4 / MKV / MOV
+  audio          (File,   optional) — separate mic audio WebM / MP3 / WAV
+  transcriptText (string, optional) — dictated text from STT or manual input
+
+  createCaptions  (bool, default: false) — generate a WebVTT .vtt sidecar file from transcriptText
+                                           Has no effect when transcriptText is empty
+  redactPii       (bool, default: false) — replace PII matches with █ in the captions file
+                                           Ignored when createCaptions=false
+  redactAudioPii  (bool, default: false) — silence PII words in the audio track of the MP4
+                                           Runs offline STT pass; requires audio field to be provided
 
 Response: { "jobId": "abc123..." }</pre></li>
       <li>Wait for WebSocket event <code>job.completed</code> or poll <code>GET /api/v1/video/status/{'{'}jobId{'}'}</code></li>
-      <li>Download the result:<pre class="code-block" style="margin:6px 0">GET /api/v1/video/download/{'{'}jobId{'}'}
+      <li>Download the MP4:<pre class="code-block" style="margin:6px 0">GET /api/v1/video/download/{'{'}jobId{'}'}
 X-Api-Key: your-key
 
-Response: video/mp4 stream (use Content-Disposition filename)</pre></li>
+Response: video/mp4 binary stream</pre></li>
+      <li>Download the captions (when <code>transcriptText</code> was provided):<pre class="code-block" style="margin:6px 0">GET /api/v1/video/captions/{'{'}jobId{'}'}
+X-Api-Key: your-key
+
+Response: text/vtt   (standard WebVTT format)</pre></li>
+      <li>Play both together in any player:<pre class="code-block" style="margin:6px 0">&lt;!-- HTML5 browser player --&gt;
+&lt;video controls&gt;
+  &lt;source src="/api/v1/video/download/{'{'}jobId{'}'}" type="video/mp4"&gt;
+  &lt;track kind="subtitles" src="/api/v1/video/captions/{'{'}jobId{'}'}"
+         srclang="en" label="Transcript" default&gt;
+&lt;/video&gt;</pre></li>
     </ol>
   </div>
 
@@ -460,12 +565,20 @@ Response: video/mp4 stream (use Content-Disposition filename)</pre></li>
       <tbody>
         <tr><td><code>job.queued</code></td><td>—</td><td>Job accepted and waiting in queue</td></tr>
         <tr><td><code>job.processing</code></td><td>—</td><td>FFmpeg has started</td></tr>
-        <tr><td><code>job.completed</code></td><td><code>downloadUrl</code>, <code>durationMs</code></td><td>MP4 ready for download</td></tr>
+        <tr><td><code>job.completed</code></td><td><code>downloadUrl</code>, <code>captionsUrl</code>, <code>durationMs</code></td><td>MP4 ready; captionsUrl is null when no transcript was supplied</td></tr>
         <tr><td><code>job.failed</code></td><td><code>error</code></td><td>FFmpeg failed — see error message</td></tr>
       </tbody>
     </table>
-    <pre class="code-block" style="margin-top:10px">// All messages follow this envelope:
-{ "type": "job.completed", "jobId": "abc123", "payload": { "downloadUrl": "/api/v1/video/download/abc123", "durationMs": 4200 } }</pre>
+    <pre class="code-block" style="margin-top:10px">// job.completed envelope:
+{
+  "type": "job.completed",
+  "jobId": "abc123",
+  "payload": {
+    "downloadUrl": "/api/v1/video/download/abc123",
+    "captionsUrl": "/api/v1/video/captions/abc123",  // null if no transcript
+    "durationMs":  4200
+  }
+}</pre>
   </div>
 
   <div class="card">
@@ -476,91 +589,105 @@ X-Api-Key: your-key
 
 Response:
 {
-  "jobId": "...",
-  "status": "queued|processing|completed|failed",
-  "createdAt": "...",
-  "startedAt": "...",
-  "completedAt": "...",
-  "durationMs": 4200,
-  "errorMsg": null,
-  "downloadUrl": "/api/v1/video/download/..." // only when completed
+  "jobId":       "...",
+  "status":      "queued | processing | completed | failed",
+  "createdAt":   "2026-06-24T10:00:00Z",
+  "startedAt":   "2026-06-24T10:00:02Z",
+  "completedAt": "2026-06-24T10:00:18Z",
+  "durationMs":  4200,
+  "errorMsg":    null,
+  "downloadUrl": "/api/v1/video/download/..."   // only when completed
 }</pre>
   </div>
 
   <div class="card">
-    <h3>Real-Time STT Integration</h3>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:8px">For live speech-to-text during recording, use the STT WebSocket endpoint:</p>
+    <h3>Real-Time STT Integration (Google Cloud Speech)</h3>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:8px">
+      For live speech-to-text during recording the server uses <strong>Google Cloud Speech V1</strong>
+      with the <code>medical_dictation</code> model for en-US. Post-processing converts spoken numbers,
+      dates, and punctuation commands (e.g. "period" → ".").
+    </p>
     <pre class="code-block">// 1. Get STT token
 POST /api/v1/stt/ws-token
 X-Api-Key: your-key
 
-// 2. Connect
-const sttWs = new WebSocket(wsUrl);  // wsUrl from response
+Response: { "token": "...", "wsPath": "/ws/stt?token=..." }
+
+// 2. Connect (use same wss/ws scheme logic as video)
+const sttWs = new WebSocket(`${'{'}proto{'}'}://${'{'}location.host{'}'}${'{'}data.wsPath{'}'}`);
 
 // 3. Start recognition
 sttWs.onopen = () => sttWs.send(JSON.stringify({ type: 'start', language: 'en-US' }));
 
-// 4. Feed raw PCM audio (16 kHz, 16-bit signed, mono)
-// Browser: AudioContext → ScriptProcessorNode → Float32→Int16 → sttWs.send(buffer)
+// 4. Feed raw PCM audio — 16 kHz, 16-bit signed LE, mono
+//    Browser: AudioContext(16000) → ScriptProcessorNode → Float32 → Int16 → binary send
 
-// 5. Receive transcripts
+// 5. Receive events
 sttWs.onmessage = e => {
   const msg = JSON.parse(e.data);
-  if (msg.type === 'transcript') {
-    console.log(msg.isFinal ? '[final]' : '[interim]', msg.text);
-  }
+  // msg.type === 'ready'      — engine started, ready to receive audio
+  // msg.type === 'transcript' — msg.text (string), msg.isFinal (bool)
+  // msg.type === 'error'      — msg.message
 };
 
 // 6. Stop
 sttWs.send(JSON.stringify({ type: 'stop' }));</pre>
+    <p style="color:var(--text2);font-size:12px;margin-top:8px">
+      Supported languages: en-US (medical_dictation model), all other BCP-47 codes (default model).<br/>
+      Google stream auto-restarts on the 5-minute limit — no audio is lost during the restart.
+    </p>
   </div>
 
   <div class="card">
-    <h3>🔒 PII Redaction — Text Overlay</h3>
+    <h3>🔒 PII Redaction — Captions File</h3>
     <p style="color:var(--text2);font-size:13px;margin-bottom:8px">
-      When <strong>PII Redaction on Transcript</strong> is enabled in Settings, the <code>transcriptText</code> field is automatically
-      filtered through the client's active PII field rules before being burned into the video overlay.
-      The original text submitted by the caller is not stored in redacted form — only the burned overlay in the MP4 is redacted.
+      When <code>createCaptions=true</code> and <code>redactPii=true</code>, the <code>transcriptText</code>
+      is filtered through the client's active PII field rules <em>before</em> the .vtt file is written.
+      Matched PII is replaced with the field's replacement character in the captions.
+      <strong>The MP4 video is never modified.</strong>
     </p>
-    <pre class="code-block">// Example: transcript "Patient John Smith DOB 01/01/1980" becomes:
-// "Patient ████████████ DOB ██████████"  ← burned into video
-// (actual replacement character depends on PII field configuration)</pre>
-    <p style="color:var(--text2);font-size:12px;margin-top:8px">
-      Configured via: <code>video:piiRedactionEnabled</code> = <code>true/false</code> in the Settings table.
-    </p>
+    <pre class="code-block">// Request flags: createCaptions=true, redactPii=true
+//
+// Transcript:   "Patient John Smith DOB 01/01/1980 ID 123456789"
+// Captions .vtt: "Patient ████████████ DOB ██████████ ID █████████"
+// MP4 video:     unchanged — no text baked into video pixels
+//
+// Request flags: createCaptions=true, redactPii=false
+// Captions .vtt: "Patient John Smith DOB 01/01/1980 ID 123456789"  ← not redacted
+//
+// Request flags: createCaptions=false
+// No .vtt file generated — captionsUrl is null in job.completed</pre>
   </div>
 
   <div class="card" style="border-color:rgba(255,77,79,.25)">
-    <h3>🔇 PII Redaction — Audio Track Silencing <span style="background:rgba(255,77,79,.15);color:#ff7875;border:1px solid rgba(255,77,79,.3);font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:6px">NEW</span></h3>
+    <h3>🔇 PII Redaction — Audio Track Silencing</h3>
     <p style="color:var(--text2);font-size:13px;margin-bottom:10px">
-      When <strong>Silence PII Words in Audio Track</strong> is enabled in Settings, the server runs an additional offline
-      speech recognition pass on the uploaded audio file at processing time. Each spoken word is checked against the client's
-      PII field rules. Words that match PII are <strong>silenced</strong> (muted) in the final MP4 — not just redacted in the overlay.
-    </p>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:10px">
-      The silencing is applied by FFmpeg using per-word timestamps extracted via
-      <code>RecognitionResult.GetAudioForWordRange()</code> from Windows Speech API —
-      100% on-premises, no cloud calls required.
+      When <strong>Silence PII Words in Audio Track</strong> is enabled, the server runs an offline
+      speech recognition pass on the uploaded audio file. Each spoken word is checked against the client's
+      PII rules. Words that match are <strong>muted</strong> in the final MP4 using FFmpeg's
+      <code>volume=0:enable='between(t,…)'</code> filter — 100% on-premises, no cloud calls.
     </p>
     <pre class="code-block">// Say: "patient name is Victor Cohen, ID 123456789"
 //
-// Text overlay (piiRedactionEnabled=true):
+// Captions (redactPii=true):
 //   "patient name is ████████████, ID █████████"
 //
-// Audio track (piiAudioRedactionEnabled=true):
+// Audio track (redactAudioPii=true):
 //   [audible]  "patient name is"
-//   [silence]  ░░░░░░░░░░░░░░  ← "Victor Cohen" silenced
+//   [silence]  ░░░░░░░░░░░░░░  ← "Victor Cohen" muted
 //   [audible]  ", ID"
-//   [silence]  ░░░░░░░░░░  ← "123456789" silenced</pre>
+//   [silence]  ░░░░░░░░░░  ← "123456789" muted</pre>
     <p style="color:var(--text2);font-size:12px;margin-top:8px">
-      Configured via: <code>video:piiAudioRedactionEnabled</code> = <code>true/false</code> in the Settings table.
-      Enable alongside <code>video:piiRedactionEnabled</code> for full text + audio protection.
+      Requires audio file to be provided. Enable alongside <code>redactPii</code> for full caption + audio protection.
     </p>
   </div>
 
   <div class="card">
     <h3>License Requirement</h3>
-    <p style="color:var(--text2);font-size:13px">The <code>VideoProcessing</code> feature must be present in the license file. If missing, all video and STT endpoints return <strong>HTTP 402</strong>.</p>
+    <p style="color:var(--text2);font-size:13px">
+      The <code>VideoProcessing</code> feature must be present in the license file.
+      If missing, all <code>/api/v1/video/*</code> and <code>/api/v1/stt/*</code> endpoints return <strong>HTTP 402</strong>.
+    </p>
   </div>
 
   <div class="card">
@@ -568,11 +695,14 @@ sttWs.send(JSON.stringify({ type: 'stop' }));</pre>
     <table>
       <thead><tr><th>Parameter</th><th>Default</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td>Max file size</td><td>500 MB</td><td>Configurable in Settings tab</td></tr>
-        <tr><td>Supported formats</td><td>WebM, MP4, MKV, MOV</td><td>Any format FFmpeg can decode</td></tr>
-        <tr><td>Output format</td><td>MP4 (H.264 + AAC)</td><td>x264 ultrafast CRF 32 by default</td></tr>
+        <tr><td>Max file size</td><td>500 MB</td><td>Per file; configurable in Settings tab</td></tr>
+        <tr><td>Supported video formats</td><td>WebM, MP4, MKV, MOV</td><td>Any container FFmpeg can decode</td></tr>
+        <tr><td>Supported audio formats</td><td>WebM, MP3, WAV, AAC</td><td>Separate audio track (optional)</td></tr>
+        <tr><td>Output video</td><td>MP4 (H.264 + AAC)</td><td>x264 ultrafast, CRF 32, 1280px, 10 fps</td></tr>
+        <tr><td>Captions format</td><td>WebVTT (.vtt)</td><td>~10 words per segment, ~150 wpm estimated timing</td></tr>
         <tr><td>Processing timeout</td><td>10 minutes</td><td>FFmpeg killed after timeout</td></tr>
-        <tr><td>STT audio format</td><td>16 kHz, 16-bit PCM, mono</td><td>Required for System.Speech engine</td></tr>
+        <tr><td>STT audio format</td><td>16 kHz, 16-bit PCM, mono</td><td>Browser AudioContext resamples automatically</td></tr>
+        <tr><td>STT engine</td><td>Google Cloud Speech V1</td><td>medical_dictation (en-US); default model for other languages</td></tr>
         <tr><td>WS token expiry</td><td>10 minutes</td><td>Configurable in Settings tab</td></tr>
       </tbody>
     </table>
@@ -632,7 +762,7 @@ function setWsChip(ok) {
   c.textContent = ok ? '🟢 WS Connected' : '🔴 WS Disconnected';
 }
 
-function showProgress(state, { text = '', downloadUrl = '', meta = '', error = '' } = {}) {
+function showProgress(state, { text = '', downloadUrl = '', captionsUrl = '', meta = '', error = '' } = {}) {
   const idle       = document.getElementById('idleBanner');
   const proc       = document.getElementById('processingBanner');
   const dl         = document.getElementById('downloadBanner');
@@ -647,6 +777,73 @@ function showProgress(state, { text = '', downloadUrl = '', meta = '', error = '
   if (meta) document.getElementById('downloadMeta').textContent = meta;
   if (downloadUrl) document.getElementById('downloadLink').href = downloadUrl;
   if (error) { document.getElementById('errorMsg').textContent = error; wsLog(`Job failed — ${error}`); }
+
+  // Captions download link + Play button
+  const captLink = document.getElementById('captionsLink');
+  const playBtn  = document.getElementById('playBtn');
+  captLink.style.display = captionsUrl ? '' : 'none';
+  if (captionsUrl) captLink.href = captionsUrl;
+  if (downloadUrl) {
+    playBtn.style.display       = '';
+    playBtn.dataset.videoUrl    = downloadUrl;
+    playBtn.dataset.captionsUrl = captionsUrl || '';
+  } else {
+    playBtn.style.display = 'none';
+  }
+  // Hide player when progress state changes away from done
+  if (state !== 'done') document.getElementById('playerCard').style.display = 'none';
+}
+
+function onCreateCaptionsChange(enabled) {
+  const row = document.getElementById('redactPiiRow');
+  const chk = document.getElementById('chkRedactPii');
+  row.style.opacity = enabled ? '1' : '0.4';
+  chk.disabled = !enabled;
+  if (enabled) chk.checked = true;   // auto-enable redact when captions are turned on
+  else         chk.checked = false;
+}
+
+function togglePlayer() {
+  const card    = document.getElementById('playerCard');
+  const btn     = document.getElementById('playBtn');
+  const visible = card.style.display !== 'none' && card.style.display !== '';
+  if (visible) {
+    const v = document.getElementById('playerVideo');
+    v.pause();
+    card.style.display = 'none';
+    btn.textContent = '▶ Play';
+    return;
+  }
+
+  const videoUrl    = btn.dataset.videoUrl;
+  const captionsUrl = btn.dataset.captionsUrl;
+  const v = document.getElementById('playerVideo');
+
+  // Rebuild track element before setting src (updating src on an existing track is unreliable)
+  const old = v.querySelector('track');
+  if (old) v.removeChild(old);
+
+  if (captionsUrl) {
+    const track = document.createElement('track');
+    track.kind    = 'subtitles';
+    track.src     = captionsUrl;
+    track.srclang = 'en';
+    track.label   = 'Transcript';
+    track.default = true;
+    v.appendChild(track);
+  }
+
+  v.src = videoUrl;
+
+  // Once metadata loads, explicitly force captions on (track.default alone is unreliable in Chrome)
+  v.addEventListener('loadedmetadata', () => {
+    for (const t of v.textTracks) t.mode = 'showing';
+    v.play().catch(() => {}); // auto-play; ignore NotAllowedError if browser blocks it
+  }, { once: true });
+
+  v.load();
+  card.style.display = '';
+  btn.textContent = '⏹ Hide Player';
 }
 
 function handleVideoWsMsg(msg) {
@@ -671,7 +868,9 @@ function handleVideoWsMsg(msg) {
     setStep('step-completed', 'done');
     showProgress('done', {
       downloadUrl: msg.payload.downloadUrl,
-      meta: `Processing completed in ${(msg.payload.durationMs/1000).toFixed(1)}s`
+      captionsUrl: msg.payload.captionsUrl || '',
+      meta: `Processing completed in ${(msg.payload.durationMs/1000).toFixed(1)}s` +
+            (msg.payload.captionsUrl ? ' — captions ready' : '')
     });
   } else if (msg.type === 'job.failed') {
     setStep('step-queued', 'done');
@@ -685,6 +884,7 @@ function handleVideoWsMsg(msg) {
 // ── STT WebSocket ─────────────────────────────────────────────────────────────
 let sttWs = null;
 let audioCtx = null, scriptProc = null;
+let transcriptSegments = []; // [{text, startMs, endMs}] from live STT final results
 
 async function connectSttWs() {
   wsLog('STT WS: requesting token…');
@@ -715,12 +915,14 @@ async function connectSttWs() {
         wsLog(`STT WS: engine error — ${msg.message}`);
         setSttChip('error');
       } else if (msg.type === 'transcript') {
-        const ta       = document.getElementById('sttTranscript');
-        const interim  = document.getElementById('sttInterimText');
+        const ta         = document.getElementById('sttTranscript');
+        const interim    = document.getElementById('sttInterimText');
         const interimBar = document.getElementById('sttInterimBar');
         if (msg.isFinal) {
           ta.value = (ta.value + ' ' + msg.text).trim();
-          // clear interim bar once the word is committed
+          // Accumulate real timestamp segment when available
+          if (msg.startMs !== undefined && msg.endMs !== undefined)
+            transcriptSegments.push({ text: msg.text, startMs: msg.startMs, endMs: msg.endMs });
           if (interim) interim.textContent = '…';
           if (interimBar) interimBar.style.display = 'none';
         } else {
@@ -768,6 +970,16 @@ let screenChunks = [], audioChunks = [];
 let recStart = 0, recTimer = null;
 
 async function startRecording() {
+  // Reset state from any previous session
+  document.getElementById('sttTranscript').value = '';
+  document.getElementById('sttInterimText').textContent = '…';
+  document.getElementById('sttInterimBar').style.display = 'none';
+  document.getElementById('transcriptCard').style.display = 'none';
+  document.getElementById('playerCard').style.display = 'none';
+  transcriptSegments = [];
+  currentJobId = null;
+  showProgress('idle');
+
   try {
     const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     const micStream    = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -840,7 +1052,13 @@ function onBrowseVideoChange() {
     info.textContent = `${f.name} — ${(f.size / 1024 / 1024).toFixed(1)} MB`;
     btn.disabled = false;
     hint.textContent = '';
+    document.getElementById('sttTranscript').value = '';
+    document.getElementById('sttInterimText').textContent = '…';
+    document.getElementById('sttInterimBar').style.display = 'none';
+    document.getElementById('playerCard').style.display = 'none';
     document.getElementById('transcriptCard').style.display = '';
+    transcriptSegments = [];
+    currentJobId = null;
     showProgress('idle');
   } else {
     info.textContent = '';
@@ -861,8 +1079,10 @@ async function uploadBrowsedFiles() {
   if (audioFile) fd.append('audio', audioFile, audioFile.name);
   const transcript = document.getElementById('sttTranscript').value.trim();
   if (transcript) fd.append('transcriptText', transcript);
-  fd.append('redactPii',      document.getElementById('chkRedactPii').checked   ? 'true' : 'false');
-  fd.append('redactAudioPii', document.getElementById('chkRedactAudio').checked ? 'true' : 'false');
+  if (transcriptSegments.length) fd.append('transcriptSegments', JSON.stringify(transcriptSegments));
+  fd.append('createCaptions',  document.getElementById('chkCreateCaptions').checked ? 'true' : 'false');
+  fd.append('redactPii',       document.getElementById('chkRedactPii').checked       ? 'true' : 'false');
+  fd.append('redactAudioPii',  document.getElementById('chkRedactAudio').checked     ? 'true' : 'false');
 
   const btn = document.getElementById('uploadBrowseBtn');
   btn.disabled = true;
@@ -896,8 +1116,10 @@ async function uploadJob(videoBlob, audioBlob) {
   if (audioBlob.size > 0) fd.append('audio', audioBlob, 'mic.webm');
   const transcript = document.getElementById('sttTranscript').value.trim();
   if (transcript) fd.append('transcriptText', transcript);
-  fd.append('redactPii',      document.getElementById('chkRedactPii').checked   ? 'true' : 'false');
-  fd.append('redactAudioPii', document.getElementById('chkRedactAudio').checked ? 'true' : 'false');
+  if (transcriptSegments.length) fd.append('transcriptSegments', JSON.stringify(transcriptSegments));
+  fd.append('createCaptions',  document.getElementById('chkCreateCaptions').checked ? 'true' : 'false');
+  fd.append('redactPii',       document.getElementById('chkRedactPii').checked       ? 'true' : 'false');
+  fd.append('redactAudioPii',  document.getElementById('chkRedactAudio').checked     ? 'true' : 'false');
 
   try {
     const r = await fetch('/api/v1/video/upload', {
@@ -952,6 +1174,22 @@ async function testFfmpeg() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Input folder cleanup ──────────────────────────────────────────────────────
+async function cleanInputNow() {
+  const result = document.getElementById('cleanResult');
+  result.textContent = 'Deleting…';
+  try {
+    const r = await fetch('/admin/video-processor?handler=CleanInputNow', {
+      method: 'POST',
+      headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' }
+    });
+    const d = await r.json();
+    result.textContent = d.filesDeleted === 0
+      ? 'Input folder is already empty.'
+      : `✓ Deleted ${d.filesDeleted} file${d.filesDeleted !== 1 ? 's' : ''} (${d.mbFreed} MB freed)`;
+  } catch(e) { result.textContent = 'Error: ' + e.message; }
 }
 
 // Auto-connect video WS on page load

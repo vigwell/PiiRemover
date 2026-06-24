@@ -2,6 +2,10 @@
 private.pem
 google_api_credentials.json
 
+## Bundled binary assets — deploy via CI, not git
+**/tools/ffmpeg/
+**/fonts/
+
 ## .NET / C#
 bin/
 obj/

@@ -31,7 +31,8 @@ public class VideoProcessorModel : PageModel
         bool enabled, string? storagePath,
         string? ffmpegPath, string? ffmpegPreset, int ffmpegCrf, int ffmpegFontSize, int ffmpegTopPadding, int ffmpegTextYPos,
         int maxFileSizeMb, int batchSize, int workerPollSeconds, int wsTokenExpiry, int wsIdleTimeout,
-        bool deleteInput, int cleanupOlderThanHours, bool piiRedactionEnabled, bool piiAudioRedactionEnabled)
+        bool deleteInput, int cleanupOlderThanHours,
+        bool defaultCreateCaptions, bool piiRedactionEnabled, bool piiAudioRedactionEnabled)
     {
         await _settingsRepo.SetAsync(VideoSettings.KeyEnabled,          enabled ? "true" : "false",    VideoSettings.Metadata[VideoSettings.KeyEnabled].Description);
         await _settingsRepo.SetAsync(VideoSettings.KeyStoragePath,      storagePath ?? "",              VideoSettings.Metadata[VideoSettings.KeyStoragePath].Description);
@@ -48,12 +49,40 @@ public class VideoProcessorModel : PageModel
         await _settingsRepo.SetAsync(VideoSettings.KeyWsIdleTimeout,    wsIdleTimeout.ToString(),       VideoSettings.Metadata[VideoSettings.KeyWsIdleTimeout].Description);
         await _settingsRepo.SetAsync(VideoSettings.KeyDeleteInput,           deleteInput ? "true" : "false",       VideoSettings.Metadata[VideoSettings.KeyDeleteInput].Description);
         await _settingsRepo.SetAsync(VideoSettings.KeyCleanupOlderThanHours, cleanupOlderThanHours.ToString(),      VideoSettings.Metadata[VideoSettings.KeyCleanupOlderThanHours].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyDefaultCreateCaptions,    defaultCreateCaptions    ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyDefaultCreateCaptions].Description);
         await _settingsRepo.SetAsync(VideoSettings.KeyPiiRedactionEnabled,      piiRedactionEnabled      ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyPiiRedactionEnabled].Description);
         await _settingsRepo.SetAsync(VideoSettings.KeyPiiAudioRedactionEnabled, piiAudioRedactionEnabled ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyPiiAudioRedactionEnabled].Description);
 
         SettingsSaved = true;
         await LoadSettingsAsync();
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostCleanInputNowAsync()
+    {
+        var storagePath = await _videoSettings.GetStoragePathAsync();
+        var inputDir    = Path.Combine(storagePath, "input");
+
+        long bytesFreed = 0;
+        int  filesDeleted = 0;
+
+        if (Directory.Exists(inputDir))
+        {
+            foreach (var file in Directory.EnumerateFiles(inputDir, "*", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    var info = new FileInfo(file);
+                    bytesFreed += info.Length;
+                    info.Delete();
+                    filesDeleted++;
+                }
+                catch { /* skip locked files */ }
+            }
+        }
+
+        var mbFreed = bytesFreed / 1024.0 / 1024.0;
+        return new JsonResult(new { filesDeleted, mbFreed = Math.Round(mbFreed, 1) });
     }
 
     public async Task<IActionResult> OnGetTestFfmpegAsync()

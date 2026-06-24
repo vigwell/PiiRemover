@@ -107,6 +107,9 @@ public class VideoWorkerService : BackgroundService
             await _jobs.UpdateStatusAsync(job.Id, "completed",
                 outputPath: job.OutputPath, durationMs: sw.ElapsedMilliseconds, completedAt: completedAt);
 
+            var vttPath     = Path.ChangeExtension(job.OutputPath, ".vtt");
+            var captionsUrl = File.Exists(vttPath) ? $"/api/v1/video/captions/{job.Id}" : (string?)null;
+
             await _wsManager.SendToClientAsync(clientId, new
             {
                 type = "job.completed",
@@ -114,6 +117,7 @@ public class VideoWorkerService : BackgroundService
                 payload = new
                 {
                     downloadUrl = $"/api/v1/video/download/{job.Id}",
+                    captionsUrl,
                     durationMs  = sw.ElapsedMilliseconds
                 }
             });
@@ -151,6 +155,13 @@ public class VideoWorkerService : BackgroundService
                 jobId = job.Id,
                 payload = new { error = ex.Message }
             });
+
+            // Clean up input files on failure too — no point keeping them
+            if (deleteInput)
+            {
+                TryDelete(job.VideoPath);
+                TryDelete(job.AudioPath);
+            }
         }
     }
 

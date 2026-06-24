@@ -25,6 +25,14 @@
     </Content>
   </ItemGroup>
 
+  <!-- Bundled Calibri fonts for FFmpeg drawtext overlay -->
+  <ItemGroup>
+    <Content Include="fonts\*.TTF">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- FFmpeg binaries — bundled for publish; excluded from git via .gitignore -->
   <ItemGroup>
     <Content Include="tools\ffmpeg\ffmpeg.exe" Condition="Exists('tools\ffmpeg\ffmpeg.exe')">

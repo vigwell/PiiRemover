@@ -4,10 +4,9 @@ using PiiRemover.Data.Models;
 namespace PiiRemover.Api.Services;
 
 /// <summary>
-/// Invokes FFmpeg to merge video + audio and optionally burn a transcript text overlay.
-/// Mirrors the working Rads4Vet VideoProcessor.ContainerApp approach:
-///   - Text embedded directly as text='...' (not textfile=) to avoid Windows path escaping issues
-///   - pad= adds a black bar; one drawtext per wrapped line positioned inside the bar
+/// Invokes FFmpeg to merge video + audio (no text baked in).
+/// When transcript text is present, writes a WebVTT captions file (.vtt) alongside the MP4
+/// so the browser can play video + captions together without altering the video stream.
 /// </summary>
 public class VideoProcessingService
 {
@@ -23,38 +22,23 @@ public class VideoProcessingService
     public async Task ProcessAsync(VideoJob job, string storagePath, CancellationToken ct,
         IReadOnlyList<(TimeSpan Start, TimeSpan End)>? audioRanges = null)
     {
-        var ffmpeg   = await _vs.GetFfmpegPathAsync();
-        var preset   = await _vs.GetPresetAsync();
-        var crf      = await _vs.GetCrfAsync();
-        var fontSize = await _vs.GetFontSizeAsync();
+        var ffmpeg  = await _vs.GetFfmpegPathAsync();
+        var preset  = await _vs.GetPresetAsync();
+        var crf     = await _vs.GetCrfAsync();
 
-        // ── Video filter ─────────────────────────────────────────────────────
-        string vfArg = string.Empty;
-
-        if (!string.IsNullOrWhiteSpace(job.TranscriptText))
+        // ── Generate WebVTT captions file (only when createCaptions=true) ───
+        if (job.CreateCaptions && !string.IsNullOrWhiteSpace(job.TranscriptText))
         {
-            var (lines, topPadding) = WrapText(job.TranscriptText, 1280, fontSize);
-            int lineHeight = fontSize + 4;
-
-            // One drawtext filter per line, text embedded inline (no temp file)
-            // Windows: font='Calibri' (system font, always present)
-            var drawParts = lines.Select((line, i) =>
-                $"drawtext=font='Calibri'" +
-                $":text='{EscapeText(line)}'" +
-                $":x=(w-text_w)/2" +
-                $":y={2 + i * lineHeight}" +
-                $":fontsize={fontSize}" +
-                $":fontcolor=white");
-
-            // pad adds the black bar; drawtext sits inside it
-            var allFilters = $"fps=10,scale=1280:-2:flags=fast_bilinear" +
-                             $",pad=width=iw:height=ih+{topPadding}:x=0:y={topPadding}:color=black" +
-                             $",{string.Join(",", drawParts)}";
-
-            vfArg = $"-vf \"{allFilters}\"";
-            _logger.LogInformation("FFmpeg [{JobId}] drawtext: {Lines} line(s), topPadding={Pad}",
-                job.Id, lines.Count, topPadding);
+            var vttPath    = Path.ChangeExtension(job.OutputPath, ".vtt");
+            var vttContent = BuildVtt(job.TranscriptText, job.TranscriptSegments);
+            await File.WriteAllTextAsync(vttPath, vttContent, System.Text.Encoding.UTF8, ct);
+            _logger.LogInformation("FFmpeg [{JobId}] captions written ({Source}) → {Path}",
+                job.Id, job.TranscriptSegments is null ? "estimated" : "real timestamps", vttPath);
         }
+
+        // ── Video filter (no overlay — captions are in the sidecar .vtt) ─────
+        const string vfFilter = "fps=10,scale=1280:-2:flags=fast_bilinear";
+        string vfArg = $"-vf \"{vfFilter}\"";
 
         // ── Audio mute filter for PII time ranges ────────────────────────────
         string afArg = string.Empty;
@@ -115,52 +99,90 @@ public class VideoProcessingService
         if (proc.ExitCode != 0)
         {
             _logger.LogError("FFmpeg [{JobId}] failed (exit {Code}):\n{Stderr}", job.Id, proc.ExitCode, stderr);
-            throw new InvalidOperationException(
-                $"FFmpeg exited with code {proc.ExitCode}.\n{stderr}");
+            throw new InvalidOperationException($"FFmpeg exited with code {proc.ExitCode}.\n{stderr}");
         }
 
         _logger.LogInformation("FFmpeg [{JobId}] completed successfully", job.Id);
     }
 
-    // ── Text escaping for FFmpeg drawtext inline text= value ─────────────────
-    // Must escape: backslash, single-quote, colon (filter syntax delimiters)
-    private static string EscapeText(string text) =>
-        text.Replace("\\", "\\\\")
-            .Replace("'",  "\\'")
-            .Replace(":",  "\\:");
+    // ── WebVTT generation ─────────────────────────────────────────────────────
 
-    // ── Word-wrap text to fit within 1280px video width ──────────────────────
-    private static (IReadOnlyList<string> Lines, int TopPadding) WrapText(
-        string text, int videoWidth, int fontSize)
+    private const int MaxWordsPerCue = 10;
+
+    // Entry point: use real timestamps when available, fall back to word-rate estimate.
+    private static string BuildVtt(string transcript, string? segmentsJson)
     {
-        const double avgCharWidthRatio = 0.55;
-        int usableWidth  = videoWidth - 24; // 12px margin each side
-        int maxChars     = (int)(usableWidth / (fontSize * avgCharWidthRatio));
-
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var lines = new List<string>();
-        var current = new System.Text.StringBuilder();
-
-        foreach (var word in words)
+        if (!string.IsNullOrWhiteSpace(segmentsJson))
         {
-            if (current.Length == 0)
+            try
             {
-                current.Append(word);
+                var segments = System.Text.Json.JsonSerializer.Deserialize<SttSegment[]>(segmentsJson,
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (segments is { Length: > 0 })
+                    return BuildVttFromSegments(segments);
             }
-            else if (current.Length + 1 + word.Length <= maxChars)
+            catch { /* fall through to estimate */ }
+        }
+        return BuildVttEstimated(transcript);
+    }
+
+    // Real timestamps: each STT segment → split into N-word cues, duration proportional within segment.
+    private static string BuildVttFromSegments(SttSegment[] segments)
+    {
+        var sb = new System.Text.StringBuilder("WEBVTT\n\n");
+
+        foreach (var seg in segments)
+        {
+            if (string.IsNullOrWhiteSpace(seg.Text)) continue;
+            var words    = seg.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            double durMs = seg.EndMs - seg.StartMs;
+            double msPerWord = words.Length > 0 ? durMs / words.Length : durMs;
+
+            for (int i = 0; i < words.Length; i += MaxWordsPerCue)
             {
-                current.Append(' ').Append(word);
-            }
-            else
-            {
-                lines.Add(current.ToString());
-                current.Clear().Append(word);
+                int    count      = Math.Min(MaxWordsPerCue, words.Length - i);
+                double cueStartMs = seg.StartMs + i * msPerWord;
+                double cueEndMs   = cueStartMs  + count * msPerWord;
+
+                sb.Append(VttTime(cueStartMs / 1000.0)).Append(" --> ").AppendLine(VttTime(cueEndMs / 1000.0));
+                sb.AppendLine(string.Join(" ", words, i, count));
+                sb.AppendLine();
             }
         }
-        if (current.Length > 0) lines.Add(current.ToString());
-        if (lines.Count == 0) lines.Add(string.Empty);
 
-        int topPadding = lines.Count * fontSize + (lines.Count - 1) * 4 + 4;
-        return (lines, topPadding);
+        return sb.ToString();
     }
+
+    // Fallback: word-rate estimate at 150 wpm when no live timestamps are available.
+    private static string BuildVttEstimated(string transcript)
+    {
+        const double wordsPerSec = 2.5;
+
+        var words = transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var sb    = new System.Text.StringBuilder("WEBVTT\n\n");
+
+        for (int i = 0; i < words.Length; i += MaxWordsPerCue)
+        {
+            int    count    = Math.Min(MaxWordsPerCue, words.Length - i);
+            double startSec = i / wordsPerSec;
+            double endSec   = (i + count) / wordsPerSec;
+
+            sb.Append(VttTime(startSec)).Append(" --> ").AppendLine(VttTime(endSec));
+            sb.AppendLine(string.Join(" ", words, i, count));
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    private static string VttTime(double totalSeconds)
+    {
+        int h  = (int)(totalSeconds / 3600);
+        int m  = (int)(totalSeconds % 3600 / 60);
+        int s  = (int)(totalSeconds % 60);
+        int ms = (int)((totalSeconds - Math.Floor(totalSeconds)) * 1000);
+        return $"{h:D2}:{m:D2}:{s:D2}.{ms:D3}";
+    }
+
+    private sealed record SttSegment(string Text, long StartMs, long EndMs);
 }
