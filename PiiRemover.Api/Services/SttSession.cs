@@ -1,32 +1,40 @@
-using System.Globalization;
+using Google.Apis.Auth.OAuth2;
+using Google.Cloud.Speech.V1;
+using Google.Protobuf;
+using Grpc.Auth;
+using Grpc.Core;
 using System.Net.WebSockets;
-using System.Speech.AudioFormat;
-using System.Speech.Recognition;
 using System.Text;
 using System.Text.Json;
 
 namespace PiiRemover.Api.Services;
 
 /// <summary>
-/// Handles one real-time STT WebSocket connection.
-/// Audio flow: browser PCM binary frames → AudioPipeStream → SpeechRecognitionEngine → WS text events.
-/// Engine: System.Speech.Recognition (Windows built-in, zero install, offline).
+/// Handles one real-time STT WebSocket connection using Google Cloud Speech (medical_dictation model).
+/// Audio flow: browser PCM 16kHz 16-bit mono binary frames → Google streaming API → WS text events.
+/// Post-processing: decimal numbers, spoken dates, punctuation commands (TranscriptProcessor).
 /// </summary>
-public class SttSession : IDisposable
+public class SttSession : IAsyncDisposable
 {
     private readonly WebSocket _ws;
-    private readonly AudioPipeStream _pipe = new();
-    private SpeechRecognitionEngine? _engine;
-    private bool _disposed;
+    private readonly IConfiguration _config;
+    private readonly ILogger _logger;
 
-    public SttSession(WebSocket ws) => _ws = ws;
+    // Active Google stream — replaced on auto-restart after 5-min limit
+    private GoogleStream? _current;
+    private string _language = "en-US";
+    private bool _started;
 
-    /// <summary>
-    /// Main loop: reads WS frames, feeds PCM to engine, pushes transcripts back.
-    /// </summary>
-    public static async Task RunAsync(WebSocket ws, CancellationToken ct)
+    private SttSession(WebSocket ws, IConfiguration config, ILogger logger)
     {
-        using var session = new SttSession(ws);
+        _ws     = ws;
+        _config = config;
+        _logger = logger;
+    }
+
+    public static async Task RunAsync(WebSocket ws, IConfiguration config, ILogger logger, CancellationToken ct)
+    {
+        await using var session = new SttSession(ws, config, logger);
         await session.LoopAsync(ct);
     }
 
@@ -45,18 +53,29 @@ public class SttSession : IDisposable
 
             if (result.MessageType == WebSocketMessageType.Text)
             {
-                var json = Encoding.UTF8.GetString(buf, 0, result.Count);
-                HandleControlMessage(json);
+                await HandleControlAsync(Encoding.UTF8.GetString(buf, 0, result.Count), ct);
             }
-            else if (result.MessageType == WebSocketMessageType.Binary && _engine is not null)
+            else if (result.MessageType == WebSocketMessageType.Binary && _started)
             {
-                // Feed PCM chunk to the recognition engine
-                _pipe.Write(buf, 0, result.Count);
+                // Auto-restart if the 5-minute Google stream limit expired
+                if (_current?.IsCompleted == true)
+                {
+                    _logger.LogInformation("Google STT stream expired — restarting");
+                    await (_current?.StopAsync() ?? Task.CompletedTask);
+                    _current = await StartGoogleStreamAsync(ct);
+                }
+
+                if (_current is not null)
+                {
+                    var chunk = new byte[result.Count];
+                    Buffer.BlockCopy(buf, 0, chunk, 0, result.Count);
+                    await _current.WriteAudioAsync(chunk);
+                }
             }
         }
     }
 
-    private void HandleControlMessage(string json)
+    private async Task HandleControlAsync(string json, CancellationToken ct)
     {
         try
         {
@@ -65,61 +84,83 @@ public class SttSession : IDisposable
 
             if (type == "start")
             {
-                var lang = doc.RootElement.TryGetProperty("language", out var l)
-                    ? l.GetString() ?? "en-US"
-                    : "en-US";
-                StartEngine(lang);
+                _language = doc.RootElement.TryGetProperty("language", out var l)
+                    ? l.GetString() ?? "en-US" : "en-US";
+
+                if (_current is not null) await _current.StopAsync();
+                _current = await StartGoogleStreamAsync(ct);
+                _started = true;
             }
             else if (type == "stop")
             {
-                StopEngine();
+                _started = false;
+                if (_current is not null) { await _current.StopAsync(); _current = null; }
             }
         }
-        catch { /* malformed control message — ignore */ }
+        catch (Exception ex) { _logger.LogWarning(ex, "STT control message error"); }
     }
 
-    private void StartEngine(string language)
+    private async Task<GoogleStream> StartGoogleStreamAsync(CancellationToken ct)
     {
-        StopEngine();
-        try
+        var credPath = _config["GoogleSpeech:CredentialsFilePath"]
+            ?? throw new InvalidOperationException("GoogleSpeech:CredentialsFilePath not configured.");
+
+        if (!File.Exists(credPath))
+            throw new FileNotFoundException($"Google credentials not found: {credPath}");
+
+        var credential = GoogleCredential.FromFile(credPath).CreateScoped(SpeechClient.DefaultScopes);
+        var client = new SpeechClientBuilder { ChannelCredentials = credential.ToChannelCredentials() }.Build();
+        var call   = client.StreamingRecognize();
+
+        var useMedical = _language.StartsWith("en", StringComparison.OrdinalIgnoreCase);
+        var cfg = new RecognitionConfig
         {
-            var culture = new CultureInfo(language);
-            _engine = new SpeechRecognitionEngine(culture);
-            _engine.LoadGrammar(new DictationGrammar());
-            _engine.SetInputToAudioStream(_pipe,
-                new SpeechAudioFormatInfo(16000, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
-            _engine.SpeechRecognized   += OnFinal;
-            _engine.SpeechHypothesized += OnInterim;
-            _engine.RecognizeAsync(RecognizeMode.Multiple);
-        }
-        catch (Exception ex)
+            Encoding              = RecognitionConfig.Types.AudioEncoding.Linear16,
+            SampleRateHertz       = 16000,
+            LanguageCode          = _language,
+            Model                 = useMedical ? "medical_dictation" : "default",
+            EnableAutomaticPunctuation = true,
+        };
+
+        await call.WriteAsync(new StreamingRecognizeRequest
         {
-            _ = SendJsonAsync(new { type = "error", message = ex.Message }, CancellationToken.None);
-        }
-    }
+            StreamingConfig = new StreamingRecognitionConfig { Config = cfg, InterimResults = true }
+        });
 
-    private void StopEngine()
-    {
-        if (_engine is null) return;
-        try { _engine.RecognizeAsyncStop(); } catch { }
-        _engine.SpeechRecognized   -= OnFinal;
-        _engine.SpeechHypothesized -= OnInterim;
-        _engine.Dispose();
-        _engine = null;
-    }
+        _logger.LogInformation("Google STT started: language={Lang} model={Model}", _language, cfg.Model);
 
-    private void OnFinal(object? _, SpeechRecognizedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(e.Result.Text)) return;
-        _ = SendJsonAsync(new { type = "transcript", text = e.Result.Text, isFinal = true },
-            CancellationToken.None);
-    }
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
-    private void OnInterim(object? _, SpeechHypothesizedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(e.Result.Text)) return;
-        _ = SendJsonAsync(new { type = "transcript", text = e.Result.Text, isFinal = false },
-            CancellationToken.None);
+        var responseTask = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var response in call.GetResponseStream().WithCancellation(cts.Token))
+                {
+                    foreach (var r in response.Results)
+                    {
+                        if (r.Alternatives.Count == 0) continue;
+                        var text    = TranscriptProcessor.Process(r.Alternatives[0].Transcript);
+                        var isFinal = r.IsFinal;
+                        if (!string.IsNullOrWhiteSpace(text))
+                            await SendJsonAsync(new { type = "transcript", text, isFinal }, CancellationToken.None);
+                    }
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (RpcException ex) when (ex.StatusCode is StatusCode.Cancelled) { }
+            catch (RpcException ex) when (ex.StatusCode is StatusCode.OutOfRange or StatusCode.Unavailable)
+            {
+                _logger.LogWarning("Google STT stream ended: {Status}", ex.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Google STT response error");
+                await SendJsonAsync(new { type = "error", message = ex.Message }, CancellationToken.None);
+            }
+        }, cts.Token);
+
+        return new GoogleStream(call, responseTask, cts);
     }
 
     private async Task SendJsonAsync(object payload, CancellationToken ct)
@@ -127,79 +168,50 @@ public class SttSession : IDisposable
         if (_ws.State != WebSocketState.Open) return;
         var bytes = JsonSerializer.SerializeToUtf8Bytes(payload,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-        try
+        try { await _ws.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct); }
+        catch { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_current is not null) await _current.StopAsync();
+    }
+
+    // ── Inner class: one Google streaming call ───────────────────────────────
+
+    private sealed class GoogleStream
+    {
+        private readonly SpeechClient.StreamingRecognizeStream _stream;
+        private readonly Task _responseTask;
+        private readonly CancellationTokenSource _cts;
+        private int _stopped;
+
+        public bool IsCompleted => _responseTask.IsCompleted;
+
+        public GoogleStream(SpeechClient.StreamingRecognizeStream stream, Task responseTask, CancellationTokenSource cts)
         {
-            await _ws.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
+            _stream = stream; _responseTask = responseTask; _cts = cts;
         }
-        catch { /* connection may close concurrently */ }
-    }
 
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        StopEngine();
-        _pipe.Complete();
-        _pipe.Dispose();
-    }
-}
-
-/// <summary>
-/// Thread-safe blocking pipe stream: Write() appends data; Read() blocks until data is available.
-/// Used to bridge async WebSocket frames into the synchronous SpeechRecognitionEngine.
-/// </summary>
-public sealed class AudioPipeStream : Stream
-{
-    private readonly Queue<byte[]> _queue = new();
-    private readonly SemaphoreSlim _signal = new(0);
-    private volatile bool _completed;
-
-    public override bool CanRead  => true;
-    public override bool CanSeek  => false;
-    public override bool CanWrite => true;
-    public override long Length   => throw new NotSupportedException();
-    public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-    public override void Flush() { }
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(long value) => throw new NotSupportedException();
-
-    public override void Write(byte[] buffer, int offset, int count)
-    {
-        var chunk = new byte[count];
-        Buffer.BlockCopy(buffer, offset, chunk, 0, count);
-        lock (_queue) _queue.Enqueue(chunk);
-        _signal.Release();
-    }
-
-    public override int Read(byte[] buffer, int offset, int count)
-    {
-        while (true)
+        public async Task WriteAudioAsync(byte[] chunk)
         {
-            _signal.Wait();
-            lock (_queue)
+            if (Interlocked.CompareExchange(ref _stopped, 0, 0) == 1) return;
+            try
             {
-                if (_queue.Count == 0)
-                {
-                    if (_completed) return 0;
-                    continue;
-                }
-                var chunk = _queue.Dequeue();
-                var copy  = Math.Min(count, chunk.Length);
-                Buffer.BlockCopy(chunk, 0, buffer, offset, copy);
-                return copy;
+                await _stream.WriteAsync(new StreamingRecognizeRequest
+                    { AudioContent = ByteString.CopyFrom(chunk) });
             }
+            catch (InvalidOperationException) { }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled) { }
         }
-    }
 
-    public void Complete()
-    {
-        _completed = true;
-        _signal.Release();
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing) { Complete(); _signal.Dispose(); }
-        base.Dispose(disposing);
+        public async Task StopAsync()
+        {
+            if (Interlocked.Exchange(ref _stopped, 1) == 1) return;
+            try { await _stream.WriteCompleteAsync(); } catch { }
+            try { await _responseTask; } catch (OperationCanceledException) { }
+              catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled) { }
+            _cts.Dispose();
+        }
     }
 }

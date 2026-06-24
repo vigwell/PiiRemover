@@ -229,7 +229,9 @@ app.Map("/ws/stt", async context =>
     if (!mgr.TryConsumeToken(token, out var clientId)) { context.Response.StatusCode = 401; return; }
     var ws      = await context.WebSockets.AcceptWebSocketAsync();
     var sessId  = mgr.Register(ws, clientId);
-    try { await SttSession.RunAsync(ws, context.RequestAborted); }
+    var cfg    = context.RequestServices.GetRequiredService<IConfiguration>();
+    var logger = context.RequestServices.GetRequiredService<ILogger<SttSession>>();
+    try { await SttSession.RunAsync(ws, cfg, logger, context.RequestAborted); }
     catch (OperationCanceledException) { /* client disconnected — normal */ }
     catch (System.Net.WebSockets.WebSocketException) { /* client reset — normal */ }
     finally { mgr.Remove(sessId); }

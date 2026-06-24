@@ -1,3 +1,7 @@
+## Secrets — never commit
+private.pem
+google_api_credentials.json
+
 ## .NET / C#
 bin/
 obj/

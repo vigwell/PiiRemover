@@ -7,6 +7,8 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="Google.Cloud.Speech.V1" Version="3.9.0" />
+    <PackageReference Include="System.Speech" Version="9.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
     <PackageReference Include="PdfPig" Version="0.1.14" />
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
@@ -14,7 +16,6 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1" />
-    <PackageReference Include="System.Speech" Version="9.0.0" />
   </ItemGroup>
 
   <!-- Copy tessdata to output so Tesseract can find traineddata files at runtime -->

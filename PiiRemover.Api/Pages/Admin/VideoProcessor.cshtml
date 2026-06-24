@@ -68,8 +68,57 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 <!-- ── Tab 1: Record & Test ─────────────────────────────────────────────────── -->
 <div class="tab-pane active" id="pane-record">
 
+  <!-- ── Job Progress — always visible at top ──────────────────────────────── -->
+  <div class="card" id="progressCard">
+    <h3>Job Progress</h3>
+    <div class="progress-track">
+      <div class="progress-step" id="step-queued">📋 Queued</div>
+      <div style="color:var(--text3)">→</div>
+      <div class="progress-step" id="step-processing">⚙ Processing</div>
+      <div style="color:var(--text3)">→</div>
+      <div class="progress-step" id="step-completed">✅ Completed</div>
+      <div class="progress-step" id="step-failed" style="display:none">❌ Failed</div>
+    </div>
+
+    <!-- Idle state (shown before any upload) -->
+    <div id="idleBanner" style="padding:10px 0 2px;font-size:12px;color:var(--text3)">
+      No job running. Start a recording or upload a file to begin processing.
+    </div>
+
+    <!-- Processing banner -->
+    <div class="processing-banner" id="processingBanner" style="display:none">
+      <span class="spinner"></span>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#177ddc">Processing your video…</div>
+        <div id="jobStatusMsg" style="font-size:12px;color:var(--text3);margin-top:2px">Please wait while FFmpeg processes your recording.</div>
+      </div>
+    </div>
+
+    <!-- Download banner -->
+    <div class="download-banner" id="downloadBanner" style="display:none">
+      <div style="font-size:24px">✅</div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600;color:#6abe39">Your video is ready!</div>
+        <div id="downloadMeta" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
+      </div>
+      <a id="downloadLink" class="btn btn-primary" href="#" download>⬇ Download MP4</a>
+    </div>
+
+    <!-- Cancelled banner -->
+    <div id="cancelledBanner" style="display:none;margin-top:10px;padding:10px 14px;
+         background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+         font-size:13px;color:var(--text2)">
+      ⚪ Recording cancelled — screen share was not granted.
+    </div>
+
+    <!-- Error banner -->
+    <div class="alert alert-danger" id="errorBanner" style="display:none;margin-top:10px">
+      <strong>Processing failed:</strong> <span id="errorMsg"></span>
+    </div>
+  </div>
+
   <div class="card">
-    <h3>Recording</h3>
+    <h3>Record my Screen Video</h3>
 
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
       <button class="btn btn-primary" id="startBtn"  onclick="startRecording()">▶ Start Recording</button>
@@ -91,6 +140,48 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 
     <video id="previewVideo" autoplay muted playsinline
            style="width:100%;max-height:300px;border-radius:6px;background:#000;display:none"></video>
+  </div>
+
+  <!-- ── Live Transcript ───────────────────────────────────────────────────── -->
+  <div class="card" id="transcriptCard" style="display:none">
+    <h3>Live Transcript <span style="font-size:11px;font-weight:400;color:var(--text3)">(editable — will be burned into the video)</span></h3>
+    <div id="sttInterimBar" style="display:none;font-size:12px;color:var(--text3);font-style:italic;
+         background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+         padding:6px 10px;margin-bottom:8px;min-height:24px">
+      <span id="sttInterimText">…</span>
+    </div>
+    <div class="form-group" style="margin:0">
+      <textarea id="sttTranscript" class="ctrl" placeholder="Transcript will appear here as you speak…&#10;&#10;Try saying something with PII — e.g. &quot;Patient name is Victor Cohen, ID 123456789&quot;&#10;If PII Redaction is enabled, the text burned into the video overlay will show: &quot;Patient name is ████████████, ID █████████&quot;&#10;You can also edit this box before uploading."></textarea>
+    </div>
+  </div>
+
+  <!-- ── Shared PII flags ───────────────────────────────────────────────────── -->
+  <div class="card">
+    <h3 style="margin-bottom:12px">🔒 PII Redaction Options</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:18px">
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+        <input type="checkbox" id="chkRedactPii"
+               @(Model.VideoSettingsMap.TryGetValue("video:piiRedactionEnabled", out var rv) && rv == "true" ? "checked" : "")
+               style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+        <span>
+          <span style="font-size:13px;font-weight:600">🔒 Redact PII from Transcript</span>
+          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:360px">
+            Matched PII in the transcript (names, IDs, dates…) is replaced with █ in the video overlay. Applies to both recording and file upload.
+          </span>
+        </span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+        <input type="checkbox" id="chkRedactAudio"
+               @(Model.VideoSettingsMap.TryGetValue("video:piiAudioRedactionEnabled", out var av) && av == "true" ? "checked" : "")
+               style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+        <span>
+          <span style="font-size:13px;font-weight:600">🔇 Silence PII Words in Audio <span style="font-size:10px;background:#1677ff;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">NEW</span></span>
+          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:380px">
+            Silences moments in the MP4 where PII words were spoken — 100% on-premises. Applies to both recording and file upload.
+          </span>
+        </span>
+      </label>
+    </div>
   </div>
 
   <!-- ── Browse existing files ──────────────────────────────────────────────── -->
@@ -129,72 +220,6 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
     </div>
   </div>
 
-  <div class="card" id="transcriptCard" style="display:none">
-    <h3>Live Transcript <span style="font-size:11px;font-weight:400;color:var(--text3)">(editable — will be burned into the video)</span></h3>
-    <div class="form-group" style="margin:0 0 14px">
-      <textarea id="sttTranscript" class="ctrl" placeholder="Transcript will appear here as you speak…&#10;&#10;Try saying something with PII — e.g. &quot;Patient name is Victor Cohen, ID 123456789&quot;&#10;If PII Redaction is enabled, the text burned into the video overlay will show: &quot;Patient name is ████████████, ID █████████&quot;&#10;You can also edit this box before uploading."></textarea>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:18px">
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-        <input type="checkbox" id="chkRedactPii"
-               @(Model.VideoSettingsMap.TryGetValue("video:piiRedactionEnabled", out var rv) && rv == "true" ? "checked" : "")
-               style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
-        <span>
-          <span style="font-size:13px;font-weight:600">🔒 Redact PII from Transcript</span>
-          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:360px">
-            Matched PII in the transcript (names, IDs, dates…) is replaced with █ in the video overlay. The audio is unaffected.
-          </span>
-        </span>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-        <input type="checkbox" id="chkRedactAudio"
-               @(Model.VideoSettingsMap.TryGetValue("video:piiAudioRedactionEnabled", out var av) && av == "true" ? "checked" : "")
-               style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
-        <span>
-          <span style="font-size:13px;font-weight:600">🔇 Silence PII in Audio <span style="font-size:10px;background:#1677ff;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">NEW</span></span>
-          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:380px">
-            Offline STT pass identifies exact timestamps when PII words were spoken, then silences those moments in the MP4 — 100% on-premises. Example: "Victor Cohen" is silenced while "patient name is" remains audible.
-          </span>
-        </span>
-      </label>
-    </div>
-  </div>
-
-  <div class="card" id="progressCard" style="display:none">
-    <h3>Job Progress</h3>
-    <div class="progress-track">
-      <div class="progress-step" id="step-queued">📋 Queued</div>
-      <div style="color:var(--text3)">→</div>
-      <div class="progress-step" id="step-processing">⚙ Processing</div>
-      <div style="color:var(--text3)">→</div>
-      <div class="progress-step" id="step-completed">✅ Completed</div>
-      <div class="progress-step" id="step-failed" style="display:none">❌ Failed</div>
-    </div>
-
-    <!-- Processing banner (visible while queued/processing) -->
-    <div class="processing-banner" id="processingBanner">
-      <span class="spinner"></span>
-      <div>
-        <div style="font-size:13px;font-weight:600;color:#177ddc">Processing your video…</div>
-        <div id="jobStatusMsg" style="font-size:12px;color:var(--text3);margin-top:2px">Please wait while FFmpeg processes your recording.</div>
-      </div>
-    </div>
-
-    <!-- Download banner (visible when completed) -->
-    <div class="download-banner" id="downloadBanner" style="display:none">
-      <div style="font-size:24px">✅</div>
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:600;color:#6abe39">Your video is ready!</div>
-        <div id="downloadMeta" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
-      </div>
-      <a id="downloadLink" class="btn btn-primary" href="#" download>⬇ Download MP4</a>
-    </div>
-
-    <!-- Error banner -->
-    <div class="alert alert-danger" id="errorBanner" style="display:none;margin-top:10px">
-      <strong>Processing failed:</strong> <span id="errorMsg"></span>
-    </div>
-  </div>
 
 </div>
 
@@ -607,47 +632,53 @@ function setWsChip(ok) {
   c.textContent = ok ? '🟢 WS Connected' : '🔴 WS Disconnected';
 }
 
+function showProgress(state, { text = '', downloadUrl = '', meta = '', error = '' } = {}) {
+  const idle       = document.getElementById('idleBanner');
+  const proc       = document.getElementById('processingBanner');
+  const dl         = document.getElementById('downloadBanner');
+  const err        = document.getElementById('errorBanner');
+  const cancelled  = document.getElementById('cancelledBanner');
+  idle.style.display      = state === 'idle'       ? '' : 'none';
+  proc.style.display      = state === 'processing' ? '' : 'none';
+  dl.style.display        = state === 'done'       ? '' : 'none';
+  err.style.display       = state === 'error'      ? '' : 'none';
+  cancelled.style.display = state === 'cancelled'  ? '' : 'none';
+  if (text) document.getElementById('jobStatusMsg').textContent = text;
+  if (meta) document.getElementById('downloadMeta').textContent = meta;
+  if (downloadUrl) document.getElementById('downloadLink').href = downloadUrl;
+  if (error) { document.getElementById('errorMsg').textContent = error; wsLog(`Job failed — ${error}`); }
+}
+
 function handleVideoWsMsg(msg) {
   wsLog(`Video WS: message → type=${msg.type}${msg.jobId ? ' jobId=' + msg.jobId.slice(0,8) : ''}`);
   if (msg.jobId !== currentJobId && currentJobId !== null) return;
   currentJobId = msg.jobId;
-  document.getElementById('progressCard').style.display = '';
   const setStep = (id, cls) => document.getElementById(id).className = 'progress-step ' + cls;
-
-  // Reset banners
-  const procBanner = document.getElementById('processingBanner');
-  const dlBanner   = document.getElementById('downloadBanner');
-  const errBanner  = document.getElementById('errorBanner');
-  const statusMsg  = document.getElementById('jobStatusMsg');
 
   if (msg.type === 'job.queued') {
     setStep('step-queued', 'active');
     setStep('step-processing', '');
     setStep('step-completed', '');
-    procBanner.style.display = ''; dlBanner.style.display = 'none'; errBanner.style.display = 'none';
-    statusMsg.textContent = 'Your video is queued and will start processing shortly…';
+    showProgress('processing', { text: 'Your video is queued and will start processing shortly…' });
   } else if (msg.type === 'job.processing') {
     setStep('step-queued', 'done');
     setStep('step-processing', 'active');
     setStep('step-completed', '');
-    procBanner.style.display = ''; dlBanner.style.display = 'none'; errBanner.style.display = 'none';
-    statusMsg.textContent = 'FFmpeg is merging and encoding your recording. Please wait…';
+    showProgress('processing', { text: 'FFmpeg is merging and encoding your recording. Please wait…' });
   } else if (msg.type === 'job.completed') {
     setStep('step-queued', 'done');
     setStep('step-processing', 'done');
     setStep('step-completed', 'done');
-    procBanner.style.display = 'none'; dlBanner.style.display = ''; errBanner.style.display = 'none';
-    document.getElementById('downloadLink').href = msg.payload.downloadUrl;
-    document.getElementById('downloadMeta').textContent =
-      `Processing completed in ${(msg.payload.durationMs/1000).toFixed(1)}s`;
+    showProgress('done', {
+      downloadUrl: msg.payload.downloadUrl,
+      meta: `Processing completed in ${(msg.payload.durationMs/1000).toFixed(1)}s`
+    });
   } else if (msg.type === 'job.failed') {
     setStep('step-queued', 'done');
     setStep('step-processing', 'error');
     const fe = document.getElementById('step-failed');
     fe.style.display = ''; fe.className = 'progress-step error';
-    procBanner.style.display = 'none'; dlBanner.style.display = 'none'; errBanner.style.display = '';
-    document.getElementById('errorMsg').textContent = msg.payload.error;
-    wsLog(`Video WS: job failed — ${msg.payload.error}`);
+    showProgress('error', { error: msg.payload.error });
   }
 }
 
@@ -678,12 +709,23 @@ async function connectSttWs() {
     sttWs.onerror = () => { setSttChip('idle'); wsLog('STT WS: error (see browser console for details)'); };
     sttWs.onmessage = e => {
       const msg = JSON.parse(e.data);
-      if (msg.type === 'transcript') {
-        const ta = document.getElementById('sttTranscript');
+      if (msg.type === 'ready') {
+        wsLog('STT WS: engine ready — speak now');
+      } else if (msg.type === 'error') {
+        wsLog(`STT WS: engine error — ${msg.message}`);
+        setSttChip('error');
+      } else if (msg.type === 'transcript') {
+        const ta       = document.getElementById('sttTranscript');
+        const interim  = document.getElementById('sttInterimText');
+        const interimBar = document.getElementById('sttInterimBar');
         if (msg.isFinal) {
           ta.value = (ta.value + ' ' + msg.text).trim();
+          // clear interim bar once the word is committed
+          if (interim) interim.textContent = '…';
+          if (interimBar) interimBar.style.display = 'none';
         } else {
-          // Show interim in placeholder-like style (don't overwrite committed text)
+          if (interimBar) interimBar.style.display = '';
+          if (interim) interim.textContent = msg.text;
         }
       }
     };
@@ -692,8 +734,9 @@ async function connectSttWs() {
 
 function setSttChip(state) {
   const c = document.getElementById('sttChip');
-  if (state === 'listening') { c.className = 'chip chip-green'; c.textContent = '🎤 Listening'; }
-  else                       { c.className = 'chip chip-gray';  c.textContent = '⏸ STT Idle'; }
+  if (state === 'listening') { c.className = 'chip chip-green';  c.textContent = '🎤 Listening'; }
+  else if (state === 'error'){ c.className = 'chip chip-red';    c.textContent = '❌ STT Error'; }
+  else                       { c.className = 'chip chip-gray';   c.textContent = '⏸ STT Idle'; }
 }
 
 function startMicCapture(micStream) {
@@ -746,8 +789,7 @@ async function startRecording() {
     document.getElementById('recIndicator').style.display = '';
     document.getElementById('transcriptCard').style.display = '';
     document.getElementById('sttChip').style.display = '';
-    document.getElementById('progressCard').style.display = 'none';
-    document.getElementById('downloadBanner').style.display = 'none';
+    showProgress('idle');
 
     recStart = Date.now();
     recTimer = setInterval(updateTimer, 1000);
@@ -757,7 +799,12 @@ async function startRecording() {
     startMicCapture(micStream);
 
   } catch (err) {
-    alert('Recording failed: ' + err.message);
+    const cancelled = err.name === 'NotAllowedError' || err.message?.toLowerCase().includes('permission');
+    if (cancelled) {
+      showProgress('cancelled');
+    } else {
+      alert('Recording failed: ' + err.message);
+    }
   }
 }
 
@@ -793,11 +840,8 @@ function onBrowseVideoChange() {
     info.textContent = `${f.name} — ${(f.size / 1024 / 1024).toFixed(1)} MB`;
     btn.disabled = false;
     hint.textContent = '';
-    // Show transcript + options card
     document.getElementById('transcriptCard').style.display = '';
-    document.getElementById('progressCard').style.display = 'none';
-    document.getElementById('downloadBanner').style.display = 'none';
-    document.getElementById('errorBanner').style.display = 'none';
+    showProgress('idle');
   } else {
     info.textContent = '';
     btn.disabled = true;
@@ -833,14 +877,11 @@ async function uploadBrowsedFiles() {
     const data = await r.json();
     if (!r.ok) { alert('Upload error: ' + (data.error || r.status)); return; }
     currentJobId = data.jobId;
-    document.getElementById('progressCard').style.display = '';
-    document.getElementById('downloadBanner').style.display = 'none';
-    document.getElementById('errorBanner').style.display = 'none';
     ['step-queued','step-processing','step-completed','step-failed'].forEach(id => {
       document.getElementById(id).className = 'progress-step';
+      document.getElementById(id).style.display = id === 'step-failed' ? 'none' : '';
     });
-    document.getElementById('step-failed').style.display = 'none';
-    document.getElementById('processingBanner').style.display = '';
+    showProgress('processing', { text: 'Your video has been uploaded and is queued for processing…' });
   } catch (err) {
     alert('Upload failed: ' + err.message);
   } finally {
@@ -867,7 +908,7 @@ async function uploadJob(videoBlob, audioBlob) {
     const data = await r.json();
     if (!r.ok) { alert('Upload error: ' + (data.error || r.status)); return; }
     currentJobId = data.jobId;
-    document.getElementById('progressCard').style.display = '';
+    showProgress('processing', { text: 'Your video has been uploaded and is queued for processing…' });
   } catch (err) { alert('Upload failed: ' + err.message); }
 }
 
