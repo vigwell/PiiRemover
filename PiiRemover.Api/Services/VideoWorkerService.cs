@@ -16,6 +16,7 @@ public class VideoWorkerService : BackgroundService
     private readonly VideoSettings _settings;
     private readonly RedactionOrchestrator _orchestrator;
     private readonly FieldsCache _fieldsCache;
+    private readonly AudioPiiRedactionService _audioRedaction;
     private readonly ILogger<VideoWorkerService> _logger;
 
     public VideoWorkerService(
@@ -25,15 +26,17 @@ public class VideoWorkerService : BackgroundService
         VideoSettings settings,
         RedactionOrchestrator orchestrator,
         FieldsCache fieldsCache,
+        AudioPiiRedactionService audioRedaction,
         ILogger<VideoWorkerService> logger)
     {
-        _jobs         = jobs;
-        _processor    = processor;
-        _wsManager    = wsManager;
-        _settings     = settings;
-        _orchestrator = orchestrator;
-        _fieldsCache  = fieldsCache;
-        _logger       = logger;
+        _jobs           = jobs;
+        _processor      = processor;
+        _wsManager      = wsManager;
+        _settings       = settings;
+        _orchestrator   = orchestrator;
+        _fieldsCache    = fieldsCache;
+        _audioRedaction = audioRedaction;
+        _logger         = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -88,8 +91,16 @@ public class VideoWorkerService : BackgroundService
                 }
             }
 
+            // Optionally run offline STT on audio to get PII word timestamps for muting
+            IReadOnlyList<(TimeSpan Start, TimeSpan End)>? audioRanges = null;
+            if (job.AudioPath is not null && await _settings.GetPiiAudioRedactionEnabledAsync())
+            {
+                _logger.LogInformation("Video job {Id}: running audio PII redaction pass", job.Id);
+                audioRanges = await _audioRedaction.GetRedactionRangesAsync(job.AudioPath, job.ClientId, ct);
+            }
+
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            await _processor.ProcessAsync(job, storagePath, ct);
+            await _processor.ProcessAsync(job, storagePath, ct, audioRanges);
             sw.Stop();
 
             var completedAt = DateTime.UtcNow.ToString("o");

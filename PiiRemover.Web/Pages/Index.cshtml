@@ -481,14 +481,16 @@ footer{background:var(--navy);border-top:1px solid var(--border);padding:48px 0 
         <div class="new-feature-item">
           <div class="nf-icon" style="background:rgba(255,77,79,.12);font-size:20px">🎬</div>
           <div>
-            <h4>Video Processing &amp; Real-Time STT <span class="new-pill">NEW</span></h4>
-            <p>Record screen + microphone in the browser. Live speech-to-text fills a
-               transcript box as you speak — 100% on-premises via Windows Speech API,
-               zero cloud calls. Submit the recording: FFmpeg merges video, audio, and
-               transcript (burned as a text overlay) into a downloadable MP4.
-               Enable <strong>PII Redaction on Transcript</strong> and any name, ID,
-               or phone spoken aloud will be replaced (e.g. <code>████████</code>)
-               <em>before</em> it is burned into the video overlay.</p>
+            <h4>Video Processing, STT &amp; Audio Silencing <span class="new-pill">NEW</span></h4>
+            <p>Record screen + microphone in the browser. Live on-premises speech-to-text
+               fills a transcript as you speak — Windows Speech API, zero cloud calls.
+               Submit the recording: FFmpeg merges video, audio, and transcript overlay into
+               an MP4. Enable <strong>PII Redaction on Transcript</strong> and matched words
+               are replaced (<code>████</code>) in the overlay. Enable
+               <strong>🔇 Silence PII in Audio</strong> and the server runs an offline STT pass
+               to find per-word timestamps, then instructs FFmpeg to <em>mute the exact
+               moments</em> when PII was spoken — so "Victor Cohen" is silent in the audio
+               track, not just redacted in the text overlay.</p>
           </div>
         </div>
 
@@ -626,8 +628,8 @@ footer{background:var(--navy);border-top:1px solid var(--border);padding:48px 0 
 
       <div class="feature-card highlight">
         <div class="feature-icon" style="background:rgba(255,77,79,.12)">🎬</div>
-        <h3>Video Processing &amp; STT<span class="new-pill">NEW</span></h3>
-        <p>Record screen + mic in the browser. Live on-premises speech-to-text (Windows Speech API) fills a transcript as you speak. FFmpeg merges video, audio, and transcript overlay into an MP4. Optional PII redaction burns sanitised text into the video — names and IDs replaced with <code>████</code> before encoding.</p>
+        <h3>Video Processing, STT &amp; Audio Silencing<span class="new-pill">NEW</span></h3>
+        <p>Record screen + mic in the browser. Live on-premises STT (Windows Speech API, zero cloud) fills a transcript. FFmpeg merges everything into an MP4. Optional <strong>🔇 Silence PII in Audio</strong>: per-word timestamps pinpoint exactly when a name or ID was spoken — FFmpeg mutes those moments while keeping all other audio intact.</p>
       </div>
 
     </div>

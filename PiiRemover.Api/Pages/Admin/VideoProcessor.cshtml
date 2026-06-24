@@ -263,7 +263,8 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
     </div>
 
     <div class="card">
-      <h3>PII Redaction of Transcript</h3>
+      <h3>🔒 PII Redaction</h3>
+
       <div class="form-group">
         <label>Redact PII from Transcript Before Video Overlay</label>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
@@ -275,6 +276,24 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
           When enabled, the dictated transcript text is passed through the client's active PII field rules before being burned as a text overlay into the video.
           Any matched PII (names, dates, IDs, etc.) will be replaced with the field's replacement character (e.g. <code>█</code>) in the video overlay.
           The original transcript submitted by the user is not modified — only the overlay burned into the MP4 is redacted.
+        </p>
+      </div>
+
+      <div class="form-group" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <label>🔇 Silence PII Words in Audio Track <span style="background:rgba(255,77,79,.15);color:#ff7875;border:1px solid rgba(255,77,79,.3);font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:6px">NEW</span></label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" name="piiAudioRedactionEnabled" value="true"
+                 @(Model.VideoSettingsMap.GetValueOrDefault("video:piiAudioRedactionEnabled","false")=="true"?"checked":"") />
+          Silence PII words in the audio track of the final MP4
+        </label>
+        <p class="hint">
+          Runs an offline speech recognition pass on the uploaded audio file at processing time.
+          Uses per-word timestamps (<code>GetAudioForWordRange</code>) to identify exactly <em>when</em> each PII word was spoken,
+          then instructs FFmpeg to mute those precise moments in the output MP4.
+          Example: if you say "patient name is Victor Cohen" the audio will be silent during "Victor Cohen"
+          while everything else remains audible — 100% on-premises, no cloud calls.
+          <strong>Recommended: also enable "Redact PII from Transcript" above for full text + audio protection.</strong>
+          Note: adds an extra offline STT pass proportional to audio length.
         </p>
       </div>
     </div>
@@ -401,7 +420,7 @@ sttWs.send(JSON.stringify({ type: 'stop' }));</pre>
   </div>
 
   <div class="card">
-    <h3>PII Redaction of Transcript Overlay</h3>
+    <h3>🔒 PII Redaction — Text Overlay</h3>
     <p style="color:var(--text2);font-size:13px;margin-bottom:8px">
       When <strong>PII Redaction on Transcript</strong> is enabled in Settings, the <code>transcriptText</code> field is automatically
       filtered through the client's active PII field rules before being burned into the video overlay.
@@ -412,6 +431,34 @@ sttWs.send(JSON.stringify({ type: 'stop' }));</pre>
 // (actual replacement character depends on PII field configuration)</pre>
     <p style="color:var(--text2);font-size:12px;margin-top:8px">
       Configured via: <code>video:piiRedactionEnabled</code> = <code>true/false</code> in the Settings table.
+    </p>
+  </div>
+
+  <div class="card" style="border-color:rgba(255,77,79,.25)">
+    <h3>🔇 PII Redaction — Audio Track Silencing <span style="background:rgba(255,77,79,.15);color:#ff7875;border:1px solid rgba(255,77,79,.3);font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:6px">NEW</span></h3>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:10px">
+      When <strong>Silence PII Words in Audio Track</strong> is enabled in Settings, the server runs an additional offline
+      speech recognition pass on the uploaded audio file at processing time. Each spoken word is checked against the client's
+      PII field rules. Words that match PII are <strong>silenced</strong> (muted) in the final MP4 — not just redacted in the overlay.
+    </p>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:10px">
+      The silencing is applied by FFmpeg using per-word timestamps extracted via
+      <code>RecognitionResult.GetAudioForWordRange()</code> from Windows Speech API —
+      100% on-premises, no cloud calls required.
+    </p>
+    <pre class="code-block">// Say: "patient name is Victor Cohen, ID 123456789"
+//
+// Text overlay (piiRedactionEnabled=true):
+//   "patient name is ████████████, ID █████████"
+//
+// Audio track (piiAudioRedactionEnabled=true):
+//   [audible]  "patient name is"
+//   [silence]  ░░░░░░░░░░░░░░  ← "Victor Cohen" silenced
+//   [audible]  ", ID"
+//   [silence]  ░░░░░░░░░░  ← "123456789" silenced</pre>
+    <p style="color:var(--text2);font-size:12px;margin-top:8px">
+      Configured via: <code>video:piiAudioRedactionEnabled</code> = <code>true/false</code> in the Settings table.
+      Enable alongside <code>video:piiRedactionEnabled</code> for full text + audio protection.
     </p>
   </div>
 

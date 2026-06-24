@@ -68,6 +68,7 @@ builder.Services.AddSingleton<VideoSettings>();
 builder.Services.AddSingleton<VideoWebSocketManager>();
 builder.Services.AddSingleton<SttWebSocketManager>();
 builder.Services.AddSingleton<VideoProcessingService>();
+builder.Services.AddSingleton<AudioPiiRedactionService>();
 builder.Services.AddHostedService<VideoWorkerService>();
 builder.Services.AddHostedService<VideoConnectionCleanupService>();
 builder.Services.AddHostedService<VideoJobCleanupService>();

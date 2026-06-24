@@ -19,7 +19,8 @@ public class VideoProcessingService
         _logger = logger;
     }
 
-    public async Task ProcessAsync(VideoJob job, string storagePath, CancellationToken ct)
+    public async Task ProcessAsync(VideoJob job, string storagePath, CancellationToken ct,
+        IReadOnlyList<(TimeSpan Start, TimeSpan End)>? audioRanges = null)
     {
         var ffmpeg   = await _vs.GetFfmpegPathAsync();
         var preset   = await _vs.GetPresetAsync();
@@ -29,6 +30,7 @@ public class VideoProcessingService
 
         string? tmpTranscript = null;
         string vfArg = string.Empty;
+        string afArg = string.Empty;
 
         if (!string.IsNullOrWhiteSpace(job.TranscriptText))
         {
@@ -42,17 +44,26 @@ public class VideoProcessingService
                     $":box=1:boxcolor=black@0.5:x=10:y=h-th-{textYPos}\"";
         }
 
+        // Build audio mute filter for PII time ranges: volume=0:enable='between(t,s1,e1)+between(t,s2,e2)'
+        if (audioRanges is { Count: > 0 })
+        {
+            var between = string.Join("+", audioRanges.Select(r =>
+                $"between(t,{r.Start.TotalSeconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}" +
+                $",{r.End.TotalSeconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)})"));
+            afArg = $"-af \"volume=0:enable='{between}'\"";
+        }
+
         string args;
         if (job.AudioPath is not null)
         {
             args = $"-y -i \"{job.VideoPath}\" -i \"{job.AudioPath}\" " +
                    $"-map 0:v -map 1:a -c:v libx264 -preset {preset} -crf {crf} " +
-                   $"-c:a aac -shortest -movflags +faststart {vfArg} \"{job.OutputPath}\"";
+                   $"-c:a aac -shortest -movflags +faststart {vfArg} {afArg} \"{job.OutputPath}\"";
         }
         else
         {
             args = $"-y -i \"{job.VideoPath}\" " +
-                   $"-c:v libx264 -preset {preset} -crf {crf} -movflags +faststart {vfArg} \"{job.OutputPath}\"";
+                   $"-c:v libx264 -preset {preset} -crf {crf} -movflags +faststart {vfArg} {afArg} \"{job.OutputPath}\"";
         }
 
         _logger.LogInformation("FFmpeg [{JobId}]: {Args}", job.Id, args);

@@ -797,15 +797,17 @@ Dr. <span class="rdc-hi">████████</span>: Atrial Fibrillation</d
           <li>Right-click in Tester to set scope</li>
         </ul>
       </div>
-      <div class="feat-card" style="border-color:rgba(255,77,79,.25)">
+      <div class="feat-card" style="border-color:rgba(255,77,79,.4);background:rgba(255,77,79,.03)">
         <div class="feat-icon">🎬</div>
-        <h3>Video Processing &amp; Real-Time STT <span style="display:inline-block;background:linear-gradient(135deg,rgba(255,77,79,.2),rgba(255,77,79,.1));color:#ff7875;border:1px solid rgba(255,77,79,.3);font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;letter-spacing:.6px;text-transform:uppercase;margin-left:6px;vertical-align:middle">NEW</span></h3>
-        <p>Record screen + mic directly in the browser. Live on-premises speech-to-text fills a transcript as you speak — zero cloud calls.</p>
+        <h3>Video Processing, STT &amp; Audio Silencing <span style="display:inline-block;background:linear-gradient(135deg,rgba(255,77,79,.2),rgba(255,77,79,.1));color:#ff7875;border:1px solid rgba(255,77,79,.3);font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;letter-spacing:.6px;text-transform:uppercase;margin-left:6px;vertical-align:middle">NEW</span></h3>
+        <p>Record screen + mic in the browser. Live on-premises STT fills a transcript as you speak. FFmpeg merges everything into MP4 — with a standout capability: <strong>🔇 Silence PII in Audio</strong>.</p>
         <ul class="feat-ul">
-          <li>Screen + mic capture in browser</li>
-          <li>Live STT via Windows Speech API (offline)</li>
+          <li>Screen + mic capture directly in browser</li>
+          <li>Live STT via Windows Speech API — zero cloud</li>
           <li>FFmpeg merges video, audio &amp; transcript overlay</li>
-          <li>PII redaction burns sanitised text into MP4</li>
+          <li>PII text overlay: names/IDs replaced with <code style="font-size:10px">████</code></li>
+          <li><strong>🔇 Audio silencing</strong>: per-word timestamps mute exactly when PII was spoken</li>
+          <li>"Victor Cohen" is silent in audio — not just redacted in text</li>
         </ul>
       </div>
     </div>
