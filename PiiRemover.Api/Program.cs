@@ -1,3 +1,4 @@
+using System.Net.WebSockets;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using PiiRemover.Api.Extractors;
@@ -52,6 +53,8 @@ builder.Services.AddSingleton<IFieldRepository>(_ => new FieldRepository(cs));
 builder.Services.AddSingleton<ILogRepository>(_ => new LogRepository(cs));
 builder.Services.AddSingleton<IQuotaRepository>(_ => new QuotaRepository(cs));
 builder.Services.AddSingleton<ISettingsRepository>(_ => new SettingsRepository(cs));
+builder.Services.AddSingleton<IVideoJobRepository>(_ => new VideoJobRepository(cs));
+builder.Services.AddSingleton<IVideoConnectionRepository>(_ => new VideoConnectionRepository(cs));
 
 // ── Windows Event Log ─────────────────────────────────────────────────────────
 var logModeStr   = cfg["Logging:EventLog:Mode"]       ?? "Production";
@@ -59,6 +62,14 @@ var logSourceName = cfg["Logging:EventLog:SourceName"] ?? "PiiRemover";
 var logName       = cfg["Logging:EventLog:LogName"]    ?? "PiiRemover";
 var logMode = Enum.TryParse<LogMode>(logModeStr, true, out var lm) ? lm : LogMode.Production;
 builder.Services.AddSingleton<IPiiLogger>(_ => new WindowsEventLogger(logSourceName, logName, logMode));
+
+// ── Video Processing services ─────────────────────────────────────────────────
+builder.Services.AddSingleton<VideoSettings>();
+builder.Services.AddSingleton<VideoWebSocketManager>();
+builder.Services.AddSingleton<SttWebSocketManager>();
+builder.Services.AddSingleton<VideoProcessingService>();
+builder.Services.AddHostedService<VideoWorkerService>();
+builder.Services.AddHostedService<VideoConnectionCleanupService>();
 
 // ── Background services ───────────────────────────────────────────────────────
 builder.Services.AddHostedService<LogCleanupService>();
@@ -179,6 +190,55 @@ app.UseMiddleware<LicenseMiddleware>();
 app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ── WebSocket endpoints ───────────────────────────────────────────────────────
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
+
+app.Map("/ws/video", async context =>
+{
+    if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = 400; return; }
+    var mgr   = context.RequestServices.GetRequiredService<VideoWebSocketManager>();
+    var token = context.Request.Query["token"].ToString();
+    if (!mgr.TryConsumeToken(token, out var clientId)) { context.Response.StatusCode = 401; return; }
+    var ws     = await context.WebSockets.AcceptWebSocketAsync();
+    var connId = mgr.Register(ws, clientId);
+    var connRepo = context.RequestServices.GetRequiredService<IVideoConnectionRepository>();
+    await connRepo.InsertAsync(connId, clientId);
+    try
+    {
+        var buf = new byte[1024];
+        while (ws.State == WebSocketState.Open)
+            await ws.ReceiveAsync(buf, context.RequestAborted);
+    }
+    finally
+    {
+        mgr.Remove(connId);
+        await connRepo.MarkInactiveAsync(connId);
+    }
+});
+
+app.Map("/ws/stt", async context =>
+{
+    if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = 400; return; }
+    var mgr   = context.RequestServices.GetRequiredService<SttWebSocketManager>();
+    var token = context.Request.Query["token"].ToString();
+    if (!mgr.TryConsumeToken(token, out var clientId)) { context.Response.StatusCode = 401; return; }
+    var ws      = await context.WebSockets.AcceptWebSocketAsync();
+    var sessId  = mgr.Register(ws, clientId);
+    try { await SttSession.RunAsync(ws, context.RequestAborted); }
+    finally { mgr.Remove(sessId); }
+});
+
+// ── Video storage folders ─────────────────────────────────────────────────────
+{
+    var videoSettings = app.Services.GetRequiredService<VideoSettings>();
+    var storagePath   = await videoSettings.GetStoragePathAsync();
+    Directory.CreateDirectory(Path.Combine(storagePath, "input"));
+    Directory.CreateDirectory(Path.Combine(storagePath, "output"));
+    Directory.CreateDirectory(Path.Combine(storagePath, "temp"));
+    Console.WriteLine($"Video storage: {storagePath}");
+}
+
 app.MapControllers();
 app.MapRazorPages();
 

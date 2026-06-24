@@ -14,6 +14,7 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1" />
+    <PackageReference Include="System.Speech" Version="9.0.0" />
   </ItemGroup>
 
   <!-- Copy tessdata to output so Tesseract can find traineddata files at runtime -->
@@ -21,6 +22,18 @@
     <Content Include="tessdata\*.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <!-- FFmpeg binaries — bundled for publish; excluded from git via .gitignore -->
+  <ItemGroup>
+    <Content Include="tools\ffmpeg\ffmpeg.exe" Condition="Exists('tools\ffmpeg\ffmpeg.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+    <None Update="tools\ffmpeg\avcodec-62.dll;tools\ffmpeg\avdevice-62.dll;tools\ffmpeg\avfilter-11.dll;tools\ffmpeg\avformat-62.dll;tools\ffmpeg\avutil-60.dll;tools\ffmpeg\ffplay.exe;tools\ffmpeg\ffprobe.exe;tools\ffmpeg\swresample-6.dll;tools\ffmpeg\swscale-9.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
   <!-- Copy license.lic to output dir on every build so F5 in VS finds it -->

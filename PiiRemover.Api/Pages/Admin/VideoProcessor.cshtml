@@ -1,0 +1,636 @@
+@page
+@model PiiRemover.Api.Pages.Admin.VideoProcessorModel
+@{
+    ViewData["Title"] = "Video Processor";
+    ViewData["Nav"]   = "videoprocessor";
+    Layout = "_AdminLayout";
+}
+
+<h2 class="page-title">🎬 Video Processor</h2>
+
+<!-- Tabs -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">
+  <button class="tab-btn active" onclick="showTab('record')"   id="tab-record">   Record &amp; Test</button>
+  <button class="tab-btn"        onclick="showTab('settings')" id="tab-settings"> Settings</button>
+  <button class="tab-btn"        onclick="showTab('jobs')"     id="tab-jobs">     Active Jobs</button>
+  <button class="tab-btn"        onclick="showTab('guide')"    id="tab-guide">    Integration Guide</button>
+</div>
+
+<style>
+.tab-btn{background:none;border:none;border-bottom:2px solid transparent;padding:8px 18px;
+         font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;margin-bottom:-2px;
+         transition:all .15s}
+.tab-btn.active{border-bottom-color:#1677ff;color:#1677ff}
+.tab-btn:hover:not(.active){color:var(--text)}
+.tab-pane{display:none}.tab-pane.active{display:block}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px}
+.form-group .hint{font-size:11px;color:var(--text3);margin-top:3px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:10px;
+      font-size:12px;font-weight:600;border:1px solid}
+.chip-green{background:#162312;color:#6abe39;border-color:#274916}
+.chip-red  {background:#2a1215;color:#e84749;border-color:#58181c}
+.chip-blue {background:#111d2c;color:#177ddc;border-color:#15325b}
+.chip-gray {background:var(--surface2);color:var(--text3);border-color:var(--border)}
+.chip-orange{background:#2b1d11;color:#d89614;border-color:#594214}
+[data-theme="light"] .chip-green{background:#f6ffed;color:#389e0d;border-color:#b7eb8f}
+[data-theme="light"] .chip-red  {background:#fff2f0;color:#cf1322;border-color:#ffccc7}
+[data-theme="light"] .chip-blue {background:#e6f4ff;color:#0958d9;border-color:#91caff}
+[data-theme="light"] .chip-orange{background:#fffbe6;color:#d46b08;border-color:#ffd666}
+.recording-dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+               background:#ff4d4f;animation:pulse 1s infinite}
+@@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.progress-track{display:flex;gap:0;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0}
+.progress-step{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;
+               font-size:12px;font-weight:500;border:1px solid var(--border);
+               background:var(--surface2);color:var(--text3)}
+.progress-step.active{background:#111d2c;color:#177ddc;border-color:#15325b}
+.progress-step.done  {background:#162312;color:#6abe39;border-color:#274916}
+.progress-step.error {background:#2a1215;color:#e84749;border-color:#58181c}
+[data-theme="light"] .progress-step.active{background:#e6f4ff;color:#0958d9;border-color:#91caff}
+[data-theme="light"] .progress-step.done  {background:#f6ffed;color:#389e0d;border-color:#b7eb8f}
+[data-theme="light"] .progress-step.error {background:#fff2f0;color:#cf1322;border-color:#ffccc7}
+#sttTranscript{min-height:80px;resize:vertical;font-size:13px;line-height:1.5}
+pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-radius:6px;
+               padding:12px 14px;font-size:12px;font-family:'Courier New',monospace;
+               overflow-x:auto;white-space:pre-wrap;color:var(--text2)}
+</style>
+
+<!-- ── Tab 1: Record & Test ─────────────────────────────────────────────────── -->
+<div class="tab-pane active" id="tab-record">
+
+  <div class="card">
+    <h3>Recording</h3>
+
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn btn-primary" id="startBtn"  onclick="startRecording()">▶ Start Recording</button>
+      <button class="btn btn-danger"  id="stopBtn"   onclick="stopRecording()"  style="display:none">⏹ Stop &amp; Upload</button>
+      <span id="recIndicator" style="display:none">
+        <span class="recording-dot"></span>
+        <span id="recTimer" style="font-size:13px;color:var(--text2);margin-left:4px">0:00</span>
+      </span>
+      <span id="wsChip" class="chip chip-gray">⚪ WS Disconnected</span>
+      <span id="sttChip" class="chip chip-gray" style="display:none">⏸ STT Idle</span>
+    </div>
+
+    <video id="previewVideo" autoplay muted playsinline
+           style="width:100%;max-height:300px;border-radius:6px;background:#000;display:none"></video>
+  </div>
+
+  <div class="card" id="transcriptCard" style="display:none">
+    <h3>Live Transcript <span style="font-size:11px;font-weight:400;color:var(--text3)">(editable — will be burned into the video)</span></h3>
+    <div class="form-group" style="margin:0">
+      <textarea id="sttTranscript" class="ctrl" placeholder="Transcript will appear here as you speak…"></textarea>
+    </div>
+  </div>
+
+  <div class="card" id="progressCard" style="display:none">
+    <h3>Job Progress</h3>
+    <div class="progress-track">
+      <div class="progress-step" id="step-queued">📋 Queued</div>
+      <div style="color:var(--text3)">→</div>
+      <div class="progress-step" id="step-processing">⚙ Processing</div>
+      <div style="color:var(--text3)">→</div>
+      <div class="progress-step" id="step-completed">✅ Completed</div>
+      <div class="progress-step" id="step-failed" style="display:none">❌ Failed</div>
+    </div>
+    <div id="jobStatusMsg" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
+    <div id="downloadBtn" style="display:none;margin-top:12px">
+      <a id="downloadLink" class="btn btn-primary" href="#">⬇ Download MP4</a>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Tab 2: Settings ──────────────────────────────────────────────────────── -->
+<div class="tab-pane" id="tab-settings">
+  <form method="post" asp-page-handler="SaveVideoSettings">
+    @Html.AntiForgeryToken()
+    <div class="card">
+      <h3>General</h3>
+      <div class="form-group">
+        <label>Feature Enabled</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="enabled" id="settingEnabled" value="true"
+                 @(Model.VideoSettingsMap.GetValueOrDefault("video:enabled")=="true"?"checked":"") />
+          Enable Video Processing feature
+        </label>
+        <p class="hint">Master on/off switch. When disabled, all video API endpoints return 503.</p>
+      </div>
+      <div class="form-group">
+        <label>Storage Path</label>
+        <input type="text" name="storagePath"
+               value="@Model.VideoSettingsMap.GetValueOrDefault("video:storagePath")"
+               placeholder="Leave blank to use {AppRoot}\VideoStorage" />
+        <p class="hint">Folder where uploaded and processed video files are stored. Leave blank to use VideoStorage in the app root.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>FFmpeg</h3>
+      <div class="form-group">
+        <label>FFmpeg Executable Path</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" name="ffmpegPath" id="ffmpegPath"
+                 value="@Model.VideoSettingsMap.GetValueOrDefault("video:ffmpeg:executablePath","tools\ffmpeg\ffmpeg.exe")"
+                 style="flex:1" />
+          <button type="button" class="btn btn-default" onclick="testFfmpeg()">Test</button>
+        </div>
+        <p class="hint">Path to ffmpeg.exe. Relative paths are resolved from the app root. Default <code>tools\ffmpeg\ffmpeg.exe</code> uses the bundled FFmpeg.</p>
+        <pre id="ffmpegTestOut" style="display:none;margin-top:8px" class="code-block"></pre>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>Encoding Preset</label>
+          @{
+            var curPreset = Model.VideoSettingsMap.GetValueOrDefault("video:ffmpeg:preset","ultrafast");
+            var presets = new[]{"ultrafast","superfast","veryfast","faster","fast","medium","slow","veryslow"};
+          }
+          <select name="ffmpegPreset">
+            @foreach(var p in presets)
+            {
+              if (p == curPreset) { <option value="@p" selected>@p</option> }
+              else                { <option value="@p">@p</option> }
+            }
+          </select>
+          <p class="hint">x264 speed preset. Faster = larger file.</p>
+        </div>
+        <div class="form-group">
+          <label>CRF Quality (0–51)</label>
+          <input type="number" name="ffmpegCrf" min="0" max="51"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:ffmpeg:crf","32"))" />
+          <p class="hint">Lower = better quality, larger file. 32 = good for screen recordings.</p>
+        </div>
+        <div class="form-group">
+          <label>Transcript Font Size</label>
+          <input type="number" name="ffmpegFontSize" min="8" max="72"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:ffmpeg:fontSize","20"))" />
+          <p class="hint">Font size (px) for transcript text overlay.</p>
+        </div>
+        <div class="form-group">
+          <label>Top Padding (px)</label>
+          <input type="number" name="ffmpegTopPadding" min="0" max="100"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:ffmpeg:topPadding","20"))" />
+          <p class="hint">Padding above the transcript text overlay.</p>
+        </div>
+        <div class="form-group">
+          <label>Text Y Position (px from bottom)</label>
+          <input type="number" name="ffmpegTextYPos" min="0" max="200"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:ffmpeg:textYPosition","8"))" />
+          <p class="hint">Y offset from the bottom edge for the overlay.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Worker &amp; Limits</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>Max File Size (MB)</label>
+          <input type="number" name="maxFileSizeMb" min="1" max="10000"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:maxFileSizeMb","500"))" />
+          <p class="hint">Maximum upload size per file.</p>
+        </div>
+        <div class="form-group">
+          <label>Max Concurrent Jobs</label>
+          <input type="number" name="batchSize" min="1" max="4"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:batchSize","1"))" />
+          <p class="hint">Parallel FFmpeg processes. Keep 1 on limited-RAM servers.</p>
+        </div>
+        <div class="form-group">
+          <label>Worker Poll Interval (seconds)</label>
+          <input type="number" name="workerPollSeconds" min="1" max="60"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:workerPollSeconds","2"))" />
+          <p class="hint">How often the background worker checks for queued jobs.</p>
+        </div>
+        <div class="form-group">
+          <label>WS Token Expiry (minutes)</label>
+          <input type="number" name="wsTokenExpiry" min="1" max="60"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:wsTokenExpiryMinutes","10"))" />
+          <p class="hint">Lifetime of a WebSocket handshake token.</p>
+        </div>
+        <div class="form-group">
+          <label>WS Idle Timeout (minutes)</label>
+          <input type="number" name="wsIdleTimeout" min="5" max="1440"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:wsConnectionTimeoutMinutes","30"))" />
+          <p class="hint">Idle WebSocket connections older than this are cleaned up.</p>
+        </div>
+        <div class="form-group">
+          <label>Delete Input After Processing</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
+            <input type="checkbox" name="deleteInput" value="true"
+                   @(Model.VideoSettingsMap.GetValueOrDefault("video:deleteInputAfterProcess","true")!="false"?"checked":"") />
+            Delete uploaded raw files after success
+          </label>
+          <p class="hint">Saves disk space. Output MP4 is kept until manually deleted.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center">
+      <button type="submit" class="btn btn-primary">💾 Save Settings</button>
+      @if (Model.SettingsSaved)
+      {
+        <span class="alert alert-success" style="margin:0;padding:5px 12px">✓ Saved</span>
+      }
+    </div>
+  </form>
+</div>
+
+<!-- ── Tab 3: Active Jobs ──────────────────────────────────────────────────── -->
+<div class="tab-pane" id="tab-jobs">
+  <div class="card">
+    <h3>Recent Jobs <button class="btn btn-default btn-sm" onclick="loadJobs()" style="margin-left:8px">↻ Refresh</button></h3>
+    <div id="jobsTable">Loading…</div>
+  </div>
+</div>
+
+<!-- ── Tab 4: Integration Guide ───────────────────────────────────────────── -->
+<div class="tab-pane" id="tab-guide">
+  <div class="card">
+    <h3>Authentication</h3>
+    <p style="margin-bottom:10px;color:var(--text2);font-size:13px">All <code>/api/v1/*</code> endpoints require an <strong>X-Api-Key</strong> header. Obtain your key from the Clients page.</p>
+    <pre class="code-block">X-Api-Key: your-api-key-here</pre>
+  </div>
+
+  <div class="card">
+    <h3>Step-by-Step: Submit a Video for Processing</h3>
+    <ol style="padding-left:20px;color:var(--text2);font-size:13px;line-height:1.8">
+      <li>Issue a WebSocket token:<pre class="code-block" style="margin:6px 0">POST /api/v1/video/ws-token
+X-Api-Key: your-key
+
+Response: { "token": "abc123...", "wsUrl": "ws://host/ws/video?token=abc123..." }</pre></li>
+      <li>Connect the WebSocket:<pre class="code-block" style="margin:6px 0">const ws = new WebSocket(wsUrl);
+ws.onmessage = e => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'job.completed') {
+    window.location = msg.payload.downloadUrl; // download MP4
+  }
+};</pre></li>
+      <li>Upload the video (multipart/form-data):<pre class="code-block" style="margin:6px 0">POST /api/v1/video/upload
+X-Api-Key: your-key
+Content-Type: multipart/form-data
+
+Fields:
+  video         (File, required)  — screen recording WebM/MP4
+  audio         (File, optional)  — separate mic audio WebM
+  transcriptText (string, optional) — text to burn as overlay
+
+Response: { "jobId": "abc123..." }</pre></li>
+      <li>Wait for WebSocket event <code>job.completed</code> or poll <code>GET /api/v1/video/status/{'{'}jobId{'}'}</code></li>
+      <li>Download the result:<pre class="code-block" style="margin:6px 0">GET /api/v1/video/download/{'{'}jobId{'}'}
+X-Api-Key: your-key
+
+Response: video/mp4 stream (use Content-Disposition filename)</pre></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>WebSocket Message Schema</h3>
+    <table>
+      <thead><tr><th>type</th><th>payload fields</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>job.queued</code></td><td>—</td><td>Job accepted and waiting in queue</td></tr>
+        <tr><td><code>job.processing</code></td><td>—</td><td>FFmpeg has started</td></tr>
+        <tr><td><code>job.completed</code></td><td><code>downloadUrl</code>, <code>durationMs</code></td><td>MP4 ready for download</td></tr>
+        <tr><td><code>job.failed</code></td><td><code>error</code></td><td>FFmpeg failed — see error message</td></tr>
+      </tbody>
+    </table>
+    <pre class="code-block" style="margin-top:10px">// All messages follow this envelope:
+{ "type": "job.completed", "jobId": "abc123", "payload": { "downloadUrl": "/api/v1/video/download/abc123", "durationMs": 4200 } }</pre>
+  </div>
+
+  <div class="card">
+    <h3>Polling Fallback (no WebSocket)</h3>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:8px">If your client cannot use WebSockets, poll the status endpoint:</p>
+    <pre class="code-block">GET /api/v1/video/status/{'{'}jobId{'}'}
+X-Api-Key: your-key
+
+Response:
+{
+  "jobId": "...",
+  "status": "queued|processing|completed|failed",
+  "createdAt": "...",
+  "startedAt": "...",
+  "completedAt": "...",
+  "durationMs": 4200,
+  "errorMsg": null,
+  "downloadUrl": "/api/v1/video/download/..." // only when completed
+}</pre>
+  </div>
+
+  <div class="card">
+    <h3>Real-Time STT Integration</h3>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:8px">For live speech-to-text during recording, use the STT WebSocket endpoint:</p>
+    <pre class="code-block">// 1. Get STT token
+POST /api/v1/stt/ws-token
+X-Api-Key: your-key
+
+// 2. Connect
+const sttWs = new WebSocket(wsUrl);  // wsUrl from response
+
+// 3. Start recognition
+sttWs.onopen = () => sttWs.send(JSON.stringify({ type: 'start', language: 'en-US' }));
+
+// 4. Feed raw PCM audio (16 kHz, 16-bit signed, mono)
+// Browser: AudioContext → ScriptProcessorNode → Float32→Int16 → sttWs.send(buffer)
+
+// 5. Receive transcripts
+sttWs.onmessage = e => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'transcript') {
+    console.log(msg.isFinal ? '[final]' : '[interim]', msg.text);
+  }
+};
+
+// 6. Stop
+sttWs.send(JSON.stringify({ type: 'stop' }));</pre>
+  </div>
+
+  <div class="card">
+    <h3>License Requirement</h3>
+    <p style="color:var(--text2);font-size:13px">The <code>VideoProcessing</code> feature must be present in the license file. If missing, all video and STT endpoints return <strong>HTTP 402</strong>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Limits &amp; Formats</h3>
+    <table>
+      <thead><tr><th>Parameter</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Max file size</td><td>500 MB</td><td>Configurable in Settings tab</td></tr>
+        <tr><td>Supported formats</td><td>WebM, MP4, MKV, MOV</td><td>Any format FFmpeg can decode</td></tr>
+        <tr><td>Output format</td><td>MP4 (H.264 + AAC)</td><td>x264 ultrafast CRF 32 by default</td></tr>
+        <tr><td>Processing timeout</td><td>10 minutes</td><td>FFmpeg killed after timeout</td></tr>
+        <tr><td>STT audio format</td><td>16 kHz, 16-bit PCM, mono</td><td>Required for System.Speech engine</td></tr>
+        <tr><td>WS token expiry</td><td>10 minutes</td><td>Configurable in Settings tab</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+@section Scripts {
+<script>
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('tab-' + name + 'Btn') || // fallback by text
+    document.querySelector(`.tab-btn[onclick="showTab('${name}')"]`)?.classList.add('active');
+  if (name === 'jobs') loadJobs();
+}
+
+// ── WebSocket (video) ─────────────────────────────────────────────────────────
+let videoWs = null;
+let currentJobId = null;
+
+async function connectVideoWs() {
+  try {
+    const r = await fetch('/api/v1/video/ws-token', { method: 'POST', headers: { 'X-Api-Key': getApiKey() } });
+    if (!r.ok) { setWsChip(false); return; }
+    const { wsUrl } = await r.json();
+    videoWs = new WebSocket(wsUrl);
+    videoWs.onopen  = () => setWsChip(true);
+    videoWs.onclose = () => { setWsChip(false); videoWs = null; setTimeout(connectVideoWs, 5000); };
+    videoWs.onerror = () => { setWsChip(false); };
+    videoWs.onmessage = e => handleVideoWsMsg(JSON.parse(e.data));
+  } catch { setWsChip(false); }
+}
+
+function setWsChip(ok) {
+  const c = document.getElementById('wsChip');
+  c.className = 'chip ' + (ok ? 'chip-green' : 'chip-red');
+  c.textContent = ok ? '🟢 WS Connected' : '🔴 WS Disconnected';
+}
+
+function handleVideoWsMsg(msg) {
+  if (msg.jobId !== currentJobId && currentJobId !== null) return;
+  currentJobId = msg.jobId;
+  const card = document.getElementById('progressCard');
+  card.style.display = '';
+  const setStep = (id, cls) => document.getElementById(id).className = 'progress-step ' + cls;
+  const sm = document.getElementById('jobStatusMsg');
+
+  if (msg.type === 'job.queued') {
+    setStep('step-queued', 'active');
+    setStep('step-processing', '');
+    setStep('step-completed', '');
+    sm.textContent = 'Job is queued…';
+  } else if (msg.type === 'job.processing') {
+    setStep('step-queued', 'done');
+    setStep('step-processing', 'active');
+    setStep('step-completed', '');
+    sm.textContent = 'FFmpeg is processing…';
+  } else if (msg.type === 'job.completed') {
+    setStep('step-queued', 'done');
+    setStep('step-processing', 'done');
+    setStep('step-completed', 'done');
+    const dl = document.getElementById('downloadBtn');
+    const lk = document.getElementById('downloadLink');
+    lk.href = msg.payload.downloadUrl;
+    dl.style.display = '';
+    sm.textContent = `Completed in ${(msg.payload.durationMs/1000).toFixed(1)}s`;
+  } else if (msg.type === 'job.failed') {
+    setStep('step-queued', 'done');
+    setStep('step-processing', 'error');
+    const fe = document.getElementById('step-failed');
+    fe.style.display = '';
+    fe.className = 'progress-step error';
+    sm.textContent = 'Error: ' + msg.payload.error;
+  }
+}
+
+// ── STT WebSocket ─────────────────────────────────────────────────────────────
+let sttWs = null;
+let audioCtx = null, scriptProc = null;
+
+async function connectSttWs() {
+  try {
+    const r = await fetch('/api/v1/stt/ws-token', { method: 'POST', headers: { 'X-Api-Key': getApiKey() } });
+    if (!r.ok) return;
+    const { wsUrl } = await r.json();
+    sttWs = new WebSocket(wsUrl);
+    sttWs.onopen  = () => {
+      sttWs.send(JSON.stringify({ type: 'start', language: 'en-US' }));
+      setSttChip('listening');
+    };
+    sttWs.onclose = () => { setSttChip('idle'); sttWs = null; };
+    sttWs.onerror = () => setSttChip('idle');
+    sttWs.onmessage = e => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'transcript') {
+        const ta = document.getElementById('sttTranscript');
+        if (msg.isFinal) {
+          ta.value = (ta.value + ' ' + msg.text).trim();
+        } else {
+          // Show interim in placeholder-like style (don't overwrite committed text)
+        }
+      }
+    };
+  } catch { setSttChip('idle'); }
+}
+
+function setSttChip(state) {
+  const c = document.getElementById('sttChip');
+  if (state === 'listening') { c.className = 'chip chip-green'; c.textContent = '🎤 Listening'; }
+  else                       { c.className = 'chip chip-gray';  c.textContent = '⏸ STT Idle'; }
+}
+
+function startMicCapture(micStream) {
+  audioCtx = new AudioContext({ sampleRate: 16000 });
+  const src = audioCtx.createMediaStreamSource(micStream);
+  scriptProc = audioCtx.createScriptProcessor(4096, 1, 1);
+  scriptProc.onaudioprocess = e => {
+    if (!sttWs || sttWs.readyState !== WebSocket.OPEN) return;
+    const f32 = e.inputBuffer.getChannelData(0);
+    const i16 = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++)
+      i16[i] = Math.max(-32768, Math.min(32767, f32[i] * 32768));
+    sttWs.send(i16.buffer);
+  };
+  src.connect(scriptProc);
+  scriptProc.connect(audioCtx.destination);
+}
+
+function stopMicCapture() {
+  if (scriptProc) { scriptProc.disconnect(); scriptProc = null; }
+  if (audioCtx)   { audioCtx.close(); audioCtx = null; }
+  if (sttWs)      { sttWs.send(JSON.stringify({ type: 'stop' })); sttWs.close(); sttWs = null; }
+  setSttChip('idle');
+}
+
+// ── Recording ─────────────────────────────────────────────────────────────────
+let screenRecorder = null, audioRecorder = null;
+let screenChunks = [], audioChunks = [];
+let recStart = 0, recTimer = null;
+
+async function startRecording() {
+  try {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const micStream    = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    document.getElementById('previewVideo').srcObject = screenStream;
+    document.getElementById('previewVideo').style.display = '';
+
+    screenChunks = []; audioChunks = [];
+    screenRecorder = new MediaRecorder(screenStream, { mimeType: 'video/webm;codecs=vp8' });
+    audioRecorder  = new MediaRecorder(micStream,    { mimeType: 'audio/webm;codecs=opus' });
+    screenRecorder.ondataavailable = e => { if (e.data.size) screenChunks.push(e.data); };
+    audioRecorder.ondataavailable  = e => { if (e.data.size) audioChunks.push(e.data); };
+
+    screenRecorder.start(1000);
+    audioRecorder.start(1000);
+
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('stopBtn').style.display  = '';
+    document.getElementById('recIndicator').style.display = '';
+    document.getElementById('transcriptCard').style.display = '';
+    document.getElementById('sttChip').style.display = '';
+    document.getElementById('progressCard').style.display = 'none';
+    document.getElementById('downloadBtn').style.display  = 'none';
+
+    recStart = Date.now();
+    recTimer = setInterval(updateTimer, 1000);
+
+    // Connect STT
+    await connectSttWs();
+    startMicCapture(micStream);
+
+  } catch (err) {
+    alert('Recording failed: ' + err.message);
+  }
+}
+
+function updateTimer() {
+  const s = Math.floor((Date.now() - recStart) / 1000);
+  document.getElementById('recTimer').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+}
+
+async function stopRecording() {
+  clearInterval(recTimer);
+  stopMicCapture();
+
+  const [svBlob, auBlob] = await Promise.all([
+    new Promise(res => { screenRecorder.onstop = () => res(new Blob(screenChunks, { type: 'video/webm' })); screenRecorder.stop(); }),
+    new Promise(res => { audioRecorder.onstop  = () => res(new Blob(audioChunks,  { type: 'audio/webm' })); audioRecorder.stop();  }),
+  ]);
+
+  document.getElementById('stopBtn').style.display  = 'none';
+  document.getElementById('startBtn').style.display = '';
+  document.getElementById('recIndicator').style.display = 'none';
+  document.getElementById('previewVideo').style.display = 'none';
+
+  await uploadJob(svBlob, auBlob);
+}
+
+async function uploadJob(videoBlob, audioBlob) {
+  const fd = new FormData();
+  fd.append('video', videoBlob, 'recording.webm');
+  if (audioBlob.size > 0) fd.append('audio', audioBlob, 'mic.webm');
+  const transcript = document.getElementById('sttTranscript').value.trim();
+  if (transcript) fd.append('transcriptText', transcript);
+
+  try {
+    const r = await fetch('/api/v1/video/upload', {
+      method: 'POST',
+      headers: { 'X-Api-Key': getApiKey() },
+      body: fd
+    });
+    const data = await r.json();
+    if (!r.ok) { alert('Upload error: ' + (data.error || r.status)); return; }
+    currentJobId = data.jobId;
+    document.getElementById('progressCard').style.display = '';
+  } catch (err) { alert('Upload failed: ' + err.message); }
+}
+
+// ── Jobs table ────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  const el = document.getElementById('jobsTable');
+  try {
+    const r = await fetch('/api/v1/video/jobs', { headers: { 'X-Api-Key': getApiKey() } });
+    if (!r.ok) { el.innerHTML = '<p style="color:var(--text3)">Could not load jobs (check API key).</p>'; return; }
+    const jobs = await r.json();
+    if (!jobs.length) { el.innerHTML = '<p style="color:var(--text3)">No jobs yet.</p>'; return; }
+    const statusBadge = s => {
+      const map = { queued:'chip-blue', processing:'chip-orange', completed:'chip-green', failed:'chip-red' };
+      return `<span class="chip ${map[s]||'chip-gray'}">${s}</span>`;
+    };
+    el.innerHTML = `<table>
+      <thead><tr><th>Job ID</th><th>File</th><th>Status</th><th>Created</th><th>Duration</th><th>Actions</th></tr></thead>
+      <tbody>${jobs.map(j => `<tr>
+        <td class="mono">${j.jobId.substring(0,8)}…</td>
+        <td>${escHtml(j.videoName||'—')}</td>
+        <td>${statusBadge(j.status)}</td>
+        <td>${new Date(j.createdAt).toLocaleString()}</td>
+        <td>${j.durationMs ? (j.durationMs/1000).toFixed(1)+'s' : '—'}</td>
+        <td>${j.downloadUrl ? `<a class="btn btn-default btn-sm" href="${j.downloadUrl}">⬇</a>` : ''}</td>
+      </tr>`).join('')}</tbody></table>`;
+  } catch { el.innerHTML = '<p style="color:var(--text3)">Error loading jobs.</p>'; }
+}
+
+// ── FFmpeg test ───────────────────────────────────────────────────────────────
+async function testFfmpeg() {
+  const out = document.getElementById('ffmpegTestOut');
+  out.style.display = '';
+  out.textContent = 'Testing…';
+  try {
+    const r = await fetch('/admin/video-processor?handler=TestFfmpeg', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    const d = await r.json();
+    out.textContent = d.output || d.error || 'No output';
+  } catch(e) { out.textContent = 'Error: ' + e.message; }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getApiKey() {
+  return document.cookie.split(';').map(c=>c.trim())
+    .find(c=>c.startsWith('pii-apikey='))?.split('=')[1] || '';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Auto-connect video WS on page load
+connectVideoWs();
+</script>
+}

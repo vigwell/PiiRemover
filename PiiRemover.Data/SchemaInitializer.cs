@@ -68,6 +68,35 @@ public class SchemaInitializer
             Value       TEXT,
             Description TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS VideoJobs (
+            Id             TEXT PRIMARY KEY,
+            ClientId       INTEGER NOT NULL,
+            Status         TEXT NOT NULL DEFAULT 'queued',
+            VideoPath      TEXT,
+            AudioPath      TEXT,
+            OutputPath     TEXT,
+            VideoName      TEXT,
+            AudioName      TEXT,
+            TranscriptText TEXT,
+            CreatedAt      TEXT NOT NULL,
+            StartedAt      TEXT,
+            CompletedAt    TEXT,
+            DurationMs     INTEGER,
+            ErrorMsg       TEXT,
+            FOREIGN KEY (ClientId) REFERENCES Clients(Id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_videojobs_status ON VideoJobs(Status, CreatedAt);
+
+        CREATE TABLE IF NOT EXISTS VideoConnections (
+            ConnectionId TEXT PRIMARY KEY,
+            ClientId     INTEGER NOT NULL,
+            ConnectedAt  TEXT NOT NULL,
+            LastSeenAt   TEXT NOT NULL,
+            IsActive     INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (ClientId) REFERENCES Clients(Id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_videoconn_active ON VideoConnections(IsActive, LastSeenAt);
         """;
 
     private readonly string _connectionString;

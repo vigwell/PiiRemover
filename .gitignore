@@ -88,5 +88,8 @@ appsettings.*.json
 Installs/*.exe
 Installs/*.msi
 
+## FFmpeg binaries — bundled with app but too large for git (~202 MB total)
+**/tools/ffmpeg/
+
 ## Claude Code session memory — local only
 .claude/
