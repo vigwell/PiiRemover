@@ -51,6 +51,15 @@
 [data-theme="light"] .progress-step.done  {background:#f6ffed;color:#389e0d;border-color:#b7eb8f}
 [data-theme="light"] .progress-step.error {background:#fff2f0;color:#cf1322;border-color:#ffccc7}
 #sttTranscript{min-height:80px;resize:vertical;font-size:13px;line-height:1.5}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);
+         border-top-color:#1677ff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@@keyframes spin{to{transform:rotate(360deg)}}
+.processing-banner{background:#111d2c;border:1px solid #15325b;border-radius:6px;
+                   padding:14px 18px;display:flex;align-items:center;gap:12px;margin-top:12px}
+[data-theme="light"] .processing-banner{background:#e6f4ff;border-color:#91caff}
+.download-banner{background:#162312;border:1px solid #274916;border-radius:6px;
+                 padding:16px 20px;display:flex;align-items:center;gap:16px;margin-top:12px}
+[data-theme="light"] .download-banner{background:#f6ffed;border-color:#b7eb8f}
 pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-radius:6px;
                padding:12px 14px;font-size:12px;font-family:'Courier New',monospace;
                overflow-x:auto;white-space:pre-wrap;color:var(--text2)}
@@ -94,9 +103,29 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
       <div class="progress-step" id="step-completed">✅ Completed</div>
       <div class="progress-step" id="step-failed" style="display:none">❌ Failed</div>
     </div>
-    <div id="jobStatusMsg" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
-    <div id="downloadBtn" style="display:none;margin-top:12px">
-      <a id="downloadLink" class="btn btn-primary" href="#">⬇ Download MP4</a>
+
+    <!-- Processing banner (visible while queued/processing) -->
+    <div class="processing-banner" id="processingBanner">
+      <span class="spinner"></span>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#177ddc">Processing your video…</div>
+        <div id="jobStatusMsg" style="font-size:12px;color:var(--text3);margin-top:2px">Please wait while FFmpeg processes your recording.</div>
+      </div>
+    </div>
+
+    <!-- Download banner (visible when completed) -->
+    <div class="download-banner" id="downloadBanner" style="display:none">
+      <div style="font-size:24px">✅</div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600;color:#6abe39">Your video is ready!</div>
+        <div id="downloadMeta" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
+      </div>
+      <a id="downloadLink" class="btn btn-primary" href="#" download>⬇ Download MP4</a>
+    </div>
+
+    <!-- Error banner -->
+    <div class="alert alert-danger" id="errorBanner" style="display:none;margin-top:10px">
+      <strong>Processing failed:</strong> <span id="errorMsg"></span>
     </div>
   </div>
 
@@ -220,10 +249,33 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
             <input type="checkbox" name="deleteInput" value="true"
                    @(Model.VideoSettingsMap.GetValueOrDefault("video:deleteInputAfterProcess","true")!="false"?"checked":"") />
-            Delete uploaded raw files after success
+            Delete uploaded raw files immediately after success
           </label>
-          <p class="hint">Saves disk space. Output MP4 is kept until manually deleted.</p>
+          <p class="hint">Saves disk space. Output MP4 is always kept for download.</p>
         </div>
+        <div class="form-group">
+          <label>Cleanup Orphaned Input Files (hours)</label>
+          <input type="number" name="cleanupOlderThanHours" min="0" max="8760"
+                 value="@(Model.VideoSettingsMap.GetValueOrDefault("video:cleanupInputOlderThanHours","24"))" />
+          <p class="hint">Delete input files for completed/failed jobs older than this many hours (runs hourly). Set to 0 to disable automatic cleanup.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>PII Redaction of Transcript</h3>
+      <div class="form-group">
+        <label>Redact PII from Transcript Before Video Overlay</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" name="piiRedactionEnabled" value="true"
+                 @(Model.VideoSettingsMap.GetValueOrDefault("video:piiRedactionEnabled","false")=="true"?"checked":"") />
+          Enable PII redaction on transcript text
+        </label>
+        <p class="hint">
+          When enabled, the dictated transcript text is passed through the client's active PII field rules before being burned as a text overlay into the video.
+          Any matched PII (names, dates, IDs, etc.) will be replaced with the field's replacement character (e.g. <code>█</code>) in the video overlay.
+          The original transcript submitted by the user is not modified — only the overlay burned into the MP4 is redacted.
+        </p>
       </div>
     </div>
 
@@ -272,9 +324,10 @@ X-Api-Key: your-key
 Content-Type: multipart/form-data
 
 Fields:
-  video         (File, required)  — screen recording WebM/MP4
-  audio         (File, optional)  — separate mic audio WebM
-  transcriptText (string, optional) — text to burn as overlay
+  video          (File, required)   — screen recording WebM/MP4/MKV
+  audio          (File, optional)   — separate mic audio WebM
+  transcriptText (string, optional) — dictated text to burn as overlay
+                                      (PII-redacted before overlay if enabled in Settings)
 
 Response: { "jobId": "abc123..." }</pre></li>
       <li>Wait for WebSocket event <code>job.completed</code> or poll <code>GET /api/v1/video/status/{'{'}jobId{'}'}</code></li>
@@ -348,6 +401,21 @@ sttWs.send(JSON.stringify({ type: 'stop' }));</pre>
   </div>
 
   <div class="card">
+    <h3>PII Redaction of Transcript Overlay</h3>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:8px">
+      When <strong>PII Redaction on Transcript</strong> is enabled in Settings, the <code>transcriptText</code> field is automatically
+      filtered through the client's active PII field rules before being burned into the video overlay.
+      The original text submitted by the caller is not stored in redacted form — only the burned overlay in the MP4 is redacted.
+    </p>
+    <pre class="code-block">// Example: transcript "Patient John Smith DOB 01/01/1980" becomes:
+// "Patient ████████████ DOB ██████████"  ← burned into video
+// (actual replacement character depends on PII field configuration)</pre>
+    <p style="color:var(--text2);font-size:12px;margin-top:8px">
+      Configured via: <code>video:piiRedactionEnabled</code> = <code>true/false</code> in the Settings table.
+    </p>
+  </div>
+
+  <div class="card">
     <h3>License Requirement</h3>
     <p style="color:var(--text2);font-size:13px">The <code>VideoProcessing</code> feature must be present in the license file. If missing, all video and STT endpoints return <strong>HTTP 402</strong>.</p>
   </div>
@@ -406,37 +474,42 @@ function setWsChip(ok) {
 function handleVideoWsMsg(msg) {
   if (msg.jobId !== currentJobId && currentJobId !== null) return;
   currentJobId = msg.jobId;
-  const card = document.getElementById('progressCard');
-  card.style.display = '';
+  document.getElementById('progressCard').style.display = '';
   const setStep = (id, cls) => document.getElementById(id).className = 'progress-step ' + cls;
-  const sm = document.getElementById('jobStatusMsg');
+
+  // Reset banners
+  const procBanner = document.getElementById('processingBanner');
+  const dlBanner   = document.getElementById('downloadBanner');
+  const errBanner  = document.getElementById('errorBanner');
+  const statusMsg  = document.getElementById('jobStatusMsg');
 
   if (msg.type === 'job.queued') {
     setStep('step-queued', 'active');
     setStep('step-processing', '');
     setStep('step-completed', '');
-    sm.textContent = 'Job is queued…';
+    procBanner.style.display = ''; dlBanner.style.display = 'none'; errBanner.style.display = 'none';
+    statusMsg.textContent = 'Your video is queued and will start processing shortly…';
   } else if (msg.type === 'job.processing') {
     setStep('step-queued', 'done');
     setStep('step-processing', 'active');
     setStep('step-completed', '');
-    sm.textContent = 'FFmpeg is processing…';
+    procBanner.style.display = ''; dlBanner.style.display = 'none'; errBanner.style.display = 'none';
+    statusMsg.textContent = 'FFmpeg is merging and encoding your recording. Please wait…';
   } else if (msg.type === 'job.completed') {
     setStep('step-queued', 'done');
     setStep('step-processing', 'done');
     setStep('step-completed', 'done');
-    const dl = document.getElementById('downloadBtn');
-    const lk = document.getElementById('downloadLink');
-    lk.href = msg.payload.downloadUrl;
-    dl.style.display = '';
-    sm.textContent = `Completed in ${(msg.payload.durationMs/1000).toFixed(1)}s`;
+    procBanner.style.display = 'none'; dlBanner.style.display = ''; errBanner.style.display = 'none';
+    document.getElementById('downloadLink').href = msg.payload.downloadUrl;
+    document.getElementById('downloadMeta').textContent =
+      `Processing completed in ${(msg.payload.durationMs/1000).toFixed(1)}s`;
   } else if (msg.type === 'job.failed') {
     setStep('step-queued', 'done');
     setStep('step-processing', 'error');
     const fe = document.getElementById('step-failed');
-    fe.style.display = '';
-    fe.className = 'progress-step error';
-    sm.textContent = 'Error: ' + msg.payload.error;
+    fe.style.display = ''; fe.className = 'progress-step error';
+    procBanner.style.display = 'none'; dlBanner.style.display = 'none'; errBanner.style.display = '';
+    document.getElementById('errorMsg').textContent = msg.payload.error;
   }
 }
 

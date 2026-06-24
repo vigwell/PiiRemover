@@ -31,7 +31,7 @@ public class VideoProcessorModel : PageModel
         bool enabled, string? storagePath,
         string? ffmpegPath, string? ffmpegPreset, int ffmpegCrf, int ffmpegFontSize, int ffmpegTopPadding, int ffmpegTextYPos,
         int maxFileSizeMb, int batchSize, int workerPollSeconds, int wsTokenExpiry, int wsIdleTimeout,
-        bool deleteInput)
+        bool deleteInput, int cleanupOlderThanHours, bool piiRedactionEnabled)
     {
         await _settings.SetAsync(VideoSettings.KeyEnabled,          enabled ? "true" : "false",    VideoSettings.Metadata[VideoSettings.KeyEnabled].Description);
         await _settings.SetAsync(VideoSettings.KeyStoragePath,      storagePath ?? "",              VideoSettings.Metadata[VideoSettings.KeyStoragePath].Description);
@@ -46,7 +46,9 @@ public class VideoProcessorModel : PageModel
         await _settings.SetAsync(VideoSettings.KeyWorkerPollSecs,   workerPollSeconds.ToString(),   VideoSettings.Metadata[VideoSettings.KeyWorkerPollSecs].Description);
         await _settings.SetAsync(VideoSettings.KeyWsTokenExpiry,    wsTokenExpiry.ToString(),       VideoSettings.Metadata[VideoSettings.KeyWsTokenExpiry].Description);
         await _settings.SetAsync(VideoSettings.KeyWsIdleTimeout,    wsIdleTimeout.ToString(),       VideoSettings.Metadata[VideoSettings.KeyWsIdleTimeout].Description);
-        await _settings.SetAsync(VideoSettings.KeyDeleteInput,      deleteInput ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyDeleteInput].Description);
+        await _settings.SetAsync(VideoSettings.KeyDeleteInput,           deleteInput ? "true" : "false",       VideoSettings.Metadata[VideoSettings.KeyDeleteInput].Description);
+        await _settings.SetAsync(VideoSettings.KeyCleanupOlderThanHours, cleanupOlderThanHours.ToString(),      VideoSettings.Metadata[VideoSettings.KeyCleanupOlderThanHours].Description);
+        await _settings.SetAsync(VideoSettings.KeyPiiRedactionEnabled,    piiRedactionEnabled ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyPiiRedactionEnabled].Description);
 
         SettingsSaved = true;
         await LoadSettingsAsync();

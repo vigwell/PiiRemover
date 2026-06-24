@@ -47,6 +47,20 @@ public class VideoJobRepository : IVideoJobRepository
             """, job);
     }
 
+    public async Task<IEnumerable<VideoJob>> GetOldCompletedAsync(DateTime olderThan)
+    {
+        using var conn = Open();
+        return await conn.QueryAsync<VideoJob>(
+            """
+            SELECT * FROM VideoJobs
+            WHERE Status IN ('completed','failed')
+              AND (VideoPath IS NOT NULL OR AudioPath IS NOT NULL)
+              AND datetime(CreatedAt) < datetime(@cutoff)
+            ORDER BY CreatedAt
+            """,
+            new { cutoff = olderThan.ToString("o") });
+    }
+
     public async Task UpdateStatusAsync(string id, string status,
         string? outputPath = null, long? durationMs = null, string? errorMsg = null,
         string? startedAt = null, string? completedAt = null)

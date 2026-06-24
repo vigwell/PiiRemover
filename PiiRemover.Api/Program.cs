@@ -70,6 +70,7 @@ builder.Services.AddSingleton<SttWebSocketManager>();
 builder.Services.AddSingleton<VideoProcessingService>();
 builder.Services.AddHostedService<VideoWorkerService>();
 builder.Services.AddHostedService<VideoConnectionCleanupService>();
+builder.Services.AddHostedService<VideoJobCleanupService>();
 
 // ── Background services ───────────────────────────────────────────────────────
 builder.Services.AddHostedService<LogCleanupService>();

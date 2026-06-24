@@ -24,7 +24,9 @@ public class VideoSettings
     public const string KeyWorkerPollSecs   = "video:workerPollSeconds";
     public const string KeyWsTokenExpiry    = "video:wsTokenExpiryMinutes";
     public const string KeyWsIdleTimeout    = "video:wsConnectionTimeoutMinutes";
-    public const string KeyDeleteInput      = "video:deleteInputAfterProcess";
+    public const string KeyDeleteInput           = "video:deleteInputAfterProcess";
+    public const string KeyPiiRedactionEnabled   = "video:piiRedactionEnabled";
+    public const string KeyCleanupOlderThanHours = "video:cleanupInputOlderThanHours";
 
     // ── Default values (from Rads4Vet production settings) ────────────────────
 
@@ -38,7 +40,8 @@ public class VideoSettings
     public const int    DefaultBatchSize       = 1;
     public const int    DefaultWorkerPollSecs  = 2;
     public const int    DefaultWsTokenExpiry   = 10;
-    public const int    DefaultWsIdleTimeout   = 30;
+    public const int    DefaultWsIdleTimeout           = 30;
+    public const int    DefaultCleanupOlderThanHours  = 24;
 
     // ── UI descriptions (displayed on admin Settings page) ────────────────────
 
@@ -57,7 +60,9 @@ public class VideoSettings
         [KeyWorkerPollSecs]   = (DefaultWorkerPollSecs.ToString(), "How often (seconds) the worker checks for queued jobs."),
         [KeyWsTokenExpiry]    = (DefaultWsTokenExpiry.ToString(), "Minutes before a WebSocket handshake token expires."),
         [KeyWsIdleTimeout]    = (DefaultWsIdleTimeout.ToString(), "Minutes of idle time before a WebSocket connection is cleaned up."),
-        [KeyDeleteInput]      = ("true",                     "Delete uploaded raw files after successful processing to save disk space."),
+        [KeyDeleteInput]           = ("true",  "Delete uploaded raw files after successful processing to save disk space."),
+        [KeyPiiRedactionEnabled]   = ("false", "Apply PII redaction to the transcript text before burning it as a video overlay. Uses the client's active PII field rules."),
+        [KeyCleanupOlderThanHours] = ("24",    "Delete orphaned input files for completed/failed jobs older than this many hours (runs hourly). Set 0 to disable."),
     };
 
     private readonly ISettingsRepository _settings;
@@ -107,5 +112,7 @@ public class VideoSettings
     public async Task<int>    GetPollSecsAsync()  => int.TryParse(await GetAsync(KeyWorkerPollSecs),  out var v) ? v : DefaultWorkerPollSecs;
     public async Task<int>    GetWsTokenExpiryAsync() => int.TryParse(await GetAsync(KeyWsTokenExpiry), out var v) ? v : DefaultWsTokenExpiry;
     public async Task<int>    GetWsIdleTimeoutAsync() => int.TryParse(await GetAsync(KeyWsIdleTimeout), out var v) ? v : DefaultWsIdleTimeout;
-    public async Task<bool>   GetDeleteInputAsync()   => !(await GetAsync(KeyDeleteInput)).Equals("false", StringComparison.OrdinalIgnoreCase);
+    public async Task<bool>   GetDeleteInputAsync()           => !(await GetAsync(KeyDeleteInput)).Equals("false", StringComparison.OrdinalIgnoreCase);
+    public async Task<bool>   GetPiiRedactionEnabledAsync()   => (await GetAsync(KeyPiiRedactionEnabled)).Equals("true", StringComparison.OrdinalIgnoreCase);
+    public async Task<int>    GetCleanupOlderThanHoursAsync() => int.TryParse(await GetAsync(KeyCleanupOlderThanHours), out var v) ? v : DefaultCleanupOlderThanHours;
 }

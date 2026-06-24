@@ -1,9 +1,11 @@
+using PiiRemover.Core.Engines;
 using PiiRemover.Data.Repositories;
 
 namespace PiiRemover.Api.Services;
 
 /// <summary>
 /// Background service that polls the VideoJobs table and processes queued jobs with FFmpeg.
+/// Optionally redacts PII from the transcript text before burning it as a video overlay.
 /// Sends WebSocket events to the client when job status changes.
 /// </summary>
 public class VideoWorkerService : BackgroundService
@@ -12,6 +14,8 @@ public class VideoWorkerService : BackgroundService
     private readonly VideoProcessingService _processor;
     private readonly VideoWebSocketManager _wsManager;
     private readonly VideoSettings _settings;
+    private readonly RedactionOrchestrator _orchestrator;
+    private readonly FieldsCache _fieldsCache;
     private readonly ILogger<VideoWorkerService> _logger;
 
     public VideoWorkerService(
@@ -19,13 +23,17 @@ public class VideoWorkerService : BackgroundService
         VideoProcessingService processor,
         VideoWebSocketManager wsManager,
         VideoSettings settings,
+        RedactionOrchestrator orchestrator,
+        FieldsCache fieldsCache,
         ILogger<VideoWorkerService> logger)
     {
-        _jobs      = jobs;
-        _processor = processor;
-        _wsManager = wsManager;
-        _settings  = settings;
-        _logger    = logger;
+        _jobs         = jobs;
+        _processor    = processor;
+        _wsManager    = wsManager;
+        _settings     = settings;
+        _orchestrator = orchestrator;
+        _fieldsCache  = fieldsCache;
+        _logger       = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -66,6 +74,20 @@ public class VideoWorkerService : BackgroundService
 
         try
         {
+            // Optionally redact PII from transcript text before burning it as overlay
+            if (!string.IsNullOrWhiteSpace(job.TranscriptText))
+            {
+                var piiEnabled = await _settings.GetPiiRedactionEnabledAsync();
+                if (piiEnabled)
+                {
+                    var fields  = await _fieldsCache.GetFieldsAsync(job.ClientId);
+                    var redacted = _orchestrator.Redact(job.TranscriptText, fields);
+                    job.TranscriptText = redacted.RedactedText;
+                    _logger.LogInformation("Video job {Id}: transcript PII-redacted ({Before}→{After} chars)",
+                        job.Id, job.TranscriptText.Length, redacted.RedactedText.Length);
+                }
+            }
+
             var sw = System.Diagnostics.Stopwatch.StartNew();
             await _processor.ProcessAsync(job, storagePath, ct);
             sw.Stop();
