@@ -13,11 +13,12 @@ public class VideoConnectionRepository : IVideoConnectionRepository
     public async Task InsertAsync(string connectionId, int clientId)
     {
         var now = DateTime.UtcNow.ToString("o");
+        int? nullableClientId = clientId == 0 ? null : clientId;
         using var conn = Open();
         await conn.ExecuteAsync("""
             INSERT OR REPLACE INTO VideoConnections (ConnectionId, ClientId, ConnectedAt, LastSeenAt, IsActive)
-            VALUES (@connectionId, @clientId, @now, @now, 1)
-            """, new { connectionId, clientId, now });
+            VALUES (@connectionId, @nullableClientId, @now, @now, 1)
+            """, new { connectionId, nullableClientId, now });
     }
 
     public async Task UpdateLastSeenAsync(string connectionId)

@@ -48,7 +48,7 @@ public class VideoSettings
 
     public static readonly Dictionary<string, (string Default, string Description)> Metadata = new()
     {
-        [KeyEnabled]          = ("false",                    "Enable the Video Processing feature"),
+        [KeyEnabled]          = ("true",                     "Enable the Video Processing feature"),
         [KeyStoragePath]      = ("",                         "Folder where uploaded and output video files are stored. Leave blank to use VideoStorage in the app root."),
         [KeyFfmpegPath]       = (DefaultFfmpegPath,          "Path to ffmpeg.exe. Relative paths are resolved from the app root. Default uses the bundled FFmpeg."),
         [KeyFfmpegPreset]     = (DefaultPreset,              "x264 encoding speed preset (ultrafast→veryslow). Faster = larger file."),

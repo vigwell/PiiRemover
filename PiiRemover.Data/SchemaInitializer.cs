@@ -71,7 +71,7 @@ public class SchemaInitializer
 
         CREATE TABLE IF NOT EXISTS VideoJobs (
             Id             TEXT PRIMARY KEY,
-            ClientId       INTEGER NOT NULL,
+            ClientId       INTEGER,
             Status         TEXT NOT NULL DEFAULT 'queued',
             VideoPath      TEXT,
             AudioPath      TEXT,
@@ -90,7 +90,7 @@ public class SchemaInitializer
 
         CREATE TABLE IF NOT EXISTS VideoConnections (
             ConnectionId TEXT PRIMARY KEY,
-            ClientId     INTEGER NOT NULL,
+            ClientId     INTEGER,
             ConnectedAt  TEXT NOT NULL,
             LastSeenAt   TEXT NOT NULL,
             IsActive     INTEGER NOT NULL DEFAULT 1,
@@ -127,6 +127,18 @@ public class SchemaInitializer
 
         // ── Migration: add WebhookUrl column to Clients ───────────────────────
         MigrateAddClientWebhook(conn);
+
+        // ── Migration: add EventType column to RequestLogs ────────────────────
+        MigrateAddEventType(conn);
+
+        // ── Migration: make VideoConnections.ClientId nullable (admin support) ─
+        MigrateVideoConnectionsClientIdNullable(conn);
+
+        // ── Migration: make VideoJobs.ClientId nullable (admin support) ─────────
+        MigrateVideoJobsClientIdNullable(conn);
+
+        // ── Migration: add RedactPii / RedactAudioPii to VideoJobs ────────────
+        MigrateAddVideoJobPiiFlags(conn);
     }
 
     /// <summary>
@@ -226,6 +238,111 @@ public class SchemaInitializer
         var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
         if (!ddl.Contains("WebhookUrl", StringComparison.OrdinalIgnoreCase))
             Execute(conn, "ALTER TABLE Clients ADD COLUMN WebhookUrl TEXT");
+    }
+
+    /// <summary>Recreates VideoConnections with nullable ClientId so admin (clientId=0) connections don't violate the FK.</summary>
+    private static void MigrateVideoConnectionsClientIdNullable(SqliteConnection conn)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name='VideoConnections'";
+        var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
+
+        // Only migrate if the table still has NOT NULL on ClientId
+        if (!ddl.Contains("NOT NULL", StringComparison.OrdinalIgnoreCase) ||
+            !ddl.Contains("ClientId", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Check specifically that ClientId has NOT NULL
+        if (!System.Text.RegularExpressions.Regex.IsMatch(ddl,
+            @"ClientId\s+INTEGER\s+NOT NULL", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return;
+
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            Execute(conn, """
+                CREATE TABLE VideoConnections_new (
+                    ConnectionId TEXT PRIMARY KEY,
+                    ClientId     INTEGER,
+                    ConnectedAt  TEXT NOT NULL,
+                    LastSeenAt   TEXT NOT NULL,
+                    IsActive     INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY (ClientId) REFERENCES Clients(Id)
+                )
+                """);
+            Execute(conn, "INSERT INTO VideoConnections_new SELECT ConnectionId, NULLIF(ClientId,0), ConnectedAt, LastSeenAt, IsActive FROM VideoConnections");
+            Execute(conn, "DROP TABLE VideoConnections");
+            Execute(conn, "ALTER TABLE VideoConnections_new RENAME TO VideoConnections");
+            Execute(conn, "CREATE INDEX IF NOT EXISTS idx_videoconn_active ON VideoConnections(IsActive, LastSeenAt)");
+            tx.Commit();
+        }
+        catch { tx.Rollback(); throw; }
+    }
+
+    /// <summary>Recreates VideoJobs with nullable ClientId so admin (clientId=0) jobs don't violate the FK.</summary>
+    private static void MigrateVideoJobsClientIdNullable(SqliteConnection conn)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name='VideoJobs'";
+        var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(ddl,
+            @"ClientId\s+INTEGER\s+NOT NULL", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return;
+
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            Execute(conn, """
+                CREATE TABLE VideoJobs_new (
+                    Id             TEXT PRIMARY KEY,
+                    ClientId       INTEGER,
+                    Status         TEXT NOT NULL DEFAULT 'queued',
+                    VideoPath      TEXT,
+                    AudioPath      TEXT,
+                    OutputPath     TEXT,
+                    VideoName      TEXT,
+                    AudioName      TEXT,
+                    TranscriptText TEXT,
+                    RedactPii      INTEGER NOT NULL DEFAULT 0,
+                    RedactAudioPii INTEGER NOT NULL DEFAULT 0,
+                    CreatedAt      TEXT NOT NULL,
+                    StartedAt      TEXT,
+                    CompletedAt    TEXT,
+                    DurationMs     INTEGER,
+                    ErrorMsg       TEXT,
+                    FOREIGN KEY (ClientId) REFERENCES Clients(Id)
+                )
+                """);
+            Execute(conn, "INSERT INTO VideoJobs_new SELECT Id, NULLIF(ClientId,0), Status, VideoPath, AudioPath, OutputPath, VideoName, AudioName, TranscriptText, CreatedAt, StartedAt, CompletedAt, DurationMs, ErrorMsg FROM VideoJobs");
+            Execute(conn, "DROP TABLE VideoJobs");
+            Execute(conn, "ALTER TABLE VideoJobs_new RENAME TO VideoJobs");
+            Execute(conn, "CREATE INDEX IF NOT EXISTS idx_videojobs_status ON VideoJobs(Status, CreatedAt)");
+            tx.Commit();
+        }
+        catch { tx.Rollback(); throw; }
+    }
+
+    /// <summary>Adds RedactPii and RedactAudioPii columns to VideoJobs if missing.</summary>
+    private static void MigrateAddVideoJobPiiFlags(SqliteConnection conn)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name='VideoJobs'";
+        var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
+        if (!ddl.Contains("RedactPii", StringComparison.OrdinalIgnoreCase))
+            Execute(conn, "ALTER TABLE VideoJobs ADD COLUMN RedactPii INTEGER NOT NULL DEFAULT 0");
+        if (!ddl.Contains("RedactAudioPii", StringComparison.OrdinalIgnoreCase))
+            Execute(conn, "ALTER TABLE VideoJobs ADD COLUMN RedactAudioPii INTEGER NOT NULL DEFAULT 0");
+    }
+
+    /// <summary>Adds EventType column to RequestLogs if missing (existing rows default to 'TextRedaction').</summary>
+    private static void MigrateAddEventType(SqliteConnection conn)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name='RequestLogs'";
+        var ddl = checkCmd.ExecuteScalar() as string ?? string.Empty;
+        if (!ddl.Contains("EventType", StringComparison.OrdinalIgnoreCase))
+            Execute(conn, "ALTER TABLE RequestLogs ADD COLUMN EventType TEXT DEFAULT 'TextRedaction'");
     }
 
     private static void Execute(SqliteConnection conn, string sql)

@@ -11,15 +11,15 @@ namespace PiiRemover.Api.Pages.Admin;
 public class VideoProcessorModel : PageModel
 {
     private readonly VideoSettings _videoSettings;
-    private readonly ISettingsRepository _settings;
+    private readonly ISettingsRepository _settingsRepo;
 
     public Dictionary<string, string> VideoSettingsMap { get; private set; } = new();
     public bool SettingsSaved { get; private set; }
 
-    public VideoProcessorModel(VideoSettings videoSettings, ISettingsRepository settings)
+    public VideoProcessorModel(VideoSettings videoSettings, ISettingsRepository settingsRepo)
     {
         _videoSettings = videoSettings;
-        _settings      = settings;
+        _settingsRepo  = settingsRepo;
     }
 
     public async Task OnGetAsync()
@@ -33,23 +33,23 @@ public class VideoProcessorModel : PageModel
         int maxFileSizeMb, int batchSize, int workerPollSeconds, int wsTokenExpiry, int wsIdleTimeout,
         bool deleteInput, int cleanupOlderThanHours, bool piiRedactionEnabled, bool piiAudioRedactionEnabled)
     {
-        await _settings.SetAsync(VideoSettings.KeyEnabled,          enabled ? "true" : "false",    VideoSettings.Metadata[VideoSettings.KeyEnabled].Description);
-        await _settings.SetAsync(VideoSettings.KeyStoragePath,      storagePath ?? "",              VideoSettings.Metadata[VideoSettings.KeyStoragePath].Description);
-        await _settings.SetAsync(VideoSettings.KeyFfmpegPath,       ffmpegPath ?? VideoSettings.DefaultFfmpegPath, VideoSettings.Metadata[VideoSettings.KeyFfmpegPath].Description);
-        await _settings.SetAsync(VideoSettings.KeyFfmpegPreset,     ffmpegPreset ?? VideoSettings.DefaultPreset,   VideoSettings.Metadata[VideoSettings.KeyFfmpegPreset].Description);
-        await _settings.SetAsync(VideoSettings.KeyFfmpegCrf,        ffmpegCrf.ToString(),           VideoSettings.Metadata[VideoSettings.KeyFfmpegCrf].Description);
-        await _settings.SetAsync(VideoSettings.KeyFfmpegFontSize,   ffmpegFontSize.ToString(),      VideoSettings.Metadata[VideoSettings.KeyFfmpegFontSize].Description);
-        await _settings.SetAsync(VideoSettings.KeyFfmpegTopPadding, ffmpegTopPadding.ToString(),    VideoSettings.Metadata[VideoSettings.KeyFfmpegTopPadding].Description);
-        await _settings.SetAsync(VideoSettings.KeyFfmpegTextYPos,   ffmpegTextYPos.ToString(),      VideoSettings.Metadata[VideoSettings.KeyFfmpegTextYPos].Description);
-        await _settings.SetAsync(VideoSettings.KeyMaxFileSizeMb,    maxFileSizeMb.ToString(),       VideoSettings.Metadata[VideoSettings.KeyMaxFileSizeMb].Description);
-        await _settings.SetAsync(VideoSettings.KeyBatchSize,        batchSize.ToString(),           VideoSettings.Metadata[VideoSettings.KeyBatchSize].Description);
-        await _settings.SetAsync(VideoSettings.KeyWorkerPollSecs,   workerPollSeconds.ToString(),   VideoSettings.Metadata[VideoSettings.KeyWorkerPollSecs].Description);
-        await _settings.SetAsync(VideoSettings.KeyWsTokenExpiry,    wsTokenExpiry.ToString(),       VideoSettings.Metadata[VideoSettings.KeyWsTokenExpiry].Description);
-        await _settings.SetAsync(VideoSettings.KeyWsIdleTimeout,    wsIdleTimeout.ToString(),       VideoSettings.Metadata[VideoSettings.KeyWsIdleTimeout].Description);
-        await _settings.SetAsync(VideoSettings.KeyDeleteInput,           deleteInput ? "true" : "false",       VideoSettings.Metadata[VideoSettings.KeyDeleteInput].Description);
-        await _settings.SetAsync(VideoSettings.KeyCleanupOlderThanHours, cleanupOlderThanHours.ToString(),      VideoSettings.Metadata[VideoSettings.KeyCleanupOlderThanHours].Description);
-        await _settings.SetAsync(VideoSettings.KeyPiiRedactionEnabled,      piiRedactionEnabled      ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyPiiRedactionEnabled].Description);
-        await _settings.SetAsync(VideoSettings.KeyPiiAudioRedactionEnabled, piiAudioRedactionEnabled ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyPiiAudioRedactionEnabled].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyEnabled,          enabled ? "true" : "false",    VideoSettings.Metadata[VideoSettings.KeyEnabled].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyStoragePath,      storagePath ?? "",              VideoSettings.Metadata[VideoSettings.KeyStoragePath].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyFfmpegPath,       ffmpegPath ?? VideoSettings.DefaultFfmpegPath, VideoSettings.Metadata[VideoSettings.KeyFfmpegPath].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyFfmpegPreset,     ffmpegPreset ?? VideoSettings.DefaultPreset,   VideoSettings.Metadata[VideoSettings.KeyFfmpegPreset].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyFfmpegCrf,        ffmpegCrf.ToString(),           VideoSettings.Metadata[VideoSettings.KeyFfmpegCrf].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyFfmpegFontSize,   ffmpegFontSize.ToString(),      VideoSettings.Metadata[VideoSettings.KeyFfmpegFontSize].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyFfmpegTopPadding, ffmpegTopPadding.ToString(),    VideoSettings.Metadata[VideoSettings.KeyFfmpegTopPadding].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyFfmpegTextYPos,   ffmpegTextYPos.ToString(),      VideoSettings.Metadata[VideoSettings.KeyFfmpegTextYPos].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyMaxFileSizeMb,    maxFileSizeMb.ToString(),       VideoSettings.Metadata[VideoSettings.KeyMaxFileSizeMb].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyBatchSize,        batchSize.ToString(),           VideoSettings.Metadata[VideoSettings.KeyBatchSize].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyWorkerPollSecs,   workerPollSeconds.ToString(),   VideoSettings.Metadata[VideoSettings.KeyWorkerPollSecs].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyWsTokenExpiry,    wsTokenExpiry.ToString(),       VideoSettings.Metadata[VideoSettings.KeyWsTokenExpiry].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyWsIdleTimeout,    wsIdleTimeout.ToString(),       VideoSettings.Metadata[VideoSettings.KeyWsIdleTimeout].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyDeleteInput,           deleteInput ? "true" : "false",       VideoSettings.Metadata[VideoSettings.KeyDeleteInput].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyCleanupOlderThanHours, cleanupOlderThanHours.ToString(),      VideoSettings.Metadata[VideoSettings.KeyCleanupOlderThanHours].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyPiiRedactionEnabled,      piiRedactionEnabled      ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyPiiRedactionEnabled].Description);
+        await _settingsRepo.SetAsync(VideoSettings.KeyPiiAudioRedactionEnabled, piiAudioRedactionEnabled ? "true" : "false", VideoSettings.Metadata[VideoSettings.KeyPiiAudioRedactionEnabled].Description);
 
         SettingsSaved = true;
         await LoadSettingsAsync();
@@ -89,9 +89,9 @@ public class VideoProcessorModel : PageModel
 
     private async Task LoadSettingsAsync()
     {
-        var all = (await _settings.GetAllAsync()).ToDictionary(s => s.Key, s => s.Value ?? "");
-        VideoSettingsMap = VideoSettings.Metadata.Keys.ToDictionary(
-            k => k,
-            k => all.TryGetValue(k, out var v) ? v : VideoSettings.Metadata[k].Default);
+        var map = new Dictionary<string, string>();
+        foreach (var key in VideoSettings.Metadata.Keys)
+            map[key] = await _videoSettings.GetAsync(key);
+        VideoSettingsMap = map;
     }
 }

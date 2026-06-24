@@ -66,7 +66,7 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 </style>
 
 <!-- ── Tab 1: Record & Test ─────────────────────────────────────────────────── -->
-<div class="tab-pane active" id="tab-record">
+<div class="tab-pane active" id="pane-record">
 
   <div class="card">
     <h3>Recording</h3>
@@ -80,16 +80,83 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
       </span>
       <span id="wsChip" class="chip chip-gray">⚪ WS Disconnected</span>
       <span id="sttChip" class="chip chip-gray" style="display:none">⏸ STT Idle</span>
+      <button class="btn" style="font-size:11px;padding:2px 8px;margin-left:auto"
+              onclick="document.getElementById('wsLog').value=''" title="Clear log">✕ Clear log</button>
     </div>
+    <textarea id="wsLog" readonly
+              style="width:100%;height:110px;resize:vertical;font-size:11px;font-family:'Courier New',monospace;
+                     background:var(--mono-bg);color:var(--text2);border:1px solid var(--border);
+                     border-radius:4px;padding:6px 8px;box-sizing:border-box;margin-bottom:4px"
+              placeholder="Connection log will appear here…"></textarea>
 
     <video id="previewVideo" autoplay muted playsinline
            style="width:100%;max-height:300px;border-radius:6px;background:#000;display:none"></video>
   </div>
 
+  <!-- ── Browse existing files ──────────────────────────────────────────────── -->
+  <div class="card">
+    <h3>Upload Existing Files</h3>
+    <p style="font-size:12px;color:var(--text3);margin:0 0 14px">
+      Select a video file (and optionally a separate audio file) from disk to submit for processing.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:5px">
+          🎬 Video file <span style="font-weight:400;color:var(--text3)">(WebM, MP4, MKV, MOV — required)</span>
+        </label>
+        <input type="file" id="browseVideo" accept="video/*,.webm,.mkv"
+               onchange="onBrowseVideoChange()"
+               style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;
+                      background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer" />
+        <div id="browseVideoInfo" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:5px">
+          🎤 Audio file <span style="font-weight:400;color:var(--text3)">(WebM, MP3, WAV, AAC — optional)</span>
+        </label>
+        <input type="file" id="browseAudio" accept="audio/*,.webm"
+               onchange="document.getElementById('browseAudioInfo').textContent = this.files[0] ? this.files[0].name+' — '+(this.files[0].size/1024/1024).toFixed(1)+' MB' : ''"
+               style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;
+                      background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer" />
+        <div id="browseAudioInfo" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <button class="btn btn-primary" id="uploadBrowseBtn" onclick="uploadBrowsedFiles()" disabled>
+        ⬆ Upload &amp; Process
+      </button>
+      <span style="font-size:12px;color:var(--text3);margin-left:10px" id="browseUploadHint">Select a video file to enable upload</span>
+    </div>
+  </div>
+
   <div class="card" id="transcriptCard" style="display:none">
     <h3>Live Transcript <span style="font-size:11px;font-weight:400;color:var(--text3)">(editable — will be burned into the video)</span></h3>
-    <div class="form-group" style="margin:0">
-      <textarea id="sttTranscript" class="ctrl" placeholder="Transcript will appear here as you speak…&#10;&#10;Try saying something with PII — e.g. &quot;Patient name is Victor Cohen, ID 123456789&quot;&#10;If PII Redaction is enabled in Settings, the text burned into the video overlay will show: &quot;Patient name is ████████████, ID █████████&quot;&#10;You can also edit this box before uploading."></textarea>
+    <div class="form-group" style="margin:0 0 14px">
+      <textarea id="sttTranscript" class="ctrl" placeholder="Transcript will appear here as you speak…&#10;&#10;Try saying something with PII — e.g. &quot;Patient name is Victor Cohen, ID 123456789&quot;&#10;If PII Redaction is enabled, the text burned into the video overlay will show: &quot;Patient name is ████████████, ID █████████&quot;&#10;You can also edit this box before uploading."></textarea>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:18px">
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+        <input type="checkbox" id="chkRedactPii"
+               @(Model.VideoSettingsMap.TryGetValue("video:piiRedactionEnabled", out var rv) && rv == "true" ? "checked" : "")
+               style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+        <span>
+          <span style="font-size:13px;font-weight:600">🔒 Redact PII from Transcript</span>
+          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:360px">
+            Matched PII in the transcript (names, IDs, dates…) is replaced with █ in the video overlay. The audio is unaffected.
+          </span>
+        </span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+        <input type="checkbox" id="chkRedactAudio"
+               @(Model.VideoSettingsMap.TryGetValue("video:piiAudioRedactionEnabled", out var av) && av == "true" ? "checked" : "")
+               style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+        <span>
+          <span style="font-size:13px;font-weight:600">🔇 Silence PII in Audio <span style="font-size:10px;background:#1677ff;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">NEW</span></span>
+          <span style="display:block;font-size:11px;color:var(--text3);margin-top:2px;max-width:380px">
+            Offline STT pass identifies exact timestamps when PII words were spoken, then silences those moments in the MP4 — 100% on-premises. Example: "Victor Cohen" is silenced while "patient name is" remains audible.
+          </span>
+        </span>
+      </label>
     </div>
   </div>
 
@@ -132,7 +199,7 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 </div>
 
 <!-- ── Tab 2: Settings ──────────────────────────────────────────────────────── -->
-<div class="tab-pane" id="tab-settings">
+<div class="tab-pane" id="pane-settings">
   <form method="post" asp-page-handler="SaveVideoSettings">
     @Html.AntiForgeryToken()
     <div class="card">
@@ -309,7 +376,7 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 </div>
 
 <!-- ── Tab 3: Active Jobs ──────────────────────────────────────────────────── -->
-<div class="tab-pane" id="tab-jobs">
+<div class="tab-pane" id="pane-jobs">
   <div class="card">
     <h3>Recent Jobs <button class="btn btn-default btn-sm" onclick="loadJobs()" style="margin-left:8px">↻ Refresh</button></h3>
     <div id="jobsTable">Loading…</div>
@@ -317,7 +384,7 @@ pre.code-block{background:var(--mono-bg);border:1px solid var(--border);border-r
 </div>
 
 <!-- ── Tab 4: Integration Guide ───────────────────────────────────────────── -->
-<div class="tab-pane" id="tab-guide">
+<div class="tab-pane" id="pane-guide">
   <div class="card">
     <h3>Authentication</h3>
     <p style="margin-bottom:10px;color:var(--text2);font-size:13px">All <code>/api/v1/*</code> endpoints require an <strong>X-Api-Key</strong> header. Obtain your key from the Clients page.</p>
@@ -343,10 +410,14 @@ X-Api-Key: your-key
 Content-Type: multipart/form-data
 
 Fields:
-  video          (File, required)   — screen recording WebM/MP4/MKV
-  audio          (File, optional)   — separate mic audio WebM
+  video          (File,   required) — screen recording WebM/MP4/MKV
+  audio          (File,   optional) — separate mic audio WebM
   transcriptText (string, optional) — dictated text to burn as overlay
-                                      (PII-redacted before overlay if enabled in Settings)
+  redactPii      (bool,   optional) — redact PII from transcript before overlay (default: false)
+                                      Matched names/IDs/dates replaced with █ in the video text
+  redactAudioPii (bool,   optional) — silence PII words in the audio track (default: false)
+                                      Runs offline STT, mutes exact timestamps where PII was spoken
+                                      Requires audio field to be provided
 
 Response: { "jobId": "abc123..." }</pre></li>
       <li>Wait for WebSocket event <code>job.completed</code> or poll <code>GET /api/v1/video/status/{'{'}jobId{'}'}</code></li>
@@ -489,10 +560,19 @@ sttWs.send(JSON.stringify({ type: 'stop' }));</pre>
 function showTab(name) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('pane-' + name).classList.add('active');
   document.getElementById('tab-' + name + 'Btn') || // fallback by text
     document.querySelector(`.tab-btn[onclick="showTab('${name}')"]`)?.classList.add('active');
   if (name === 'jobs') loadJobs();
+}
+
+// ── Connection log ────────────────────────────────────────────────────────────
+function wsLog(msg) {
+  const el = document.getElementById('wsLog');
+  if (!el) return;
+  const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  el.value += `[${ts}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
 }
 
 // ── WebSocket (video) ─────────────────────────────────────────────────────────
@@ -500,16 +580,25 @@ let videoWs = null;
 let currentJobId = null;
 
 async function connectVideoWs() {
+  if (videoWs && videoWs.readyState <= WebSocket.OPEN) return; // already connecting/connected
+  wsLog('Video WS: requesting token…');
   try {
-    const r = await fetch('/api/v1/video/ws-token', { method: 'POST', headers: { 'X-Api-Key': getApiKey() } });
-    if (!r.ok) { setWsChip(false); return; }
-    const { wsUrl } = await r.json();
+    const r = await fetch('/api/v1/video/ws-token', { method: 'POST' });
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      wsLog(`Video WS: token request failed — HTTP ${r.status} ${body.slice(0,200)}`);
+      setWsChip(false); setTimeout(connectVideoWs, 5000); return;
+    }
+    const { wsPath } = await r.json();
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${proto}://${window.location.host}${wsPath}`;
+    wsLog(`Video WS: connecting → ${wsUrl}`);
     videoWs = new WebSocket(wsUrl);
-    videoWs.onopen  = () => setWsChip(true);
-    videoWs.onclose = () => { setWsChip(false); videoWs = null; setTimeout(connectVideoWs, 5000); };
-    videoWs.onerror = () => { setWsChip(false); };
+    videoWs.onopen  = () => { setWsChip(true);  wsLog('Video WS: connected'); };
+    videoWs.onclose = e => { setWsChip(false); wsLog(`Video WS: closed (code ${e.code}${e.reason ? ' — ' + e.reason : ''})`); videoWs = null; setTimeout(connectVideoWs, 5000); };
+    videoWs.onerror = e => { setWsChip(false); wsLog('Video WS: error (see browser console for details)'); };
     videoWs.onmessage = e => handleVideoWsMsg(JSON.parse(e.data));
-  } catch { setWsChip(false); }
+  } catch(ex) { setWsChip(false); wsLog(`Video WS: exception — ${ex.message}`); setTimeout(connectVideoWs, 5000); }
 }
 
 function setWsChip(ok) {
@@ -519,6 +608,7 @@ function setWsChip(ok) {
 }
 
 function handleVideoWsMsg(msg) {
+  wsLog(`Video WS: message → type=${msg.type}${msg.jobId ? ' jobId=' + msg.jobId.slice(0,8) : ''}`);
   if (msg.jobId !== currentJobId && currentJobId !== null) return;
   currentJobId = msg.jobId;
   document.getElementById('progressCard').style.display = '';
@@ -557,6 +647,7 @@ function handleVideoWsMsg(msg) {
     fe.style.display = ''; fe.className = 'progress-step error';
     procBanner.style.display = 'none'; dlBanner.style.display = 'none'; errBanner.style.display = '';
     document.getElementById('errorMsg').textContent = msg.payload.error;
+    wsLog(`Video WS: job failed — ${msg.payload.error}`);
   }
 }
 
@@ -565,17 +656,26 @@ let sttWs = null;
 let audioCtx = null, scriptProc = null;
 
 async function connectSttWs() {
+  wsLog('STT WS: requesting token…');
   try {
-    const r = await fetch('/api/v1/stt/ws-token', { method: 'POST', headers: { 'X-Api-Key': getApiKey() } });
-    if (!r.ok) return;
-    const { wsUrl } = await r.json();
+    const r = await fetch('/api/v1/stt/ws-token', { method: 'POST', credentials: 'same-origin' });
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      wsLog(`STT WS: token request failed — HTTP ${r.status} ${body.slice(0,200)}`);
+      return;
+    }
+    const { wsPath } = await r.json();
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${proto}://${window.location.host}${wsPath}`;
+    wsLog(`STT WS: connecting → ${wsUrl}`);
     sttWs = new WebSocket(wsUrl);
     sttWs.onopen  = () => {
+      wsLog('STT WS: connected');
       sttWs.send(JSON.stringify({ type: 'start', language: 'en-US' }));
       setSttChip('listening');
     };
-    sttWs.onclose = () => { setSttChip('idle'); sttWs = null; };
-    sttWs.onerror = () => setSttChip('idle');
+    sttWs.onclose = e => { setSttChip('idle'); wsLog(`STT WS: closed (code ${e.code}${e.reason ? ' — ' + e.reason : ''})`); sttWs = null; };
+    sttWs.onerror = () => { setSttChip('idle'); wsLog('STT WS: error (see browser console for details)'); };
     sttWs.onmessage = e => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'transcript') {
@@ -647,7 +747,7 @@ async function startRecording() {
     document.getElementById('transcriptCard').style.display = '';
     document.getElementById('sttChip').style.display = '';
     document.getElementById('progressCard').style.display = 'none';
-    document.getElementById('downloadBtn').style.display  = 'none';
+    document.getElementById('downloadBanner').style.display = 'none';
 
     recStart = Date.now();
     recTimer = setInterval(updateTimer, 1000);
@@ -683,17 +783,85 @@ async function stopRecording() {
   await uploadJob(svBlob, auBlob);
 }
 
+// ── Browse & upload existing files ───────────────────────────────────────────
+function onBrowseVideoChange() {
+  const f = document.getElementById('browseVideo').files[0];
+  const btn  = document.getElementById('uploadBrowseBtn');
+  const hint = document.getElementById('browseUploadHint');
+  const info = document.getElementById('browseVideoInfo');
+  if (f) {
+    info.textContent = `${f.name} — ${(f.size / 1024 / 1024).toFixed(1)} MB`;
+    btn.disabled = false;
+    hint.textContent = '';
+    // Show transcript + options card
+    document.getElementById('transcriptCard').style.display = '';
+    document.getElementById('progressCard').style.display = 'none';
+    document.getElementById('downloadBanner').style.display = 'none';
+    document.getElementById('errorBanner').style.display = 'none';
+  } else {
+    info.textContent = '';
+    btn.disabled = true;
+    hint.textContent = 'Select a video file to enable upload';
+  }
+  const af = document.getElementById('browseAudio').files[0];
+  document.getElementById('browseAudioInfo').textContent = af
+    ? `${af.name} — ${(af.size / 1024 / 1024).toFixed(1)} MB` : '';
+}
+
+async function uploadBrowsedFiles() {
+  const videoFile = document.getElementById('browseVideo').files[0];
+  if (!videoFile) return;
+  const audioFile = document.getElementById('browseAudio').files[0];
+  const fd = new FormData();
+  fd.append('video', videoFile, videoFile.name);
+  if (audioFile) fd.append('audio', audioFile, audioFile.name);
+  const transcript = document.getElementById('sttTranscript').value.trim();
+  if (transcript) fd.append('transcriptText', transcript);
+  fd.append('redactPii',      document.getElementById('chkRedactPii').checked   ? 'true' : 'false');
+  fd.append('redactAudioPii', document.getElementById('chkRedactAudio').checked ? 'true' : 'false');
+
+  const btn = document.getElementById('uploadBrowseBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Uploading…';
+
+  try {
+    const r = await fetch('/api/v1/video/upload', {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: fd
+    });
+    const data = await r.json();
+    if (!r.ok) { alert('Upload error: ' + (data.error || r.status)); return; }
+    currentJobId = data.jobId;
+    document.getElementById('progressCard').style.display = '';
+    document.getElementById('downloadBanner').style.display = 'none';
+    document.getElementById('errorBanner').style.display = 'none';
+    ['step-queued','step-processing','step-completed','step-failed'].forEach(id => {
+      document.getElementById(id).className = 'progress-step';
+    });
+    document.getElementById('step-failed').style.display = 'none';
+    document.getElementById('processingBanner').style.display = '';
+  } catch (err) {
+    alert('Upload failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬆ Upload & Process';
+  }
+}
+
 async function uploadJob(videoBlob, audioBlob) {
   const fd = new FormData();
   fd.append('video', videoBlob, 'recording.webm');
   if (audioBlob.size > 0) fd.append('audio', audioBlob, 'mic.webm');
   const transcript = document.getElementById('sttTranscript').value.trim();
   if (transcript) fd.append('transcriptText', transcript);
+  fd.append('redactPii',      document.getElementById('chkRedactPii').checked   ? 'true' : 'false');
+  fd.append('redactAudioPii', document.getElementById('chkRedactAudio').checked ? 'true' : 'false');
 
   try {
     const r = await fetch('/api/v1/video/upload', {
       method: 'POST',
-      headers: { 'X-Api-Key': getApiKey() },
+      credentials: 'same-origin',
       body: fd
     });
     const data = await r.json();
@@ -707,7 +875,7 @@ async function uploadJob(videoBlob, audioBlob) {
 async function loadJobs() {
   const el = document.getElementById('jobsTable');
   try {
-    const r = await fetch('/api/v1/video/jobs', { headers: { 'X-Api-Key': getApiKey() } });
+    const r = await fetch('/api/v1/video/jobs', { credentials: 'same-origin' });
     if (!r.ok) { el.innerHTML = '<p style="color:var(--text3)">Could not load jobs (check API key).</p>'; return; }
     const jobs = await r.json();
     if (!jobs.length) { el.innerHTML = '<p style="color:var(--text3)">No jobs yet.</p>'; return; }
@@ -741,11 +909,6 @@ async function testFfmpeg() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function getApiKey() {
-  return document.cookie.split(';').map(c=>c.trim())
-    .find(c=>c.startsWith('pii-apikey='))?.split('=')[1] || '';
-}
-
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }

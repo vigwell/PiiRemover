@@ -188,10 +188,10 @@ app.UseSwaggerUI(o =>
     o.SwaggerEndpoint("v1/swagger.json", "PiiRemover v1");
 });
 
-app.UseMiddleware<LicenseMiddleware>();
-app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<LicenseMiddleware>();
+app.UseMiddleware<ApiKeyMiddleware>();
 
 // ── WebSocket endpoints ───────────────────────────────────────────────────────
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
@@ -212,6 +212,8 @@ app.Map("/ws/video", async context =>
         while (ws.State == WebSocketState.Open)
             await ws.ReceiveAsync(buf, context.RequestAborted);
     }
+    catch (OperationCanceledException) { /* client disconnected — normal */ }
+    catch (System.Net.WebSockets.WebSocketException) { /* client reset — normal */ }
     finally
     {
         mgr.Remove(connId);
@@ -228,6 +230,8 @@ app.Map("/ws/stt", async context =>
     var ws      = await context.WebSockets.AcceptWebSocketAsync();
     var sessId  = mgr.Register(ws, clientId);
     try { await SttSession.RunAsync(ws, context.RequestAborted); }
+    catch (OperationCanceledException) { /* client disconnected — normal */ }
+    catch (System.Net.WebSockets.WebSocketException) { /* client reset — normal */ }
     finally { mgr.Remove(sessId); }
 });
 

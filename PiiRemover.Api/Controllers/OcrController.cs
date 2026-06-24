@@ -70,7 +70,8 @@ public class OcrController : ControllerBase
                 FileSizeKb = (int)(file.Length / 1024),
                 DurationMs = sw.ElapsedMilliseconds,
                 FieldsHit  = null,
-                ErrorMsg   = null
+                ErrorMsg   = null,
+                EventType  = "OcrExtract"
             });
 
             return Ok(new

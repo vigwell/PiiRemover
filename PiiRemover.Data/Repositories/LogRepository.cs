@@ -15,8 +15,8 @@ public class LogRepository : ILogRepository
         using var conn = Open();
         await conn.ExecuteAsync(
             """
-            INSERT INTO RequestLogs (ClientId, FileName, FileSizeKb, DurationMs, FieldsHit, ErrorMsg)
-            VALUES (@ClientId, @FileName, @FileSizeKb, @DurationMs, @FieldsHit, @ErrorMsg)
+            INSERT INTO RequestLogs (ClientId, FileName, FileSizeKb, DurationMs, FieldsHit, ErrorMsg, EventType)
+            VALUES (@ClientId, @FileName, @FileSizeKb, @DurationMs, @FieldsHit, @ErrorMsg, @EventType)
             """, entry);
     }
 
@@ -43,22 +43,34 @@ public class LogRepository : ILogRepository
     }
 
     public async Task<IEnumerable<RequestLogEntry>> GetFilteredAsync(int page, int pageSize,
-        string? fromDate, string? toDate, int? clientId, string? fileName)
+        string? fromDate, string? toDate, int? clientId, string? fileName, string? eventType = null)
     {
         using var conn = Open();
-        var sql = BuildFilterSql("SELECT *", fromDate, toDate, clientId, fileName)
+        var sql = BuildFilterSql("SELECT *", fromDate, toDate, clientId, fileName, eventType)
                   + " ORDER BY Id DESC LIMIT @pageSize OFFSET @offset";
         return await conn.QueryAsync<RequestLogEntry>(sql,
             new { pageSize, offset = (page - 1) * pageSize,
-                  fromDate, toDate, clientId, fileName = fileName != null ? $"%{fileName}%" : null });
+                  fromDate, toDate, clientId, fileName = fileName != null ? $"%{fileName}%" : null, eventType });
     }
 
-    public async Task<int> CountFilteredAsync(string? fromDate, string? toDate, int? clientId, string? fileName)
+    public async Task<int> CountFilteredAsync(string? fromDate, string? toDate, int? clientId, string? fileName, string? eventType = null)
     {
         using var conn = Open();
-        var sql = BuildFilterSql("SELECT COUNT(*)", fromDate, toDate, clientId, fileName);
+        var sql = BuildFilterSql("SELECT COUNT(*)", fromDate, toDate, clientId, fileName, eventType);
         return await conn.ExecuteScalarAsync<int>(sql,
-            new { fromDate, toDate, clientId, fileName = fileName != null ? $"%{fileName}%" : null });
+            new { fromDate, toDate, clientId, fileName = fileName != null ? $"%{fileName}%" : null, eventType });
+    }
+
+    public async Task<IEnumerable<EventTypeCount>> GetEventTypeCountsAsync(int days = 30)
+    {
+        using var conn = Open();
+        return await conn.QueryAsync<EventTypeCount>($"""
+            SELECT COALESCE(EventType,'TextRedaction') AS EventType, COUNT(*) AS Count
+            FROM RequestLogs
+            WHERE RequestedAt >= date('now','-{days} days')
+            GROUP BY EventType
+            ORDER BY Count DESC
+            """);
     }
 
     public async Task<IEnumerable<DailyCallCount>> GetDailyCallsAsync(int days)
@@ -202,13 +214,14 @@ public class LogRepository : ILogRepository
             "SELECT * FROM RequestLogs ORDER BY Id DESC LIMIT @count", new { count });
     }
 
-    private static string BuildFilterSql(string select, string? fromDate, string? toDate, int? clientId, string? fileName)
+    private static string BuildFilterSql(string select, string? fromDate, string? toDate, int? clientId, string? fileName, string? eventType = null)
     {
         var wheres = new List<string>();
-        if (!string.IsNullOrWhiteSpace(fromDate)) wheres.Add("date(RequestedAt) >= @fromDate");
-        if (!string.IsNullOrWhiteSpace(toDate))   wheres.Add("date(RequestedAt) <= @toDate");
+        if (!string.IsNullOrWhiteSpace(fromDate))  wheres.Add("date(RequestedAt) >= @fromDate");
+        if (!string.IsNullOrWhiteSpace(toDate))    wheres.Add("date(RequestedAt) <= @toDate");
         if (clientId.HasValue)                     wheres.Add("ClientId = @clientId");
         if (!string.IsNullOrWhiteSpace(fileName))  wheres.Add("FileName LIKE @fileName");
+        if (!string.IsNullOrWhiteSpace(eventType)) wheres.Add("COALESCE(EventType,'TextRedaction') = @eventType");
         return $"{select} FROM RequestLogs" + (wheres.Count > 0 ? " WHERE " + string.Join(" AND ", wheres) : "");
     }
 }

@@ -26,6 +26,13 @@ public class ApiKeyMiddleware
             return;
         }
 
+        // Admin users authenticated via cookie auth — allow through without API key
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            await _next(context);
+            return;
+        }
+
         if (!context.Request.Headers.TryGetValue("X-Api-Key", out var rawKey) || string.IsNullOrWhiteSpace(rawKey))
         {
             context.Response.StatusCode = 401;

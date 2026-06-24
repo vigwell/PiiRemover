@@ -17,6 +17,7 @@ public class VideoWorkerService : BackgroundService
     private readonly RedactionOrchestrator _orchestrator;
     private readonly FieldsCache _fieldsCache;
     private readonly AudioPiiRedactionService _audioRedaction;
+    private readonly ILogRepository _logRepo;
     private readonly ILogger<VideoWorkerService> _logger;
 
     public VideoWorkerService(
@@ -27,6 +28,7 @@ public class VideoWorkerService : BackgroundService
         RedactionOrchestrator orchestrator,
         FieldsCache fieldsCache,
         AudioPiiRedactionService audioRedaction,
+        ILogRepository logRepo,
         ILogger<VideoWorkerService> logger)
     {
         _jobs           = jobs;
@@ -36,6 +38,7 @@ public class VideoWorkerService : BackgroundService
         _orchestrator   = orchestrator;
         _fieldsCache    = fieldsCache;
         _audioRedaction = audioRedaction;
+        _logRepo        = logRepo;
         _logger         = logger;
     }
 
@@ -72,31 +75,28 @@ public class VideoWorkerService : BackgroundService
 
         var startedAt = DateTime.UtcNow.ToString("o");
         await _jobs.UpdateStatusAsync(job.Id, "processing", startedAt: startedAt);
-        await _wsManager.SendToClientAsync(job.ClientId,
+        var clientId = job.ClientId ?? 0;
+        await _wsManager.SendToClientAsync(clientId,
             new { type = "job.processing", jobId = job.Id, payload = new { } });
 
         try
         {
             // Optionally redact PII from transcript text before burning it as overlay
-            if (!string.IsNullOrWhiteSpace(job.TranscriptText))
+            if (!string.IsNullOrWhiteSpace(job.TranscriptText) && job.RedactPii)
             {
-                var piiEnabled = await _settings.GetPiiRedactionEnabledAsync();
-                if (piiEnabled)
-                {
-                    var fields  = await _fieldsCache.GetFieldsAsync(job.ClientId);
-                    var redacted = _orchestrator.Redact(job.TranscriptText, fields);
-                    job.TranscriptText = redacted.RedactedText;
-                    _logger.LogInformation("Video job {Id}: transcript PII-redacted ({Before}→{After} chars)",
-                        job.Id, job.TranscriptText.Length, redacted.RedactedText.Length);
-                }
+                var fields   = await _fieldsCache.GetFieldsAsync(clientId);
+                var redacted = _orchestrator.Redact(job.TranscriptText, fields);
+                job.TranscriptText = redacted.RedactedText;
+                _logger.LogInformation("Video job {Id}: transcript PII-redacted ({Before}→{After} chars)",
+                    job.Id, job.TranscriptText.Length, redacted.RedactedText.Length);
             }
 
             // Optionally run offline STT on audio to get PII word timestamps for muting
             IReadOnlyList<(TimeSpan Start, TimeSpan End)>? audioRanges = null;
-            if (job.AudioPath is not null && await _settings.GetPiiAudioRedactionEnabledAsync())
+            if (job.AudioPath is not null && job.RedactAudioPii)
             {
                 _logger.LogInformation("Video job {Id}: running audio PII redaction pass", job.Id);
-                audioRanges = await _audioRedaction.GetRedactionRangesAsync(job.AudioPath, job.ClientId, ct);
+                audioRanges = await _audioRedaction.GetRedactionRangesAsync(job.AudioPath, clientId, ct);
             }
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -107,7 +107,7 @@ public class VideoWorkerService : BackgroundService
             await _jobs.UpdateStatusAsync(job.Id, "completed",
                 outputPath: job.OutputPath, durationMs: sw.ElapsedMilliseconds, completedAt: completedAt);
 
-            await _wsManager.SendToClientAsync(job.ClientId, new
+            await _wsManager.SendToClientAsync(clientId, new
             {
                 type = "job.completed",
                 jobId = job.Id,
@@ -120,6 +120,14 @@ public class VideoWorkerService : BackgroundService
 
             _logger.LogInformation("Video job {Id} completed in {Ms}ms", job.Id, sw.ElapsedMilliseconds);
 
+            await _logRepo.InsertAsync(new RequestLogEntry
+            {
+                ClientId   = job.ClientId,
+                FileName   = job.VideoName,
+                DurationMs = sw.ElapsedMilliseconds,
+                EventType  = "VideoProcessing"
+            });
+
             if (deleteInput)
             {
                 TryDelete(job.VideoPath);
@@ -130,7 +138,14 @@ public class VideoWorkerService : BackgroundService
         {
             _logger.LogError(ex, "Video job {Id} failed", job.Id);
             await _jobs.UpdateStatusAsync(job.Id, "failed", errorMsg: ex.Message);
-            await _wsManager.SendToClientAsync(job.ClientId, new
+            await _logRepo.InsertAsync(new RequestLogEntry
+            {
+                ClientId  = job.ClientId,
+                FileName  = job.VideoName,
+                EventType = "VideoProcessing",
+                ErrorMsg  = ex.Message
+            });
+            await _wsManager.SendToClientAsync(clientId, new
             {
                 type = "job.failed",
                 jobId = job.Id,

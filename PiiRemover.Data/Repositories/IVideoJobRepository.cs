@@ -11,5 +11,6 @@ public interface IVideoJobRepository
     Task UpdateStatusAsync(string id, string status,
         string? outputPath = null, long? durationMs = null, string? errorMsg = null,
         string? startedAt = null, string? completedAt = null);
+    Task<IEnumerable<VideoJob>> GetAllAsync(int limit = 50);
     Task<IEnumerable<VideoJob>> GetOldCompletedAsync(DateTime olderThan);
 }

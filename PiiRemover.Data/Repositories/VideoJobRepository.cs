@@ -40,11 +40,19 @@ public class VideoJobRepository : IVideoJobRepository
         await conn.ExecuteAsync("""
             INSERT INTO VideoJobs
                 (Id, ClientId, Status, VideoPath, AudioPath, OutputPath, VideoName, AudioName,
-                 TranscriptText, CreatedAt)
+                 TranscriptText, RedactPii, RedactAudioPii, CreatedAt)
             VALUES
                 (@Id, @ClientId, @Status, @VideoPath, @AudioPath, @OutputPath, @VideoName, @AudioName,
-                 @TranscriptText, @CreatedAt)
+                 @TranscriptText, @RedactPii, @RedactAudioPii, @CreatedAt)
             """, job);
+    }
+
+    public async Task<IEnumerable<VideoJob>> GetAllAsync(int limit = 50)
+    {
+        using var conn = Open();
+        return await conn.QueryAsync<VideoJob>(
+            "SELECT * FROM VideoJobs ORDER BY CreatedAt DESC LIMIT @limit",
+            new { limit });
     }
 
     public async Task<IEnumerable<VideoJob>> GetOldCompletedAsync(DateTime olderThan)

@@ -36,7 +36,9 @@ public class VideoController : ControllerBase
         IFormFile video,
         IFormFile? audio,
         [FromForm] string? transcriptText,
-        CancellationToken ct)
+        [FromForm] bool redactPii = false,
+        [FromForm] bool redactAudioPii = false,
+        CancellationToken ct = default)
     {
         if (!CheckLicense(out var err)) return err!;
         var clientId = GetClientId();
@@ -72,7 +74,7 @@ public class VideoController : ControllerBase
         var job = new VideoJob
         {
             Id             = jobId,
-            ClientId       = clientId,
+            ClientId       = clientId == 0 ? null : clientId,
             Status         = "queued",
             VideoPath      = videoFile,
             AudioPath      = audioFile,
@@ -80,6 +82,8 @@ public class VideoController : ControllerBase
             VideoName      = video.FileName,
             AudioName      = audio?.FileName,
             TranscriptText = transcriptText,
+            RedactPii      = redactPii,
+            RedactAudioPii = redactAudioPii,
         };
 
         await _jobs.InsertAsync(job);
@@ -100,7 +104,7 @@ public class VideoController : ControllerBase
 
         var job = await _jobs.GetAsync(jobId);
         if (job is null)                       return NotFound(new { error = "Job not found." });
-        if (job.ClientId != clientId)          return Forbid();
+        if (clientId != 0 && job.ClientId != clientId) return Forbid();
         if (job.Status != "completed")         return StatusCode(425, new { error = "Job not yet completed.", status = job.Status });
         if (!System.IO.File.Exists(job.OutputPath)) return NotFound(new { error = "Output file not found." });
 
@@ -116,8 +120,8 @@ public class VideoController : ControllerBase
         var clientId = GetClientId();
 
         var job = await _jobs.GetAsync(jobId);
-        if (job is null)             return NotFound(new { error = "Job not found." });
-        if (job.ClientId != clientId) return Forbid();
+        if (job is null)                                    return NotFound(new { error = "Job not found." });
+        if (clientId != 0 && job.ClientId != clientId)     return Forbid();
 
         return Ok(new
         {
@@ -142,12 +146,10 @@ public class VideoController : ControllerBase
 
         var expiryMins = await _settings.GetWsTokenExpiryAsync();
         var token      = _wsManager.IssueToken(clientId, expiryMins);
+        var base_      = Request.PathBase.ToString().TrimEnd('/');
+        var wsPath     = $"{base_}/ws/video?token={token}";
 
-        var host  = $"{Request.Scheme.Replace("http", "ws")}://{Request.Host}";
-        var base_ = Request.PathBase.ToString().TrimEnd('/');
-        var wsUrl = $"{host}{base_}/ws/video?token={token}";
-
-        return Ok(new { token, wsUrl });
+        return Ok(new { token, wsPath });
     }
 
     // ── GET /api/v1/video/jobs ────────────────────────────────────────────────
@@ -158,7 +160,9 @@ public class VideoController : ControllerBase
         if (!CheckLicense(out var err)) return err!;
         var clientId = GetClientId();
 
-        var jobs = await _jobs.GetByClientAsync(clientId, 50);
+        var jobs = clientId == 0
+            ? await _jobs.GetAllAsync(50)
+            : await _jobs.GetByClientAsync(clientId, 50);
         return Ok(jobs.Select(j => new
         {
             jobId       = j.Id,

@@ -7,8 +7,9 @@ public interface ILogRepository
     Task<int> CountAsync();
     Task<int> DeleteOlderThanAsync(DateTime cutoff);
     Task<IEnumerable<RequestLogEntry>> GetFilteredAsync(int page, int pageSize,
-        string? fromDate, string? toDate, int? clientId, string? fileName);
-    Task<int> CountFilteredAsync(string? fromDate, string? toDate, int? clientId, string? fileName);
+        string? fromDate, string? toDate, int? clientId, string? fileName, string? eventType = null);
+    Task<int> CountFilteredAsync(string? fromDate, string? toDate, int? clientId, string? fileName, string? eventType = null);
+    Task<IEnumerable<EventTypeCount>> GetEventTypeCountsAsync(int days = 30);
     Task<IEnumerable<DailyCallCount>> GetDailyCallsAsync(int days);
     Task<IEnumerable<FieldHitCount>> GetTopFieldsAsync(int days, int topN);
     Task<ClientStats> GetClientStatsAsync(int clientId, int days);
@@ -30,6 +31,13 @@ public class RequestLogEntry
     public long DurationMs { get; set; }
     public string? FieldsHit { get; set; }
     public string? ErrorMsg { get; set; }
+    public string EventType { get; set; } = "TextRedaction";
+}
+
+public class EventTypeCount
+{
+    public string EventType { get; set; } = string.Empty;
+    public int Count { get; set; }
 }
 
 public class ClientStats

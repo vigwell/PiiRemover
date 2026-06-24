@@ -30,10 +30,9 @@ public class SttController : ControllerBase
         var expiryMins = await _settings.GetWsTokenExpiryAsync();
         var token      = _wsManager.IssueToken(clientId, expiryMins);
 
-        var host  = $"{Request.Scheme.Replace("http", "ws")}://{Request.Host}";
-        var base_ = Request.PathBase.ToString().TrimEnd('/');
-        var wsUrl = $"{host}{base_}/ws/stt?token={token}";
+        var base_  = Request.PathBase.ToString().TrimEnd('/');
+        var wsPath = $"{base_}/ws/stt?token={token}";
 
-        return Ok(new { token, wsUrl });
+        return Ok(new { token, wsPath });
     }
 }

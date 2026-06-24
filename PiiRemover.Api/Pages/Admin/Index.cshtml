@@ -65,7 +65,7 @@
 /* ── Activity feed ─────────────────────────────────────────────────── */
 .feed { display:flex; flex-direction:column; gap:0; }
 .feed-row {
-  display:grid; grid-template-columns:70px 1fr auto 70px 32px;
+  display:grid; grid-template-columns:70px 110px 1fr auto 70px 32px;
   gap:8px; align-items:center;
   padding:9px 14px; border-bottom:1px solid var(--border); font-size:12px;
   transition:background .1s;
@@ -290,15 +290,22 @@ else if (licenseWarn)
   {
     <div class="feed">
       <div class="feed-row" style="background:var(--surface2);font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px">
-        <span>Time</span><span>File</span><span>Fields hit</span><span style="text-align:right">Duration</span><span></span>
+        <span>Time</span><span>Type</span><span>File</span><span>Fields hit</span><span style="text-align:right">Duration</span><span></span>
       </div>
       @foreach (var log in Model.RecentActivity)
       {
         var fields  = IndexModel.ParseFields(log.FieldsHit);
         var isError = !string.IsNullOrEmpty(log.ErrorMsg);
         var ago     = IndexModel.TimeAgo(log.RequestedAt);
+        var (opLabel, opStyle) = (log.EventType ?? "TextRedaction") switch {
+            "ImageRedaction"  => ("🖼 Image",  "background:rgba(82,196,26,.12);color:#52c41a;border-color:rgba(82,196,26,.25)"),
+            "OcrExtract"      => ("🔍 OCR",    "background:rgba(250,173,20,.12);color:#d48806;border-color:rgba(250,173,20,.25)"),
+            "VideoProcessing" => ("🎬 Video",  "background:rgba(114,46,209,.12);color:#7c3aed;border-color:rgba(114,46,209,.25)"),
+            _                 => ("📄 Text",   "background:rgba(26,111,240,.12);color:#1a6ff0;border-color:rgba(26,111,240,.2)")
+        };
         <div class="feed-row">
           <span class="feed-time">@ago</span>
+          <span><span style="display:inline-block;border:1px solid;border-radius:4px;padding:1px 6px;font-size:11px;white-space:nowrap;@opStyle">@opLabel</span></span>
           <span class="feed-file" title="@log.FileName">@(log.FileName ?? "—")</span>
           <span class="feed-fields">
             @if (isError)

@@ -98,7 +98,8 @@ public class RedactController : ControllerBase
                 FileSizeKb = (int)(file.Length / 1024),
                 DurationMs = result.DurationMs,
                 FieldsHit  = fieldsHit.Length > 0 ? System.Text.Json.JsonSerializer.Serialize(fieldsHit) : null,
-                ErrorMsg   = null
+                ErrorMsg   = null,
+                EventType  = "TextRedaction"
             });
 
             // Fire-and-forget webhook if client has one configured
@@ -193,7 +194,8 @@ public class RedactController : ControllerBase
                 FileSizeKb = (int)(file.Length / 1024),
                 DurationMs = result.DurationMs,
                 FieldsHit  = "[\"(all text)\"]",
-                ErrorMsg   = null
+                ErrorMsg   = null,
+                EventType  = "ImageRedaction"
             });
 
             Response.Headers["X-Word-Count"]  = result.MatchCount.ToString();

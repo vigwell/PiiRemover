@@ -14,11 +14,38 @@
         try { return JsonSerializer.Deserialize<List<string>>(json) ?? new(); }
         catch { return new(); }
     }
+
+    static string EventTypeBadgeStyle(string et) => et switch
+    {
+        "ImageRedaction"  => "background:rgba(82,196,26,.12);color:#52c41a;border-color:rgba(82,196,26,.25)",
+        "OcrExtract"      => "background:rgba(250,173,20,.12);color:#d48806;border-color:rgba(250,173,20,.25)",
+        "VideoProcessing" => "background:rgba(114,46,209,.12);color:#7c3aed;border-color:rgba(114,46,209,.25)",
+        _                 => "background:rgba(26,111,240,.12);color:#1a6ff0;border-color:rgba(26,111,240,.2)"
+    };
 }
 
 <h1 class="page-title">Request Logs</h1>
 
-<!-- ── Filter bar ───────────────────────────────────────────────────── -->
+<!-- ── Event-type aggregation bar ───────────────────────────────── -->
+@if (Model.EventTypeCounts.Any())
+{
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+  @foreach (var et in Model.EventTypeCounts)
+  {
+    var label = LogsModel.EventTypeLabels.TryGetValue(et.EventType, out var l) ? l : et.EventType;
+    var active = Model.FilterEventType == et.EventType;
+    var href   = active
+        ? Model.PageUrl(1).Replace($"&eventType={Uri.EscapeDataString(et.EventType)}", "").Replace($"eventType={Uri.EscapeDataString(et.EventType)}&", "").Replace($"?eventType={Uri.EscapeDataString(et.EventType)}", "?")
+        : (Model.PageUrl(1).Contains('?') ? Model.PageUrl(1) + $"&eventType={Uri.EscapeDataString(et.EventType)}" : $"/admin/logs?page=1&eventType={Uri.EscapeDataString(et.EventType)}");
+    <a href="@href" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;border:1px solid;text-decoration:none;font-size:13px;transition:opacity .15s;@EventTypeBadgeStyle(et.EventType)@(active ? ";outline:2px solid currentColor;outline-offset:1px" : "")">
+      @label
+      <strong>@et.Count.ToString("N0")</strong>
+    </a>
+  }
+</div>
+}
+
+<!-- ── Filter bar ───────────────────────────────────────────────── -->
 <div class="card" style="margin-bottom:12px;padding:14px 18px">
   <form method="get" action="/admin/logs" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
     <div>
@@ -39,6 +66,19 @@
             { <option value="@c.Id" selected>@c.Name</option> }
             else
             { <option value="@c.Id">@c.Name</option> }
+        }
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Event type</label>
+      <select name="eventType" style="padding:4px 8px;width:170px">
+        <option value="">All types</option>
+        @foreach (var kv in LogsModel.EventTypeLabels)
+        {
+            @if (Model.FilterEventType == kv.Key)
+            { <option value="@kv.Key" selected>@kv.Value</option> }
+            else
+            { <option value="@kv.Key">@kv.Value</option> }
         }
       </select>
     </div>
@@ -76,6 +116,7 @@
             <th style="width:60px">ID</th>
             <th style="width:80px">Client</th>
             <th style="width:150px">Time</th>
+            <th style="width:140px">Event Type</th>
             <th>File</th>
             <th style="width:80px">Size KB</th>
             <th style="width:90px">Duration ms</th>
@@ -88,6 +129,13 @@
                 <td>@log.Id</td>
                 <td>@log.ClientId</td>
                 <td style="font-size:12px;white-space:nowrap">@log.RequestedAt</td>
+                <td>
+                    @{
+                        var et = log.EventType ?? "TextRedaction";
+                        var etLabel = LogsModel.EventTypeLabels.TryGetValue(et, out var etl) ? etl : et;
+                    }
+                    <span style="display:inline-block;border:1px solid;border-radius:4px;padding:1px 7px;font-size:11px;white-space:nowrap;@EventTypeBadgeStyle(et)">@etLabel</span>
+                </td>
                 <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
                     title="@log.FileName">@log.FileName</td>
                 <td>@log.FileSizeKb</td>
