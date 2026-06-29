@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using PiiRemover.Core.Models;
@@ -52,30 +53,32 @@ public class RedactionOrchestrator
             }
         }
 
-        // ── Step 2: collect REDACT candidates from normal fields ──────────────
-        var allMatches = new List<RedactMatch>();
-        foreach (var field in activeFields.Where(f => !f.IsPreserve))
+        // ── Step 2: collect REDACT candidates (parallel across fields) ──────────
+        // All engines and TermIndex structures are immutable after first build → thread-safe.
+        var bag = new ConcurrentBag<RedactMatch>();
+        var redactFields = activeFields.Where(f => !f.IsPreserve).ToList();
+
+        Parallel.ForEach(redactFields, field =>
         {
             foreach (var pattern in field.Patterns.OrderByDescending(p => p.Priority))
             {
                 if (!_engines.TryGetValue(pattern.PatternType, out var engine)) continue;
-
-                // Apply scope: slice the text to the region defined by ScopeStart / ScopeEnd,
-                // then offset match positions back to the original document coordinates.
                 var (scopedText, scopeOffset) = ApplyScope(text, pattern);
-
                 foreach (var hit in engine.FindMatches(scopedText, pattern, field.ReplaceWith))
                 {
                     hit.StartIndex += scopeOffset;
                     hit.FieldName   = field.FieldName;
-                    allMatches.Add(hit);
+                    bag.Add(hit);
                 }
             }
-        }
+        });
+
+        var allMatches = bag.ToList();
 
         // ── Step 3: remove candidates that overlap any preserve region ─────────
         if (preserveRegions.Count > 0)
         {
+            preserveRegions.Sort((a, b) => a.Start.CompareTo(b.Start));
             allMatches = allMatches
                 .Where(m => !preserveRegions.Any(p =>
                     m.StartIndex < p.End && (m.StartIndex + m.Length) > p.Start))

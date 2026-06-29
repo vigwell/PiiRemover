@@ -42,10 +42,10 @@ public class PdfTextExtractor : ITextExtractor
             ct.ThrowIfCancellationRequested();
             sb.AppendLine($"[Page {page.Number}]");
 
-            // 1. Text layer
+            // 1. Text layer — Hebrew/Arabic words are char-reversed so PII rules match correctly.
             var textSb = new StringBuilder();
             foreach (Word word in page.GetWords())
-                textSb.Append(word.Text).Append(' ');
+                textSb.Append(IsRtlWord(word.Text) ? ReverseWord(word.Text) : word.Text).Append(' ');
             var textLayer = textSb.ToString().Trim();
             if (!string.IsNullOrEmpty(textLayer))
                 sb.AppendLine(textLayer);
@@ -77,6 +77,25 @@ public class PdfTextExtractor : ITextExtractor
         }
 
         return sb.ToString();
+    }
+
+    // Early-exit char scan — stops at first RTL char (typically char 0 for Hebrew words).
+    private static bool IsRtlWord(string text)
+    {
+        foreach (char c in text)
+            if ((c >= '֐' && c <= '׿') ||
+                (c >= 'יִ' && c <= 'ﭏ') ||
+                (c >= '؀' && c <= 'ۿ'))
+                return true;
+        return false;
+    }
+
+    // Array.Reverse is a native memmove — faster than LINQ .Reverse().
+    private static string ReverseWord(string s)
+    {
+        var chars = s.ToCharArray();
+        Array.Reverse(chars);
+        return new string(chars);
     }
 
     private async Task<string> RasterizeAndOcrAsync(string filePath, int pageIndex, CancellationToken ct)

@@ -125,6 +125,7 @@ public class FieldsModel : AdminPageModel
                                              patternValue.Trim(), priority,
                                              pattern.ScopeStart, pattern.ScopeEnd);
             FileListEngine.InvalidateCache(patternId);
+            ConstListEngine.InvalidateCache(patternId);
             _cache.Invalidate();
             TempData["Success"] = "Pattern updated.";
         }
@@ -302,6 +303,7 @@ public class FieldsModel : AdminPageModel
                 await _fields.CreatePatternAsync(fieldId, PatternType.FileList, serialized, 100);
 
             FileListEngine.InvalidateAll();
+            ConstListEngine.InvalidateAll();
             _cache.Invalidate();
 
             var action = (append && existing is not null) ? "Appended" : "Imported";
@@ -361,6 +363,7 @@ public class FieldsModel : AdminPageModel
         {
             await _fields.UpdatePatternAsync(patternId, PatternType.FileList, FileListEngine.Serialize(sorted), pattern.Priority);
             FileListEngine.InvalidateCache(patternId);
+            ConstListEngine.InvalidateCache(patternId);
             _cache.Invalidate();
         }
 

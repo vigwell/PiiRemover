@@ -297,6 +297,89 @@ public class TesterModel : AdminPageModel
         _fieldsCache.Invalidate();
         return new JsonResult(new { ok = true, position = req.Position });
     }
+
+    // ── Debug trace — sequential per-field/per-pattern timing ────────────────
+    public async Task<IActionResult> OnPostDebugAsync([FromBody] DebugTraceRequest req)
+    {
+        var text = req?.Text ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+            return BadRequest(new { error = "No text provided." });
+
+        var activeFields = await _fieldsCache.GetFieldsAsync(null);
+        var redactFields = activeFields.Where(f => f.IsActive && !f.IsPreserve).ToList();
+
+        var totalSw = Stopwatch.StartNew();
+        var fieldRows = new List<object>();
+
+        foreach (var field in redactFields)
+        {
+            var fieldSw = Stopwatch.StartNew();
+            var patternRows = new List<object>();
+            int fieldMatches = 0;
+
+            foreach (var pattern in field.Patterns.OrderByDescending(p => p.Priority))
+            {
+                var patSw = Stopwatch.StartNew();
+                int matchCount = 0;
+                string? err = null;
+                try
+                {
+                    // Build a temporary single-field orchestration to isolate timing
+                    var singleField = new PiiField
+                    {
+                        Id         = field.Id,
+                        FieldName  = field.FieldName,
+                        ReplaceWith= field.ReplaceWith,
+                        IsActive   = true,
+                        IsPreserve = false,
+                        Patterns   = new List<PiiPattern> { pattern }
+                    };
+                    var result = _orchestrator.Redact(text, new[] { singleField });
+                    matchCount = result.Matches.Count;
+                    fieldMatches += matchCount;
+                }
+                catch (Exception ex) { err = ex.Message; }
+                patSw.Stop();
+
+                patternRows.Add(new
+                {
+                    patternId   = pattern.Id,
+                    patternType = pattern.PatternType.ToString(),
+                    patternSnip = (pattern.Pattern?.Length > 60
+                                   ? pattern.Pattern[..57] + "…" : pattern.Pattern) ?? "(empty)",
+                    matchCount,
+                    durationMs  = patSw.ElapsedMilliseconds,
+                    error       = err
+                });
+            }
+
+            fieldSw.Stop();
+            fieldRows.Add(new
+            {
+                fieldId     = field.Id,
+                fieldName   = field.FieldName,
+                patternCount= field.Patterns.Count,
+                matchCount  = fieldMatches,
+                durationMs  = fieldSw.ElapsedMilliseconds,
+                patterns    = patternRows
+            });
+        }
+
+        totalSw.Stop();
+
+        return new JsonResult(new
+        {
+            timestamp      = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            dotnetVersion  = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            os             = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            cpuCount       = Environment.ProcessorCount,
+            textCharCount  = text.Length,
+            textWordCount  = text.Split(new[]{ ' ','\n','\r','\t' }, StringSplitOptions.RemoveEmptyEntries).Length,
+            totalFieldCount= redactFields.Count,
+            totalDurationMs= totalSw.ElapsedMilliseconds,
+            fields         = fieldRows
+        });
+    }
 }
 
 public record RedactTextRequest(string Text);
@@ -307,3 +390,4 @@ public record CreateFieldRequest(
     string FieldName, string ReplaceWith, string PatternType, string Pattern,
     bool IsPreserve = false);
 public record SetScopeEndRequest(int PatternId, int Position);
+public record DebugTraceRequest(string Text);

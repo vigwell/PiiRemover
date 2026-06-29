@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using PiiRemover.Core.Models;
 
 namespace PiiRemover.Core.Engines;
@@ -5,59 +6,39 @@ namespace PiiRemover.Core.Engines;
 /// <summary>
 /// Matches any of the pipe-separated terms from the pattern, case-insensitively.
 ///
-/// Matching is WHOLE-WORD: the term must be surrounded by non-letter/non-digit
-/// characters (spaces, punctuation, newlines, start/end of text).
-/// Unicode-aware — correctly handles Hebrew, Arabic, and other non-ASCII scripts.
+/// Uses the same TermIndex as FileListEngine — O(text) regardless of term count.
+/// The previous IndexOf-per-term approach was O(terms × text): 1 000 names on a
+/// 10-page document meant tens of millions of char comparisons per request.
 ///
-/// Examples:
-///   Term "Vigen"  matches "Vigen Shah"     → redacted
-///   Term "Vigen"  does NOT match "Vigens"  → skipped (extra letter follows)
-///   Term "כהן"    matches "כהן לוי"       → redacted
-///   Term "כהן"    does NOT match "כהנבך"  → skipped
+/// Cache is keyed by pattern Id — call InvalidateCache/InvalidateAll after saves.
 /// </summary>
 public class ConstListEngine : IPatternEngine
 {
+    private static readonly ConcurrentDictionary<int, TermIndex> IndexCache = new();
+
     public PatternType SupportedType => PatternType.ConstList;
 
     public IEnumerable<RedactMatch> FindMatches(string text, PiiPattern pattern, string replacement)
     {
-        var terms = pattern.Pattern.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        foreach (var term in terms)
-        {
-            if (term.Length == 0) continue;
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(pattern.Pattern))
+            yield break;
 
-            int idx = 0;
-            while ((idx = text.IndexOf(term, idx, StringComparison.OrdinalIgnoreCase)) >= 0)
+        var index = IndexCache.GetOrAdd(pattern.Id, _ => new TermIndex(
+            pattern.Pattern
+                .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(t => t.Length > 0)));
+
+        foreach (var m in index.FindMatches(text))
+            yield return new RedactMatch
             {
-                if (IsWordBoundary(text, idx, term.Length))
-                {
-                    yield return new RedactMatch
-                    {
-                        StartIndex  = idx,
-                        Length      = term.Length,
-                        FieldName   = string.Empty,
-                        Replacement = replacement,
-                        MatchedText = text.Substring(idx, term.Length)
-                    };
-                }
-                idx += term.Length;
-            }
-        }
+                StartIndex  = m.Start,
+                Length      = m.Length,
+                FieldName   = string.Empty,
+                Replacement = replacement,
+                MatchedText = m.Matched
+            };
     }
 
-    /// <summary>
-    /// Returns true when the substring at [index, index+length) is surrounded by
-    /// non-word characters (or start / end of string).
-    /// Uses char.IsLetterOrDigit which is Unicode-aware (works for Hebrew, Arabic, CJK, etc.)
-    /// </summary>
-    private static bool IsWordBoundary(string text, int index, int length)
-    {
-        bool startOk = index == 0
-            || !char.IsLetterOrDigit(text, index - 1);
-
-        bool endOk = (index + length) >= text.Length
-            || !char.IsLetterOrDigit(text, index + length);
-
-        return startOk && endOk;
-    }
+    public static void InvalidateCache(int patternId) => IndexCache.TryRemove(patternId, out _);
+    public static void InvalidateAll()               => IndexCache.Clear();
 }
