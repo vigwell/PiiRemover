@@ -42,9 +42,11 @@ public class PdfTextExtractor : ITextExtractor
             ct.ThrowIfCancellationRequested();
             sb.AppendLine($"[Page {page.Number}]");
 
-            // 1. Text layer — RTL-aware: Hebrew/Arabic words are character-reversed and
-            //    word order within RTL lines is corrected (visual LTR → logical RTL).
-            var textLayer = BuildRtlAwarePage(page.GetWords().ToList());
+            // 1. Text layer
+            var textSb = new StringBuilder();
+            foreach (Word word in page.GetWords())
+                textSb.Append(word.Text).Append(' ');
+            var textLayer = textSb.ToString().Trim();
             if (!string.IsNullOrEmpty(textLayer))
                 sb.AppendLine(textLayer);
 
@@ -76,45 +78,6 @@ public class PdfTextExtractor : ITextExtractor
 
         return sb.ToString();
     }
-
-    // ── RTL normalisation ─────────────────────────────────────────────────────
-
-    private static string BuildRtlAwarePage(List<Word> words)
-    {
-        if (words.Count == 0) return string.Empty;
-
-        const double lineTolerance = 3.0;
-        var lines = words
-            .GroupBy(w => Math.Round(w.BoundingBox.Bottom / lineTolerance) * lineTolerance)
-            .OrderByDescending(g => g.Key); // page top → bottom
-
-        var sb = new StringBuilder();
-        foreach (var line in lines)
-        {
-            var lineWords = line.ToList();
-            bool rtlLine = lineWords.Any(w => ContainsRtl(w.Text));
-
-            var ordered = rtlLine
-                ? lineWords.OrderByDescending(w => w.BoundingBox.Left)  // RTL: rightmost word first
-                : lineWords.OrderBy(w => w.BoundingBox.Left);            // LTR: leftmost word first
-
-            foreach (var word in ordered)
-                sb.Append(rtlLine ? FixRtlWord(word.Text) : word.Text).Append(' ');
-
-            sb.AppendLine();
-        }
-        return sb.ToString().TrimEnd();
-    }
-
-    private static bool ContainsRtl(string text) =>
-        text.Any(c => c is (>= '֐' and <= '׿')    // Hebrew block
-                           or (>= 'יִ' and <= 'ﭏ') // Hebrew presentation forms
-                           or (>= '؀' and <= 'ۿ')); // Arabic
-
-    private static string FixRtlWord(string word) =>
-        ContainsRtl(word) ? new string(word.Reverse().ToArray()) : word;
-
-    // ─────────────────────────────────────────────────────────────────────────
 
     private async Task<string> RasterizeAndOcrAsync(string filePath, int pageIndex, CancellationToken ct)
     {
