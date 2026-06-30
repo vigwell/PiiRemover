@@ -111,6 +111,110 @@ if (!Exists("SELECT COUNT(*) FROM PiiFields WHERE FieldName LIKE '%רשיון%' 
 }
 else Console.WriteLine("   Already exists, skipping");
 
+// ── 8a. Add שם המבוטח AfterLabel variants to Patient Name field ──────────
+Console.WriteLine("8a. Add שם המבוטח label variants...");
+var patNameFid = Convert.ToInt32(Scalar("SELECT Id FROM PiiFields WHERE FieldName LIKE '%Patient Name%' OR FieldName LIKE '%שם מטופל%' LIMIT 1"));
+var patNameLabels = new[] { "שם המבוטח:", "שם המבוטח :", "שם הפונה:", "שם הפונה :", "שם החולה:", "שם החולה :" };
+int pnAdded = 0;
+foreach (var lbl in patNameLabels)
+{
+    if (!Exists($"SELECT COUNT(*) FROM PiiPatterns WHERE FieldId={patNameFid} AND Pattern='{lbl}'"))
+    {
+        Exec("INSERT INTO PiiPatterns (FieldId, PatternType, Pattern, Priority, ScopeEndPosition) VALUES (@fid,'AfterLabel',@pat,100,0)",
+            new() { ["@fid"] = patNameFid, ["@pat"] = lbl });
+        pnAdded++;
+    }
+}
+Console.WriteLine($"   Added {pnAdded} label variants to field {patNameFid}");
+
+// ── 8b. Add רישיון: label variant to License field ────────────────────────
+Console.WriteLine("8b. Add רישיון: label to License field...");
+var licFid = Convert.ToInt32(Scalar("SELECT Id FROM PiiFields WHERE FieldName LIKE '%רשיון%' OR FieldName LIKE '%רישיון%' LIMIT 1"));
+var licLabels = new[] { "רישיון:|1", "רישיון :|1", "רופא/מטפל:|2" };
+int licAdded = 0;
+foreach (var lbl in licLabels)
+{
+    if (!Exists($"SELECT COUNT(*) FROM PiiPatterns WHERE FieldId={licFid} AND Pattern='{lbl}'"))
+    {
+        Exec("INSERT INTO PiiPatterns (FieldId, PatternType, Pattern, Priority, ScopeEndPosition) VALUES (@fid,'AfterLabel',@pat,100,0)",
+            new() { ["@fid"] = licFid, ["@pat"] = lbl });
+        licAdded++;
+    }
+}
+Console.WriteLine($"   Added {licAdded} patterns to field {licFid}");
+
+// ── 8c. Add insurance member number pattern (10-digit) ────────────────────
+Console.WriteLine("8c. Add 10-digit insurance member number pattern...");
+var idFid = Convert.ToInt32(Scalar("SELECT Id FROM PiiFields WHERE FieldName LIKE '%Israeli ID%' OR FieldName LIKE '%ת.ז%' LIMIT 1"));
+if (!Exists($@"SELECT COUNT(*) FROM PiiPatterns WHERE FieldId={idFid} AND Pattern='\b\d{{10}}\b'"))
+{
+    Exec("INSERT INTO PiiPatterns (FieldId, PatternType, Pattern, Priority, ScopeEndPosition) VALUES (@fid,'Regex',@pat,90,0)",
+        new() { ["@fid"] = idFid, ["@pat"] = @"\b\d{10}\b" });
+    Console.WriteLine("   Added 10-digit regex to Israeli ID field");
+}
+else Console.WriteLine("   Already exists");
+
+// ── 8d. Postal code (מיקוד) ───────────────────────────────────────────────
+Console.WriteLine("8d. Add postal code patterns...");
+var idFid2 = Convert.ToInt32(Scalar("SELECT Id FROM PiiFields WHERE FieldName LIKE '%Israeli ID%' OR FieldName LIKE '%ת.ז%' LIMIT 1"));
+
+// Remove whole-line variant (too greedy), use regex only
+Exec("DELETE FROM PiiPatterns WHERE FieldId=@fid AND Pattern='מיקוד:'", new() { ["@fid"] = idFid2 });
+Exec("DELETE FROM PiiPatterns WHERE FieldId=@fid AND Pattern='מיקוד:|1'", new() { ["@fid"] = idFid2 });
+
+// Israeli postal code regex: exactly 5 or 7 digits (not part of longer number)
+if (!Exists($@"SELECT COUNT(*) FROM PiiPatterns WHERE FieldId={idFid2} AND Pattern='\b\d{{5}}(?:\d{{2}})?\b'"))
+{
+    Exec("INSERT INTO PiiPatterns (FieldId, PatternType, Pattern, Priority, ScopeEndPosition) VALUES (@fid,'Regex',@pat,90,0)",
+        new() { ["@fid"] = idFid2, ["@pat"] = @"\b\d{5}(?:\d{2})?\b" });
+    Console.WriteLine("   Added 5/7-digit postal code regex");
+}
+else Console.WriteLine("   Postal code regex already exists");
+
+// ── 8e. Address field ─────────────────────────────────────────────────────
+Console.WriteLine("8e. Ensure Address field exists with all label variants...");
+long addrFieldId;
+if (!Exists("SELECT COUNT(*) FROM PiiFields WHERE FieldName LIKE '%כתובת%'"))
+{
+    Exec("INSERT INTO PiiFields (ClientId, FieldName, ReplaceWith, IsActive, IsPreserve, Priority) VALUES (NULL, 'כתובת (Address)', '█', 1, 0, 480)");
+    addrFieldId = Convert.ToInt64(Scalar("SELECT last_insert_rowid()"));
+    Console.WriteLine($"   Created address field {addrFieldId}");
+}
+else
+{
+    addrFieldId = Convert.ToInt64(Scalar("SELECT Id FROM PiiFields WHERE FieldName LIKE '%כתובת%' LIMIT 1"));
+    Console.WriteLine($"   Using existing address field {addrFieldId}");
+}
+// Remove any כתובת patterns accidentally added to wrong fields
+Exec("DELETE FROM PiiPatterns WHERE Pattern LIKE 'כתובת%' AND FieldId NOT IN (SELECT Id FROM PiiFields WHERE FieldName LIKE '%כתובת%')");
+// Remove old whole-line address patterns (no |N), replace with |6
+Exec("DELETE FROM PiiPatterns WHERE Pattern IN ('כתובת:','כתובת :','כתובת המבוטח:','כתובת המטופל:','כתובת הרופא:')");
+// Ensure all label variants exist (whole line - no |N)
+var addrLabels = new[] { "כתובת:|6", "כתובת :|6", "כתובת המבוטח:|6", "כתובת המטופל:|6", "כתובת הרופא:|6" };
+int addrAdded = 0;
+foreach (var lbl in addrLabels)
+{
+    if (!Exists($"SELECT COUNT(*) FROM PiiPatterns WHERE FieldId={addrFieldId} AND Pattern='{lbl}'"))
+    {
+        Exec("INSERT INTO PiiPatterns (FieldId, PatternType, Pattern, Priority, ScopeEndPosition) VALUES (@fid,'AfterLabel',@pat,100,0)",
+            new() { ["@fid"] = addrFieldId, ["@pat"] = lbl });
+        addrAdded++;
+    }
+}
+Console.WriteLine($"   Added {addrAdded} label variants");
+
+// ── 8f. Barcode data <XXXXX> ──────────────────────────────────────────────
+Console.WriteLine("8f. Add barcode regex...");
+if (!Exists("SELECT COUNT(*) FROM PiiFields WHERE FieldName LIKE '%Barcode%'"))
+{
+    Exec("INSERT INTO PiiFields (ClientId, FieldName, ReplaceWith, IsActive, IsPreserve, Priority) VALUES (NULL, 'Barcode Data', '█', 1, 0, 470)");
+    var bcFid = Convert.ToInt32(Scalar("SELECT last_insert_rowid()"));
+    Exec("INSERT INTO PiiPatterns (FieldId, PatternType, Pattern, Priority, ScopeEndPosition) VALUES (@fid,'Regex',@pat,100,0)",
+        new() { ["@fid"] = bcFid, ["@pat"] = @"<[A-Z]{10,}>" });
+    Console.WriteLine($"   Created Barcode field {bcFid}");
+}
+else Console.WriteLine("   Already exists, skipping");
+
 // ── 8. Enable + load Names List ───────────────────────────────────────────
 Console.WriteLine("8. Load Hebrew names list...");
 var names = File.ReadAllLines(namesPath, System.Text.Encoding.UTF8)
