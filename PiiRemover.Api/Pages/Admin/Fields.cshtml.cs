@@ -115,19 +115,32 @@ public class FieldsModel : AdminPageModel
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostUpdatePatternAsync(int patternId, string patternValue, int priority)
+    public async Task<IActionResult> OnPostUpdatePatternAsync(int patternId, string? patternValue, int priority)
     {
-        var all     = await _fields.GetAllFieldsAsync();
-        var pattern = all.SelectMany(f => f.Patterns).FirstOrDefault(p => p.Id == patternId);
-        if (pattern is not null)
+        if (string.IsNullOrWhiteSpace(patternValue))
         {
-            await _fields.UpdatePatternAsync(patternId, pattern.PatternType,
-                                             patternValue.Trim(), priority,
-                                             pattern.ScopeStart, pattern.ScopeEnd);
-            FileListEngine.InvalidateCache(patternId);
-            ConstListEngine.InvalidateCache(patternId);
-            _cache.Invalidate();
-            TempData["Success"] = "Pattern updated.";
+            TempData["Error"] = "Pattern value cannot be empty.";
+            return RedirectToPage();
+        }
+        try
+        {
+            var all     = await _fields.GetAllFieldsAsync();
+            var pattern = all.SelectMany(f => f.Patterns).FirstOrDefault(p => p.Id == patternId);
+            if (pattern is not null)
+            {
+                await _fields.UpdatePatternAsync(patternId, pattern.PatternType,
+                                                 patternValue.Trim(), priority,
+                                                 pattern.ScopeStart, pattern.ScopeEnd,
+                                                 pattern.ScopeEndPosition);
+                FileListEngine.InvalidateCache(patternId);
+                ConstListEngine.InvalidateCache(patternId);
+                _cache.Invalidate();
+                TempData["Success"] = "Pattern updated.";
+            }
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = $"Failed to update pattern: {ex.Message}";
         }
         return RedirectToPage();
     }
