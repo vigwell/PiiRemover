@@ -22,10 +22,11 @@ public enum PatternType
 
     // ── Context-aware ─────────────────────────────────────────────────────
     AfterLabel,     // Redacts the VALUE following a known label.
-                    //   "Patient Name:"       redacts rest of line
-                    //   "Patient Name:|2"     redacts next 2 words
-                    //   "Date of Birth:|1"    redacts next 1 word
-                    //   The label itself is preserved; only the value is redacted.
+                    //   "טלפון"               redacts everything after "טלפון" to end of line
+                    //   "טלפון|1"             redacts ONE word after label  (e.g. "15782" in "טלפון 15782 רישיון")
+                    //   "Patient Name:|2"     redacts next 2 words after label
+                    //   "Date of Birth:|1"    redacts next 1 word after label
+                    //   The label itself is preserved; only the value(s) after it are redacted.
 
     BetweenMarkers, // Redacts text between two delimiters on the same line.
                     //   "ID: | DOB"  →  redacts everything between "ID: " and " DOB"

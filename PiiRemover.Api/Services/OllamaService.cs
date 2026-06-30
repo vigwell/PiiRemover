@@ -196,7 +196,7 @@ Results (EXACT FORMAT — number, category, colon, then values):
             Model      = model,
             Prompt     = prompt,
             Stream     = false,
-            NumPredict = Math.Max(60, 40 * descriptions.Count)
+            NumPredict = Math.Max(120, 60 * descriptions.Count)
         };
 
         var result = new List<List<string>>(descriptions.Count);
@@ -389,21 +389,22 @@ Results (EXACT FORMAT — number, category, colon, then values):
     }
 
     public static string BuildPrompt(string text, string description) => $"""
-You are a data extraction tool. Extract exact text values from the document.
+You are a data extraction tool. The document may be in Hebrew, English, or both.
 
-STRICT RULES — follow exactly:
-- Output ONLY the raw values copied from the document, one per line
+STRICT RULES:
+- Output ONLY the raw values copied exactly from the document, one per line
 - Do NOT write sentences, explanations, labels, or commentary
-- Do NOT rephrase or translate — copy the exact text as it appears
+- Do NOT rephrase, translate, or reorder — copy the exact characters as they appear
 - If not found: write exactly NONE
 
 What to extract: {description}
 
 Examples of correct output:
-  Query: 'patient full name'  →  ליליינטל, אורה
-  Query: 'phone number'       →  053-5619240
+  Query: 'patient full name'  →  משה יבגי
+  Query: 'שם מטופל'           →  משה יבגי
+  Query: 'phone number'       →  052-6488580
   Query: 'date of birth'      →  20/08/1955
-  Query: 'doctor name'        →  Dr. Sarah Levy
+  Query: 'doctor name'        →  משה אזרזר
 
 ---
 {text}

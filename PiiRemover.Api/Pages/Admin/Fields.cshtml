@@ -635,6 +635,19 @@
                 </select>
                 <input name="pattern" id="patternInput-@f.Id" placeholder="Pattern or keywords" required style="width:320px"
                        oninput="" />
+                <div id="al-hint-@f.Id" style="display:none;width:100%;margin-top:8px;padding:10px 14px;
+                     background:rgba(250,173,20,.07);border:1px solid rgba(250,173,20,.35);border-radius:6px;font-size:12px;color:var(--text2)">
+                  <strong style="color:#faad14">🏷 After Label — format: <code style="font-size:12px">Label Text|N</code></strong><br/>
+                  <div style="margin-top:6px;display:grid;grid-template-columns:auto 1fr;gap:2px 14px">
+                    <code style="color:var(--text)">טלפון</code>       <span>Redacts everything after "טלפון" to end of line</span>
+                    <code style="color:var(--text)">טלפון|1</code>     <span>Redacts <strong>one word</strong> after "טלפון" — e.g. <em>15782</em> in "טלפון 15782 רישיון"</span>
+                    <code style="color:var(--text)">טלפון|2</code>     <span>Redacts the next <strong>2 words</strong></span>
+                    <code style="color:var(--text)">Patient Name:|1</code> <span>Works for English labels too</span>
+                  </div>
+                  <div style="margin-top:6px;color:var(--text3)">
+                    ℹ️ The label itself is <strong>never</strong> redacted — only the value(s) that follow it.
+                  </div>
+                </div>
                 <div id="ai-hint-@f.Id" style="display:none;width:100%;margin-top:8px;padding:10px 14px;
                      background:rgba(22,119,255,.05);border:1px solid rgba(22,119,255,.2);border-radius:6px;font-size:12px;color:var(--text2)">
                   <strong style="color:#1677ff">🤖 AI Extraction — describe what to redact in plain English</strong><br/>
@@ -691,11 +704,15 @@ document.querySelectorAll('select[name=patternType]').forEach(function(sel) {
   sel.addEventListener('change', function() {
     const form = sel.closest('form');
     if (!form) return;
-    // find the ai-hint div inside this form by looking for a div starting with 'ai-hint-'
-    const hint = form.querySelector('[id^="ai-hint-"]');
-    if (hint) hint.style.display = sel.value === 'LlmPrompt' ? 'block' : 'none';
+    const aiHint = form.querySelector('[id^="ai-hint-"]');
+    const alHint = form.querySelector('[id^="al-hint-"]');
+    if (aiHint) aiHint.style.display = sel.value === 'LlmPrompt'  ? 'block' : 'none';
+    if (alHint) alHint.style.display = sel.value === 'AfterLabel' ? 'block' : 'none';
     const inp = form.querySelector('[id^="patternInput-"]');
-    if (inp) inp.placeholder = sel.value === 'LlmPrompt' ? 'e.g. patient full name' : 'Pattern or keywords';
+    if (!inp) return;
+    if (sel.value === 'LlmPrompt')   inp.placeholder = 'e.g. patient full name';
+    else if (sel.value === 'AfterLabel') inp.placeholder = 'e.g. טלפון|1  or  Patient Name:|2';
+    else inp.placeholder = 'Pattern or keywords';
   });
 });
 
